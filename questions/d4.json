@@ -1,0 +1,900 @@
+[
+  {
+    "id": "D4-001",
+    "domain": 4,
+    "task": "4.1",
+    "type": "multi",
+    "question": "ある企業は AWS Organizations で 60 個の AWS アカウントを管理しています。従業員の ID は Microsoft Entra ID で管理しており、従業員は Entra ID の資格情報と MFA で AWS マネジメントコンソールと AWS CLI にサインインする必要があります。入社や退職に伴うユーザーとグループの変更は、AWS 側で手作業をせずに反映させる必要があります。セキュリティエンジニアは IAM Identity Center を有効化しました。最小の運用負荷でこれらの要件を満たすために、次に行うべき手順はどれですか。（2 つ選択）",
+    "options": [
+      "IAM Identity Center の ID ソースを外部 ID プロバイダーに変更し、Entra ID と SAML 2.0 のメタデータを交換する。",
+      "IAM Identity Center で SCIM の自動プロビジョニングを有効化し、発行したエンドポイントとアクセストークンを Entra ID 側に設定する。",
+      "各メンバーアカウントに IAM の SAML ID プロバイダーと IAM ロールを作成し、Entra ID のエンタープライズアプリケーションから各ロールにフェデレーションする。",
+      "AD Connector を作成して Entra ID に接続し、IAM Identity Center の ID ソースを Active Directory に変更する。",
+      "Amazon Cognito ユーザープールに Entra ID を SAML ID プロバイダーとして登録し、ユーザープールのグループを各アカウントの IAM ロールに対応付ける。"
+    ],
+    "answer": [
+      0,
+      1
+    ],
+    "explanation": "決め手は「Entra ID の資格情報でサインイン」と「ユーザーとグループの変更を手作業なしで反映」の 2 点です。IAM Identity Center の ID ソースを外部 ID プロバイダーにすると、認証は SAML 2.0 で Entra ID にリダイレクトされ、MFA も Entra ID 側で処理されます。ただし外部 IdP を使う場合でも、アカウントへの割り当ての前にユーザーとグループを IAM Identity Center にプロビジョニングしておく必要があります。SCIM v2.0 の自動プロビジョニングを有効にすると、IdP 側の変更が IAM Identity Center に同期されるため、手作業での追加や削除が不要になります。アカウントごとの IAM SAML フェデレーションは 60 アカウント分の設定が必要で、運用負荷が大きくなります。",
+    "optionNotes": [
+      "正解です。外部 IdP を ID ソースにすると、コンソールと CLI の認証が Entra ID に委ねられます。",
+      "正解です。SCIM によりユーザーとグループの作成、変更、削除が自動で同期されます。",
+      "動作はしますが、60 アカウントそれぞれに IdP とロールを作る必要があり、IAM Identity Center を使う場合より運用負荷が大きくなります。",
+      "AD Connector はオンプレミスなどの Active Directory に接続するゲートウェイで、クラウドの Entra ID を ID ソースにする手段ではありません。",
+      "Cognito ユーザープールはアプリケーションの利用者向けの認証基盤で、従業員の複数アカウントへのアクセス管理には向きません。"
+    ],
+    "services": [
+      "AWS IAM Identity Center",
+      "AWS Organizations"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Provision users and groups from an external identity provider using SCIM",
+        "url": "https://docs.aws.amazon.com/singlesignon/latest/userguide/provision-automatically.html"
+      },
+      {
+        "title": "External identity providers",
+        "url": "https://docs.aws.amazon.com/singlesignon/latest/userguide/manage-your-identity-source-idp.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-002",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業は、一般消費者向けのモバイルアプリケーションのサインインに Amazon Cognito ユーザープールを使っています。最近、漏えいした資格情報を使ったと思われる不審なサインインが増えています。セキュリティチームは、すべてのユーザーに毎回 MFA を求めることは避けたいと考えています。サインインのたびにリスクを評価し、リスクが高いと判断されたサインインにだけ MFA を求め、最もリスクが高いものはブロックする必要があります。最小の開発工数でこの要件を満たすソリューションはどれですか。",
+    "options": [
+      "ユーザープールの MFA を「必須」に設定し、TOTP ソフトウェアトークンだけを許可する。",
+      "ユーザープールの機能プランを Plus に変更し、脅威保護の適用モードを「完全機能」にして、リスクレベルごとに MFA の要求とブロックを設定する。",
+      "Pre authentication の Lambda トリガーで送信元 IP アドレスを AWS WAF の IP セットと照合し、一致した場合に例外を返す。",
+      "ユーザープールのアプリクライアントの前に AWS WAF のウェブ ACL を関連付け、AWSManagedRulesATPRuleSet でサインイン試行を検査する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "要件の「サインインのたびにリスクを評価」「高リスクにだけ MFA」「最高リスクはブロック」は、Cognito の脅威保護に含まれるアダプティブ認証そのものです。アダプティブ認証は Plus 機能プランに含まれ、適用モードを監査のみから完全機能に切り替えると、各セッションに High、Medium、Low、No Risk のリスクレベルを付け、レベルごとに Allow、Optional MFA、Require MFA、Block を選べます。独自のコードを書く必要がないため開発工数も最小です。MFA を常に必須にする案は、毎回 MFA を求めたくないという要件に反します。",
+    "optionNotes": [
+      "全ユーザーに毎回 MFA を求めることになり、要件に反します。",
+      "正解です。Plus プランのアダプティブ認証で、リスクレベルに応じて MFA の要求やブロックを自動で行えます。",
+      "固定の IP リストとの照合ではサインインごとのリスク評価にならず、Lambda の実装と IP リストの保守も必要です。",
+      "AWS WAF の不正アカウント乗っ取り防止は入口での防御には役立ちますが、リスクに応じて Cognito の MFA を要求する仕組みではありません。"
+    ],
+    "services": [
+      "Amazon Cognito"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Plus plan features",
+        "url": "https://docs.aws.amazon.com/cognito/latest/developerguide/feature-plans-features-plus.html"
+      },
+      {
+        "title": "Working with adaptive authentication",
+        "url": "https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pool-settings-adaptive-authentication.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-003",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業はモバイルアプリケーションを開発しています。ユーザーは Amazon Cognito ユーザープールでサインインし、Amazon Cognito ID プールから一時的な AWS 認証情報を受け取って、写真を Amazon S3 バケット photo-bucket に直接アップロードします。各ユーザーは自分専用のプレフィックス配下のオブジェクトだけを読み書きでき、ほかのユーザーのオブジェクトにはアクセスできない必要があります。ユーザー数は数十万人まで増える見込みです。最小権限を満たし、運用負荷が最も小さい方法はどれですか。",
+    "options": [
+      "ユーザーごとに IAM ロールを作成し、ID プールのルールベースのマッピングでユーザー名に対応するロールを割り当てる。",
+      "ID プールの認証済みロールのポリシーで、Resource に arn:aws:s3:::photo-bucket/${cognito-idp.amazonaws.com:sub}/* を指定する。",
+      "ID プールの認証済みロールのポリシーで、Resource に arn:aws:s3:::photo-bucket/${cognito-identity.amazonaws.com:sub}/* を指定し、s3:ListBucket には同じ値の s3:prefix 条件を付ける。",
+      "認証済みロールには photo-bucket 全体への読み書きを許可し、アプリケーション側でユーザーのプレフィックス以外にはアクセスしないよう実装する。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "ID プールが発行する認証情報で使えるポリシー変数 ${cognito-identity.amazonaws.com:sub} には、ID プールの ID(identity ID)が入ります。認証済みロールを 1 つだけ用意し、Resource にこの変数を含むプレフィックスを指定すれば、ユーザーごとにロールを作らずに、各ユーザーを自分のプレフィックスだけに閉じ込められます。一覧取得の s3:ListBucket はバケットに対する操作なので、s3:prefix 条件で同じプレフィックスに絞ります。IAM のドキュメントでも、オブジェクトキーに使う sub はユーザープールの sub ではなく ID プールの identity ID であると注意書きがあります。",
+    "optionNotes": [
+      "数十万のロールが必要になり、IAM のクォータと運用負荷の両面で現実的ではありません。",
+      "${cognito-identity.amazonaws.com:sub} とは別物で、ID プールのロールのポリシーでユーザーごとのプレフィックスを表す変数としては使えません。",
+      "正解です。1 つのロールとポリシー変数で、ユーザーごとのプレフィックスに権限を絞れます。",
+      "認証情報自体がバケット全体にアクセスできるため、アプリケーションを経由しない直接の API 呼び出しを防げず、最小権限になりません。"
+    ],
+    "services": [
+      "Amazon Cognito",
+      "Amazon S3",
+      "AWS IAM"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "IAM roles (Amazon Cognito identity pools)",
+        "url": "https://docs.aws.amazon.com/cognito/latest/developerguide/iam-roles.html"
+      },
+      {
+        "title": "Amazon S3: Allows Amazon Cognito users to access objects in their bucket",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_s3_cognito-bucket.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-004",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業では、一部の運用担当者がまだ IAM ユーザーを使っています。セキュリティエンジニアは、MFA を使わない操作を禁止するため、次のステートメントを含むポリシーを運用担当者の IAM グループに追加しました。\n\n```json\n{\n  \"Sid\": \"DenyAllExceptListedIfNoMFA\",\n  \"Effect\": \"Deny\",\n  \"NotAction\": [\n    \"iam:CreateVirtualMFADevice\",\n    \"iam:EnableMFADevice\",\n    \"iam:GetUser\",\n    \"iam:ListMFADevices\",\n    \"iam:ResyncMFADevice\",\n    \"sts:GetSessionToken\"\n  ],\n  \"Resource\": \"*\",\n  \"Condition\": {\n    \"BoolIfExists\": { \"aws:MultiFactorAuthPresent\": \"false\" }\n  }\n}\n```\n\n追加後、MFA でコンソールにサインインした操作は成功していますが、アクセスキーを設定した AWS CLI からの aws ec2 describe-instances はすべて AccessDenied になりました。MFA の強制を維持したまま、運用担当者が CLI を使えるようにする方法はどれですか。",
+    "options": [
+      "Condition の演算子を BoolIfExists から Bool に変更する。",
+      "運用担当者の IAM ユーザーに AmazonEC2ReadOnlyAccess 管理ポリシーを直接アタッチする。",
+      "CLI の設定ファイルに mfa_serial を追加すれば、アクセスキーによるすべての呼び出しで MFA コードの入力が求められる。",
+      "aws sts get-session-token に --serial-number と --token-code を指定して一時的な認証情報を取得し、その認証情報で CLI を実行する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "長期のアクセスキーで署名したリクエストには aws:MultiFactorAuthPresent キーが含まれません。BoolIfExists はキーが存在しない場合に条件を真と評価するため、アクセスキーによる呼び出しはすべて Deny に一致します。MFA を満たした CLI 操作にするには、NotAction で除外されている sts:GetSessionToken を MFA デバイスのシリアル番号とコードを付けて呼び出し、返された一時的な認証情報を使います。この認証情報には MFA で認証した事実が含まれるため、Deny に一致しません。IAM のポリシー例にも、プログラムからのアクセスでは GetSessionToken で MFA 認証する必要があると書かれています。",
+    "optionNotes": [
+      "Bool にするとキーが無いリクエストは条件に一致しなくなり、アクセスキーだけの呼び出しが MFA なしで通ってしまいます。",
+      "明示的な Deny は Allow より優先されるため、ポリシーを追加しても拒否は解消しません。",
+      "mfa_serial はロールを引き受けるプロファイルなどで使う設定で、アクセスキーによる直接の呼び出しに MFA を付ける仕組みではありません。",
+      "正解です。MFA 付きの GetSessionToken で得た一時的な認証情報なら、MFA の強制を保ったまま CLI を使えます。"
+    ],
+    "services": [
+      "AWS IAM",
+      "AWS STS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "AWS: Allows MFA-authenticated IAM users to manage their own credentials on the Security credentials page",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_aws_my-sec-creds-self-manage.html"
+      },
+      {
+        "title": "How do I enforce MFA authentication for IAM users that use the AWS Management Console and the AWS CLI?",
+        "url": "https://repost.aws/knowledge-center/mfa-iam-user-aws-cli"
+      }
+    ]
+  },
+  {
+    "id": "D4-005",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業は、取引先にレポートファイルを渡すため、AWS Lambda 関数で Amazon S3 の署名付き URL を生成してメールで送っています。URL の有効期限には 7 日(604800 秒)を指定していますが、取引先から「数時間で Request has expired になる」という問い合わせが続いています。Lambda 関数は実行ロールの認証情報で URL に署名しています。取引先が 7 日間ダウンロードできるようにする必要があります。この要件を満たす方法はどれですか。",
+    "options": [
+      "s3:GetObject だけを許可した専用の IAM ユーザーのアクセスキーを AWS Secrets Manager に保存して定期的にローテーションし、Lambda 関数はそのキーで Signature Version 4 の署名付き URL を生成する。",
+      "Lambda 関数の実行ロールの最大セッション時間を 7 日に変更する。",
+      "Lambda 関数で sts:AssumeRole を呼び出し、DurationSeconds に 604800 を指定して得た認証情報で署名する。",
+      "Amazon S3 コンソールから対象オブジェクトの署名付き URL を作成し、有効期限に 7 日を指定する。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "署名付き URL は、署名に使った認証情報より長くは有効になりません。IAM ロールの一時的な認証情報で作った URL は、より長い有効期限を指定してもロールセッションが切れた時点で失効します。Lambda の実行ロールの認証情報は数時間で更新されるため、指定した 7 日より前に Request has expired になります。Signature Version 4 で 7 日間有効な URL を作れるのは IAM ユーザーの認証情報で署名した場合です。そのため、権限を s3:GetObject に絞った専用ユーザーのキーを Secrets Manager で保管し、ローテーションしながら署名に使います。古いキーを無効化や削除すると、そのキーで署名した URL も期限前に失効するため、最後に署名してから 7 日が過ぎてから無効化します。",
+    "optionNotes": [
+      "正解です。IAM ユーザーの認証情報で SigV4 署名すれば最大 7 日間有効で、権限の絞り込みとローテーションでリスクも抑えられます。",
+      "ロールの最大セッション時間に設定できるのは 1 時間から 12 時間までで、7 日にはできません。",
+      "DurationSeconds の上限は最大 12 時間(43200 秒)で、604800 を指定すると呼び出しは失敗します。",
+      "S3 コンソールで作る署名付き URL の有効期限は 1 分から 12 時間までで、7 日は指定できません。"
+    ],
+    "services": [
+      "Amazon S3",
+      "AWS Lambda",
+      "AWS Secrets Manager",
+      "AWS STS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Download and upload objects with presigned URLs",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html"
+      },
+      {
+        "title": "How do I troubleshoot the error \"Request has expired\" when I try to access an S3 object?",
+        "url": "https://repost.aws/knowledge-center/request-has-expired-s3-object"
+      }
+    ]
+  },
+  {
+    "id": "D4-006",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業は、コスト分析の SaaS を提供するベンダーに自社の AWS アカウントを読み取らせる予定です。ベンダーは自社の AWS アカウントから、多数の顧客のアカウントにある IAM ロールを引き受けて分析を行います。セキュリティエンジニアは、別の顧客がこの企業のロール ARN を推測または入手してベンダーに登録した場合でも、ベンダー経由でこの企業のアカウントにアクセスされないようにする必要があります。この要件を満たす方法はどれですか。",
+    "options": [
+      "ロールの信頼ポリシーで Principal にベンダーのアカウントを指定し、aws:PrincipalOrgID 条件でこの企業の組織 ID を要求する。",
+      "ロールの信頼ポリシーで Principal にベンダーのアカウントを指定し、ベンダーがこの企業向けに発行した一意の値を sts:ExternalId 条件で要求する。",
+      "この企業のアカウントに読み取り専用の IAM ユーザーを作成し、アクセスキーをベンダーに渡す。",
+      "ロールの信頼ポリシーで Principal にベンダーのアカウントを指定し、aws:SourceIp 条件でベンダーの送信元 IP アドレス範囲を要求する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "この状況は、ベンダーが別の顧客の指示で誤ってこの企業のロールを引き受けてしまう「混乱した代理」の問題です。対策は外部 ID です。ベンダーは顧客ごとに一意の外部 ID を割り当て、AssumeRole の呼び出しに必ず付けます。この企業は信頼ポリシーで sts:ExternalId 条件にその値を要求します。別の顧客がこのロール ARN を登録しても、ベンダーはその顧客用の外部 ID を付けて呼び出すため、条件に一致せず引き受けは失敗します。IP アドレスの制限では、同じベンダーの基盤から来る別の顧客の要求を区別できません。",
+    "optionNotes": [
+      "ロールを引き受けるのはベンダーのアカウントのプリンシパルなので、この企業の組織 ID を要求すると正当な引き受けも失敗します。",
+      "正解です。顧客ごとに一意の外部 ID を要求することで、混乱した代理の問題を防げます。",
+      "長期の認証情報を外部に渡すことになり、漏えいとローテーションのリスクが増えます。",
+      "ベンダーはすべての顧客の処理を同じ基盤から行うため、送信元 IP では顧客を区別できません。"
+    ],
+    "services": [
+      "AWS IAM",
+      "AWS STS"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Access to AWS accounts owned by third parties",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_common-scenarios_third-party.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-007",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業は、ID ソースを IAM Identity Center ディレクトリにして、全ユーザーに TOTP による MFA を要求しています。あるユーザーから「パスワードは通るが、その後のサインインに失敗する」と報告がありました。セキュリティエンジニアは AWS CloudTrail のイベントからこのユーザーのサインインの流れを確認し、どの段階で失敗しているかを特定したいと考えています。最も適切な調査方法はどれですか。",
+    "options": [
+      "イベント名 ConsoleLogin を検索し、responseElements の ConsoleLogin が Failure になっている理由を確認する。",
+      "イベント名 AssumeRoleWithSAML を検索し、errorCode を確認する。",
+      "イベントソース signin.amazonaws.com で CredentialChallenge と CredentialVerification を検索し、AuthWorkflowID で同じサインインの一連のイベントをまとめて、CredentialType が TOTP の検証結果を確認する。",
+      "イベント名 UserAuthentication を検索し、失敗したイベントに記録された CredentialType を確認する。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "IAM Identity Center のサインインでは、ユーザーに資格情報の入力を求めるたびに CredentialChallenge が、ユーザーが応答するたびに成功か失敗かを含む CredentialVerification が記録されます。1 回のサインインで複数のイベントが出るため、AuthWorkflowID で関連付けると流れを追えます。CredentialType が PASSWORD の検証は成功し、TOTP の検証が失敗していれば、MFA の段階で失敗していると判断できます。UserAuthentication はすべてのチャレンジを完了してサインインに成功したときだけ記録されるため、失敗したサインインでは出力されません。",
+    "optionNotes": [
+      "ConsoleLogin はアカウントのコンソールへのサインインを記録するイベントで、Identity Center での資格情報の検証がどの段階で失敗したかは分かりません。",
+      "AssumeRoleWithSAML は IAM の SAML フェデレーションで使う API で、Identity Center ディレクトリのサインインの失敗原因は分かりません。",
+      "正解です。CredentialChallenge と CredentialVerification を AuthWorkflowID でまとめると、失敗した資格情報の種類を特定できます。",
+      "UserAuthentication は全チャレンジに成功したときだけ記録されるため、失敗したサインインの調査には使えません。"
+    ],
+    "services": [
+      "AWS IAM Identity Center",
+      "AWS CloudTrail"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Understanding IAM Identity Center sign-in events",
+        "url": "https://docs.aws.amazon.com/singlesignon/latest/userguide/understanding-sign-in-events.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-008",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業は IAM Identity Center で複数アカウントへのアクセスを管理しています。DataEngineer という許可セットには、AWS 管理ポリシーに加えて、カスタマー管理ポリシー DataLakeAccess(パス /)への参照が設定されています。この許可セットは既存の 5 つのアカウントでは問題なく使えています。新しく作ったアカウントにこの許可セットを割り当てたところ、プロビジョニングが失敗し、ユーザーはアクセスポータルからそのアカウントを選べません。最も可能性の高い原因と対処はどれですか。",
+    "options": [
+      "新しいアカウントが IAM Identity Center の委任管理者アカウントに登録されていないため、委任管理者として登録し直す。",
+      "許可セットのセッション時間が新しいアカウントの IAM ロールの最大セッション時間を超えているため、セッション時間を 1 時間に短くする。",
+      "新しいアカウントで AWSReservedSSO_DataEngineer ロールを手動で作成し、DataLakeAccess と同じ内容のインラインポリシーを付ける。",
+      "新しいアカウントに同じ名前とパスのカスタマー管理ポリシー DataLakeAccess が存在しないため、そのアカウントにポリシーを作成してから再プロビジョニングする。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "許可セットのカスタマー管理ポリシーは、ポリシーそのものではなく名前とパスによる参照です。API リファレンスにも、許可セットをデプロイする各アカウントに、名前とパスが一致する IAM ポリシーが必要だと書かれています。既存の 5 アカウントにはポリシーがあり、新しいアカウントにはまだ無いため、そのアカウントでだけプロビジョニングが失敗しています。新しいアカウントに同じ名前とパスでポリシーを作り、許可セットを再プロビジョニングすれば解消します。アカウントの作成時にポリシーを配布する仕組み(CloudFormation StackSets など)を用意しておくと再発を防げます。",
+    "optionNotes": [
+      "委任管理者は IAM Identity Center を管理するアカウントの設定で、割り当て先のアカウントごとに必要なものではありません。",
+      "許可セットのセッション時間は IAM Identity Center 側で管理され、この症状の原因にはなりません。",
+      "AWSReservedSSO_ で始まるロールは IAM Identity Center が管理する保護されたロールで、手動で作成や変更をする運用は想定されていません。",
+      "正解です。カスタマー管理ポリシーの参照先が各アカウントに存在している必要があります。"
+    ],
+    "services": [
+      "AWS IAM Identity Center",
+      "AWS IAM"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "CustomerManagedPolicyReference (IAM Identity Center API Reference)",
+        "url": "https://docs.aws.amazon.com/singlesignon/latest/APIReference/API_CustomerManagedPolicyReference.html"
+      },
+      {
+        "title": "How do I resolve the \"Cannot perform the operation on the protected role AWSReservedSSO\" IAM error?",
+        "url": "https://repost.aws/knowledge-center/identity-center-aws-reserved-sso"
+      }
+    ]
+  },
+  {
+    "id": "D4-009",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業は、オンプレミスのデータセンターで Microsoft Active Directory を運用しており、従業員はその AD の資格情報で AWS の複数アカウントにサインインする必要があります。ID 情報をクラウドにキャッシュせず、オンプレミスの AD で認証させることが社内規程で求められています。データセンターと AWS は AWS Direct Connect で接続済みで、AWS Organizations の管理アカウントで IAM Identity Center を有効化しています。追加の運用負荷が最も小さいソリューションはどれですか。",
+    "options": [
+      "管理アカウントに AWS Directory Service の AD Connector を作成してオンプレミスの AD に接続し、IAM Identity Center の ID ソースを Active Directory にして AD Connector を指定する。",
+      "管理アカウントに AWS Managed Microsoft AD を作成し、オンプレミスの AD とフォレストの信頼関係を結んで、IAM Identity Center の ID ソースに指定する。",
+      "オンプレミスに AD FS を構築し、各メンバーアカウントに IAM の SAML ID プロバイダーと IAM ロールを作成する。",
+      "AD のユーザーとグループを CSV で書き出し、IAM Identity Center ディレクトリに定期的に手動でインポートする。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "要件は「オンプレミスの AD で認証」「ID 情報をクラウドにキャッシュしない」「運用負荷が最小」です。AD Connector はディレクトリ要求をオンプレミスの AD にリダイレクトするゲートウェイで、クラウドに情報をキャッシュしません。IAM Identity Center は AD Connector を ID ソースとして使えます。その際、AD Connector は管理アカウント、または委任管理者がいる場合はその委任管理者アカウントに置く必要があります。AWS Managed Microsoft AD と信頼関係を結ぶ方法も使えますが、ドメインコントローラーを AWS 側でも運用することになり、コストと運用の両面で負荷が増えます。",
+    "optionNotes": [
+      "正解です。AD Connector はキャッシュせずにオンプレミスの AD へ認証を転送し、Identity Center の ID ソースにできます。",
+      "動作しますが、AWS 側にもディレクトリを持つことになり、AD Connector より運用とコストの負荷が大きくなります。",
+      "アカウントごとにフェデレーションを設定する必要があり、AD FS の構築と運用も加わります。",
+      "手作業の同期は運用負荷が大きく、AD での認証という要件も満たしません。"
+    ],
+    "services": [
+      "AWS IAM Identity Center",
+      "AWS Directory Service"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Using Active Directory as an identity source",
+        "url": "https://docs.aws.amazon.com/singlesignon/latest/userguide/gs-ad.html"
+      },
+      {
+        "title": "AWS IAM Identity Center FAQs",
+        "url": "https://aws.amazon.com/iam/identity-center/faqs/"
+      }
+    ]
+  },
+  {
+    "id": "D4-010",
+    "domain": 4,
+    "task": "4.1",
+    "type": "multi",
+    "question": "ある企業の開発者が、IAM ロール AppDeployRole を引き受けて得た一時的な認証情報(アクセスキー ID が ASIA で始まるもの)を、誤って公開リポジトリにコミットしてしまいました。ロールの最大セッション時間は 12 時間に設定されています。セキュリティエンジニアは、漏えいした認証情報による操作をただちに止め、その認証情報で何が行われたかを把握する必要があります。正規のワークロードはロールを引き受け直せば処理を続けられます。実施すべき対応はどれですか。（2 つ選択）",
+    "options": [
+      "IAM コンソールで AppDeployRole の「アクティブなセッションを無効化」を実行する。",
+      "AppDeployRole を削除し、同じ名前と同じポリシーで作り直す。",
+      "AppDeployRole の最大セッション時間を 1 時間に短縮する。",
+      "AWS CloudTrail で、漏えいしたアクセスキー ID が userIdentity に含まれるイベントを検索し、実行された API と対象のリソースを確認する。",
+      "IAM コンソールで AppDeployRole のアクセスキーを無効化し、新しいアクセスキーを発行する。"
+    ],
+    "answer": [
+      0,
+      3
+    ],
+    "explanation": "一時的な認証情報は個別に失効させられないため、ロールのアクティブなセッションを無効化します。この操作をすると、IAM は aws:TokenIssueTime を使った Deny ポリシーをロールにアタッチし、無効化した時点より前に発行された認証情報をすべて拒否します。その後に引き受けたセッションには Deny が適用されないので、正規のワークロードは引き受け直せば続行できます。影響範囲の把握には、CloudTrail のイベントの userIdentity に記録されたアクセスキー ID で絞り込み、実行された操作を確認します。最大セッション時間の変更は、すでに発行済みの認証情報には影響しません。",
+    "optionNotes": [
+      "正解です。無効化の時点より前に発行されたセッションの認証情報がすべて使えなくなります。",
+      "作り直したロールは別のロール ID になるため、このロールを Principal に指定している他の信頼ポリシーなどが壊れます。無効化の機能を使えば削除は不要です。",
+      "最大セッション時間は今後のセッションに適用される設定で、発行済みの認証情報の有効期限は変わりません。",
+      "正解です。アクセスキー ID で CloudTrail を検索すると、漏えいした認証情報による操作を特定できます。",
+      "IAM ロールには長期のアクセスキーがなく、ASIA で始まる一時的な認証情報をこの方法で無効化することはできません。"
+    ],
+    "services": [
+      "AWS IAM",
+      "AWS STS",
+      "AWS CloudTrail"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Revoke active sessions (IAM console help)",
+        "url": "https://docs.aws.amazon.com/help-panel/IAM/latest/console/hp-roles-revoke-sessions.html"
+      },
+      {
+        "title": "AWS JSON policy elements: Principal",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-011",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業の夜間バッチは、Amazon EC2 インスタンスのインスタンスプロファイルのロール BatchRole で実行されています。バッチは途中で別のアカウントのロール ReportRole を AssumeRole で引き受けて集計処理を行います。処理が長くなったため、開発者は AssumeRole の DurationSeconds を 14400(4 時間)に変更し、ReportRole の最大セッション時間も 12 時間に変更しました。ところが、AssumeRole の呼び出しが ValidationError で失敗するようになりました。原因として最も適切なものはどれですか。",
+    "options": [
+      "クロスアカウントの AssumeRole では、DurationSeconds に 1 時間を超える値を指定するには外部 ID が必要になる。",
+      "BatchRole の一時的な認証情報で別のロールを引き受けるロールの連鎖になっており、連鎖したセッションの最大は 1 時間のため、1 時間を超える DurationSeconds は失敗する。",
+      "ReportRole の信頼ポリシーに sts:SetSourceIdentity が許可されていないため、長いセッションを発行できない。",
+      "インスタンスプロファイルの認証情報は 6 時間で更新されるため、DurationSeconds は 6 時間の倍数で指定する必要がある。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "ロールで得た一時的な認証情報を使って別のロールを引き受けることをロールの連鎖と呼びます。EC2 のインスタンスプロファイルで得た認証情報から AssumeRole するのもこれにあたります。ロールの連鎖では、CLI や API のロールセッションは最大 1 時間に制限され、ロールの最大セッション時間を 12 時間にしていても、DurationSeconds に 1 時間を超える値を指定すると呼び出しは失敗します。長い処理には、1 時間以内にセッションを更新しながら進めるか、連鎖しなくて済むよう権限の持たせ方を見直します。",
+    "optionNotes": [
+      "外部 ID は混乱した代理の対策で、セッション時間の上限とは関係ありません。",
+      "正解です。ロールの連鎖ではセッション時間が最大 1 時間に制限されます。",
+      "sts:SetSourceIdentity はソース ID を設定するための権限で、セッション時間の上限には関係しません。",
+      "DurationSeconds の値に倍数の制約はありません。"
+    ],
+    "services": [
+      "AWS STS",
+      "AWS IAM",
+      "Amazon EC2"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Can I increase the duration of the IAM role chaining session?",
+        "url": "https://repost.aws/knowledge-center/iam-role-chaining-limit"
+      },
+      {
+        "title": "AssumeRole (AWS STS API Reference)",
+        "url": "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-012",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業は、社内向けの文書共有アプリケーションを Amazon API Gateway と AWS Lambda で構築しています。「文書の所有者は編集できる」「同じ部署のメンバーは閲覧できる」「機密ラベルの付いた文書は管理職以外は閲覧できない」といった認可ルールが、各 Lambda 関数のコードに散らばっていて、変更のたびにコードの修正とデプロイが必要になっています。セキュリティチームは、認可ルールをコードから切り離して一元管理し、変更内容を監査できるようにしたいと考えています。最も適切なソリューションはどれですか。",
+    "options": [
+      "Amazon Verified Permissions のポリシーストアに Cedar で認可ポリシーを定義し、各 Lambda 関数から IsAuthorized API を呼び出して許可か拒否かを判定する。",
+      "文書ごとに IAM ロールを作成し、Lambda 関数が利用者に対応するロールを引き受けてから処理する。",
+      "認可ルールを AWS Systems Manager Parameter Store に JSON で保存し、各 Lambda 関数が読み込んで独自に評価する。",
+      "API Gateway のリソースポリシーに、部署と機密ラベルごとの条件を記述する。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "アプリケーション内のリソース(文書)に対する細かな認可を、コードから切り離して管理するためのサービスが Amazon Verified Permissions です。認可ルールは Cedar 言語のポリシーとしてポリシーストアに置き、アプリケーションは IsAuthorized API にプリンシパル、アクション、リソースと属性を渡して判定を受け取ります。所有者や部署、機密ラベルのような属性に基づくルールも when 句で表現でき、ルールの変更はポリシーの更新だけで済みます。Parameter Store に置く案は保存場所が変わるだけで、評価ロジックは各関数に残ります。",
+    "optionNotes": [
+      "正解です。Cedar のポリシーで認可を一元管理し、アプリケーションは判定結果だけを使えます。",
+      "アプリケーションの文書ごとに IAM ロールを作るのは IAM の想定外の使い方で、数も管理もすぐに破綻します。",
+      "ルールの評価は各関数の独自実装のままで、一貫性や監査のしやすさの課題が残ります。",
+      "API Gateway のリソースポリシーは API の呼び出し元を制御するもので、文書の属性に基づく認可は表現できません。"
+    ],
+    "services": [
+      "Amazon Verified Permissions",
+      "Amazon API Gateway",
+      "AWS Lambda"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "How to use Amazon Verified Permissions for authorization",
+        "url": "https://aws.amazon.com/blogs/security/how-to-use-amazon-verified-permissions-for-authorization/"
+      },
+      {
+        "title": "Simplify fine-grained authorization with Amazon Verified Permissions and Amazon Cognito",
+        "url": "https://aws.amazon.com/blogs/security/simplify-fine-grained-authorization-with-amazon-verified-permissions-and-amazon-cognito/"
+      }
+    ]
+  },
+  {
+    "id": "D4-013",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業では、オンプレミスのデータセンターにある 200 台のサーバーが、IAM ユーザーのアクセスキーを使って Amazon S3 にバックアップを書き込んでいます。監査で長期のアクセスキーの利用が指摘されました。この企業は社内 PKI を運用しており、すべてのサーバーに社内 CA が発行したクライアント証明書がすでに配布されています。サーバーに長期の AWS 認証情報を置かずに、既存の IAM ロールの権限で S3 にアクセスさせる必要があります。最も適切なソリューションはどれですか。",
+    "options": [
+      "IAM ユーザーのアクセスキーを AWS Secrets Manager に保存し、各サーバーは起動時にシークレットを取得して S3 にアクセスする。",
+      "Amazon Cognito ID プールでサーバーごとに開発者認証 ID を発行し、サーバーは ID プールから一時的な認証情報を取得する。",
+      "社内 CA を IAM Roles Anywhere のトラストアンカーとして登録し、対象のロールを指定したプロファイルを作成して、サーバーでは認証情報ヘルパーを credential_process に設定する。",
+      "IAM ユーザーのアクセスキーを 90 日ごとに自動ローテーションする AWS Lambda 関数を作成し、新しいキーを各サーバーに配布する。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "IAM Roles Anywhere は、AWS の外で動くサーバーやコンテナが X.509 証明書を使って IAM ロールの一時的な認証情報を取得するための仕組みです。社内 CA をトラストアンカーとして登録すると、その CA が発行した証明書で認証できます。プロファイルで引き受けられるロールを指定し、サーバーでは認証情報ヘルパーを credential_process に設定すれば、AWS SDK と CLI が証明書と秘密鍵を使って一時的な認証情報を自動で取得します。既存の証明書をそのまま使えるため、長期のアクセスキーを撤廃できます。ローテーションを自動化しても長期のキーが残る点は変わりません。",
+    "optionNotes": [
+      "Secrets Manager からキーを取得するにも AWS の認証情報が必要で、長期のアクセスキーを使う構成も残ります。",
+      "開発者認証 ID には独自の認証バックエンドの構築が必要で、既存の証明書を生かせません。",
+      "正解です。既存の社内 CA の証明書で IAM ロールの一時的な認証情報を取得できます。",
+      "長期のアクセスキーが残るため、監査の指摘を解消できません。"
+    ],
+    "services": [
+      "IAM Roles Anywhere",
+      "AWS IAM",
+      "Amazon S3"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "What is AWS Identity and Access Management Roles Anywhere?",
+        "url": "https://docs.aws.amazon.com/rolesanywhere/latest/userguide/introduction.html"
+      },
+      {
+        "title": "Using IAM Roles Anywhere to authenticate AWS SDKs and tools",
+        "url": "https://docs.aws.amazon.com/sdkref/latest/guide/access-rolesanywhere.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-014",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "アカウント 111111111111 の S3 バケット shared-reports-111111111111 には、同じアカウントのカスタマー管理の KMS キーによる SSE-KMS がデフォルト暗号化として設定されています。アカウント 222222222222 のロール AnalyticsRole にオブジェクトを読ませるため、次のバケットポリシーを設定しました。\n\n```json\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Principal\": { \"AWS\": \"arn:aws:iam::222222222222:role/AnalyticsRole\" },\n      \"Action\": \"s3:GetObject\",\n      \"Resource\": \"arn:aws:s3:::shared-reports-111111111111/*\"\n    }\n  ]\n}\n```\n\nAnalyticsRole のアイデンティティベースのポリシーでは、このバケットのオブジェクトに対する s3:GetObject が許可されています。しかし、GetObject を呼び出すと AccessDenied になります。読み取りを成功させるために必要な変更はどれですか。（2 つ選択）",
+    "options": [
+      "バケットの S3 オブジェクト所有者の設定を ACL 有効に変更し、オブジェクト ACL で 222222222222 に READ を付与する。",
+      "アカウント 111111111111 の KMS キーのキーポリシーに、AnalyticsRole(またはアカウント 222222222222)に kms:Decrypt を許可するステートメントを追加する。",
+      "アカウント 222222222222 で同じエイリアスの KMS キーを作成し、AnalyticsRole に kms:Decrypt を許可する。",
+      "バケットポリシーに s3:ListBucket を追加し、Resource にバケットの ARN を指定する。",
+      "AnalyticsRole のアイデンティティベースのポリシーに、アカウント 111111111111 の KMS キーの ARN に対する kms:Decrypt を許可するステートメントを追加する。"
+    ],
+    "answer": [
+      1,
+      4
+    ],
+    "explanation": "SSE-KMS で暗号化されたオブジェクトを読むには、S3 の権限に加えて、オブジェクトの暗号化に使われた KMS キーに対する kms:Decrypt が必要です。KMS キーを別アカウントで使わせるには 2 つの許可が要ります。キーを所有するアカウントのキーポリシーで外部のアカウントまたはロールに権限を与え、利用する側のアカウントで IAM ポリシーによりその権限をロールに委任します。キーポリシーが範囲を決め、IAM ポリシーがその範囲内で実際の権限を与えるという関係です。バケットポリシーと S3 の IAM ポリシーはすでに揃っているので、残りは KMS 側の 2 つです。",
+    "optionNotes": [
+      "S3 側の権限はバケットポリシーで足りています。ACL を有効にしても KMS の権限不足は解消しません。",
+      "正解です。キーを所有するアカウントのキーポリシーで、外部のプリンシパルによる kms:Decrypt を許可する必要があります。",
+      "オブジェクトは 111111111111 のキーで暗号化されているため、別アカウントのキーでは復号できません。",
+      "s3:ListBucket は一覧取得や存在しないキーへの応答に関係しますが、既存オブジェクトの GetObject が KMS の権限不足で拒否される問題は解決しません。",
+      "正解です。クロスアカウントでは、利用する側の IAM ポリシーでもキーの ARN に対する kms:Decrypt を許可する必要があります。"
+    ],
+    "services": [
+      "Amazon S3",
+      "AWS KMS",
+      "AWS IAM"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Allowing users in other accounts to use a KMS key",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-modifying-external-accounts.html"
+      },
+      {
+        "title": "Cross-account policy evaluation logic",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic-cross-account.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-015",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "アカウント 333333333333 のロール AuditReadRole は、アカウント 444444444444 のロール CICDRole から引き受けられるよう、信頼ポリシーの Principal に CICDRole の ARN を指定していました。先週、アカウント 444444444444 の管理者が CICDRole を削除し、同じ名前と同じ権限で作り直しました。それ以降、CICDRole からの AssumeRole が AccessDenied になります。AuditReadRole の信頼ポリシーを表示すると、次のようになっていました。\n\n```json\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Principal\": { \"AWS\": \"AROA1234567890EXAMPLE\" },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}\n```\n\n最小権限を保ったまま、作り直した CICDRole から引き受けられるようにする方法はどれですか。",
+    "options": [
+      "Principal を \"*\" に変更し、aws:SourceAccount 条件で 444444444444 を要求する。",
+      "アカウント 444444444444 で CICDRole を元のロール ID で復元するよう AWS サポートに依頼する。",
+      "CICDRole のアイデンティティベースのポリシーに、AuditReadRole に対する sts:AssumeRole を追加する。",
+      "AuditReadRole の信頼ポリシーの Principal を、作り直した CICDRole の ARN arn:aws:iam::444444444444:role/CICDRole に書き換えて保存する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "信頼ポリシーの Principal に特定のロールの ARN を指定して保存すると、IAM はその ARN をロールの一意のプリンシパル ID に変換して保持します。削除して作り直したロールは新しいプリンシパル ID を持つため、名前が同じでも古い ID とは一致しません。ARN に戻せなくなった ID は、表示上 AROA で始まる ID のまま残ります。対処は、信頼ポリシーの Principal を作り直したロールの ARN に書き換えて保存し直すことです。保存時に新しいロールの ID に変換されます。これは、ロールを削除して作り直すことによる権限昇格のリスクを抑えるための仕様です。",
+    "optionNotes": [
+      "Principal を \"*\" にすると引き受けられる範囲が広がり、最小権限になりません。aws:SourceAccount はサービスプリンシパルからの要求で使う条件キーです。",
+      "削除したロールのプリンシパル ID を復元する手段は用意されていません。",
+      "呼び出し側の権限を足しても、信頼ポリシーが新しいロールを信頼していないため引き受けは失敗します。",
+      "正解です。ARN で書き直して保存すると、新しいロールのプリンシパル ID で信頼関係が結び直されます。"
+    ],
+    "services": [
+      "AWS IAM",
+      "AWS STS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "AWS JSON policy elements: Principal",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html"
+      },
+      {
+        "title": "How to use trust policies with IAM roles",
+        "url": "https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/"
+      }
+    ]
+  },
+  {
+    "id": "D4-016",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある企業は、IAM Identity Center と外部 IdP(Okta)で開発者のアクセスを管理しています。開発者は 40 以上のプロジェクトに所属しており、プロジェクトは毎月のように増減します。各開発者は、自分のプロジェクトの AWS Secrets Manager のシークレットだけを読めるようにする必要があります。シークレットにはすべて project タグが付いており、Okta のユーザー属性にも所属プロジェクトが入っています。プロジェクトが増えても許可セットやポリシーを変更しなくて済む方法はどれですか。（2 つ選択）",
+    "options": [
+      "プロジェクトごとに許可セットを作成し、対応する Okta のグループを割り当てる。",
+      "各開発者に IAM ユーザーを作成し、project タグを付ける。",
+      "IAM Identity Center の「アクセス制御の属性」を有効にし、Okta のプロジェクト属性を project キーとしてセッションタグで渡す。",
+      "許可セットのインラインポリシーで secretsmanager:GetSecretValue を許可し、Condition に \"StringEquals\": {\"aws:ResourceTag/project\": \"${aws:PrincipalTag/project}\"} を指定する。",
+      "各シークレットのリソースポリシーに、そのプロジェクトのメンバーの許可セットのロールを列挙する。"
+    ],
+    "answer": [
+      2,
+      3
+    ],
+    "explanation": "プロジェクトが増えてもポリシーを変えずに済む、という要件は属性ベースのアクセス制御(ABAC)で満たします。IAM Identity Center のアクセス制御の属性を有効にすると、ID ソースのユーザー属性がセッションタグとして各アカウントに渡され、ポリシーでは aws:PrincipalTag/キー として参照できます。許可セットのポリシーで、リソースの project タグとプリンシパルの project タグが一致する場合だけ許可すれば、新しいプロジェクトでもシークレットにタグを付け、Okta の属性を設定するだけで済みます。プロジェクトごとの許可セットは典型的な RBAC で、プロジェクトの増減に合わせた変更が必要です。",
+    "optionNotes": [
+      "RBAC の設計で、プロジェクトが増えるたびに許可セットの追加が必要になり、要件に合いません。",
+      "IAM ユーザーは長期の認証情報を伴い、IAM Identity Center での一元管理とも矛盾します。",
+      "正解です。Okta の属性をセッションタグとして渡し、ポリシーから aws:PrincipalTag で参照できます。",
+      "正解です。リソースのタグとプリンシパルのタグの一致で許可するため、プロジェクトが増えてもポリシーを変える必要がありません。",
+      "メンバーの変更やプロジェクトの追加のたびにリソースポリシーの更新が必要で、運用負荷が大きくなります。"
+    ],
+    "services": [
+      "AWS IAM Identity Center",
+      "AWS Secrets Manager",
+      "AWS IAM"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Attributes for access control",
+        "url": "https://docs.aws.amazon.com/singlesignon/latest/userguide/attributesforaccesscontrol.html"
+      },
+      {
+        "title": "AWS global condition context keys",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-017",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業は、アプリケーションチームに Lambda 関数用の IAM ロールを自分たちで作成させたいと考えています。ただし、チームが作成するロールは、どのようなポリシーを付けても、管理者が定めたカスタマー管理ポリシー AppBoundary の範囲を超える権限を持ってはなりません。チームが作成するロールはパス /app/ の配下に置きます。チームのロールに付けるポリシーのステートメントとして、この要件を満たすものはどれですか。なお、チームが AppBoundary 自体を変更したり、境界を外したりできないようにする別のステートメントは設定済みとします。",
+    "options": [
+      "次のステートメントを付ける。\n\n```json\n{\n\"Effect\": \"Allow\",\n\"Action\": [\"iam:CreateRole\", \"iam:AttachRolePolicy\", \"iam:PutRolePolicy\"],\n\"Resource\": \"arn:aws:iam::555555555555:role/app/*\"\n}\n```",
+      "次のステートメントを付ける。\n\n```json\n{\n\"Effect\": \"Allow\",\n\"Action\": [\"iam:CreateRole\", \"iam:AttachRolePolicy\", \"iam:PutRolePolicy\"],\n\"Resource\": \"arn:aws:iam::555555555555:role/app/*\",\n\"Condition\": {\n  \"StringEquals\": {\n    \"iam:PermissionsBoundary\": \"arn:aws:iam::555555555555:policy/AppBoundary\"\n  }\n}\n}\n```",
+      "次のステートメントを付け、作成後のロールには管理者が手作業で AppBoundary を許可の境界として設定する。\n\n```json\n{\n\"Effect\": \"Allow\",\n\"Action\": [\"iam:CreateRole\", \"iam:AttachRolePolicy\", \"iam:PutRolePolicy\"],\n\"Resource\": \"arn:aws:iam::555555555555:role/app/*\"\n}\n```",
+      "AppBoundary をチームのロールのアイデンティティベースのポリシーとしてアタッチし、IAM の操作を含めた許可を AppBoundary に記述する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "作成するロールの権限に上限を設けるには、許可の境界を使います。iam:PermissionsBoundary 条件キーは、ロールの作成や変更の要求で指定された許可の境界のポリシー ARN を表します。この条件で AppBoundary を要求すると、チームは AppBoundary を境界に設定したロールしか作成できず、ポリシーの追加も境界付きのロールに対してだけ許可されます。作成されたロールの実効的な権限は、アイデンティティベースのポリシーと許可の境界の交差になるため、どのポリシーを付けても AppBoundary を超えません。Resource を /app/ に絞っているのは、IAM パスでチームが触れるロールの範囲を限定するためです。",
+    "optionNotes": [
+      "境界を要求していないため、AdministratorAccess を付けたロールも作れてしまい、要件を満たしません。",
+      "正解です。iam:PermissionsBoundary 条件で、AppBoundary を境界に持つロールの作成と変更だけを許可します。",
+      "境界が設定されるまでの間に上限のないロールが存在し、手作業の漏れも起こり得ます。",
+      "AppBoundary をチームのロールの許可として付けても、チームが作成する新しいロールの権限の上限にはなりません。"
+    ],
+    "services": [
+      "AWS IAM"
+    ],
+    "difficulty": 3,
+    "refs": [
+      {
+        "title": "Permissions boundaries for IAM entities",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html"
+      },
+      {
+        "title": "How can I resolve access denied issues caused by permissions boundaries?",
+        "url": "https://repost.aws/knowledge-center/iam-access-denied-permissions-boundary"
+      }
+    ]
+  },
+  {
+    "id": "D4-018",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "アカウント 666666666666 の IAM ロール DevRole には、次のアイデンティティベースのポリシーがアタッチされています。\n\n```json\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    { \"Effect\": \"Allow\", \"Action\": [\"s3:*\", \"ec2:*\"], \"Resource\": \"*\" }\n  ]\n}\n```\n\nまた、許可の境界として次のポリシーが設定されています。\n\n```json\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\"s3:GetObject\", \"s3:PutObject\", \"cloudwatch:*\"],\n      \"Resource\": \"*\"\n    }\n  ]\n}\n```\n\nこのアカウントに適用されている SCP はすべての操作を許可しており、関係するリソースベースのポリシーはありません。DevRole のセッションで実行できる操作の説明として正しいものはどれですか。",
+    "options": [
+      "s3:GetObject と s3:PutObject だけを実行できる。",
+      "s3 と ec2 のすべての操作に加えて、cloudwatch のすべての操作を実行できる。",
+      "s3 と ec2 のすべての操作を実行でき、cloudwatch の操作は実行できない。",
+      "s3:GetObject、s3:PutObject、cloudwatch のすべての操作を実行でき、ec2 の操作は実行できない。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "許可の境界は権限を与えるものではなく、エンティティが持てる最大の権限を定めるものです。アイデンティティベースのポリシーと許可の境界の両方があるとき、実効的な権限は 2 つの交差になります。アイデンティティベースのポリシーが許可するのは s3 と ec2 のすべての操作、境界が許可するのは s3:GetObject、s3:PutObject、cloudwatch のすべての操作です。両方で許可されているのは s3:GetObject と s3:PutObject だけです。cloudwatch は境界にはありますがアイデンティティベースのポリシーで許可されておらず、ec2 はその逆なので、どちらも実行できません。",
+    "optionNotes": [
+      "正解です。アイデンティティベースのポリシーと境界の両方で許可された操作だけが実効的な権限になります。",
+      "境界は権限を追加しないため、cloudwatch は許可されず、ec2 も境界で制限されます。",
+      "境界にない s3 の他の操作と ec2 の操作は、境界によって制限されます。",
+      "cloudwatch はアイデンティティベースのポリシーで許可されていないため実行できません。"
+    ],
+    "services": [
+      "AWS IAM"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Policy evaluation logic",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html"
+      },
+      {
+        "title": "Permissions boundaries for IAM entities",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-019",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある SaaS 企業は、すべてのテナントのデータを 1 つの S3 バケットに tenants/<テナント ID>/ のプレフィックスで保存しています。バックエンドのサービスは IAM ロール TenantDataRole を引き受けてデータを読み書きしており、このロールにはバケット全体の読み書きが許可されています。コードの不具合でほかのテナントのデータにアクセスする事故を防ぐため、各リクエストの処理中は、そのテナントのプレフィックスにしかアクセスできない認証情報を使う必要があります。テナントは数千あり、毎日増えます。最小権限を満たし、運用負荷が最も小さいソリューションはどれですか。",
+    "options": [
+      "テナントごとに IAM ロールを作成し、リクエストのたびにテナントに対応するロールを引き受ける。",
+      "バケットポリシーにテナントごとのステートメントを追加し、TenantDataRole のアクセスをプレフィックスごとに制限する。",
+      "TenantDataRole の許可の境界に、テナント ID を含むプレフィックスだけを許可するポリシーを設定する。",
+      "TenantDataRole を引き受ける際に、そのテナントのプレフィックスだけを許可するインラインのセッションポリシーを AssumeRole の Policy パラメータで渡し、得られた認証情報で処理する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "セッションポリシーは、ロールを引き受けるときに渡して、そのセッションの権限をさらに絞るためのポリシーです。セッションの実効的な権限は、ロールのアイデンティティベースのポリシーとセッションポリシーの交差になり、ロールが持つ以上の権限は与えられません。AssumeRole のたびにテナント ID を埋め込んだインラインポリシーを渡せば、ロールは 1 つのままで、各リクエストの認証情報を該当テナントのプレフィックスに閉じ込められます。テナントが増えても IAM のリソースを追加する必要はありません。許可の境界はロール全体に固定で設定されるため、リクエストごとに変えることはできません。",
+    "optionNotes": [
+      "数千のロールの作成と管理が必要になり、IAM のクォータにも近づきます。",
+      "バケットポリシーのサイズ上限に達しやすく、テナントの追加のたびに更新も必要です。",
+      "許可の境界はロールに 1 つ固定で設定されるもので、リクエストごとにテナントを切り替える用途には使えません。",
+      "正解です。セッションポリシーでリクエストごとに権限を絞れ、ロールは 1 つで済みます。"
+    ],
+    "services": [
+      "AWS STS",
+      "AWS IAM",
+      "Amazon S3"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Policies and permissions in AWS Identity and Access Management",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html"
+      },
+      {
+        "title": "AssumeRole (AWS STS API Reference)",
+        "url": "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-020",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業は、運用担当者が社内ネットワーク(203.0.113.0/24)以外から AWS を操作できないよう、運用担当者のロールに次のポリシーを追加しました。\n\n```json\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Deny\",\n      \"Action\": \"*\",\n      \"Resource\": \"*\",\n      \"Condition\": {\n        \"NotIpAddress\": { \"aws:SourceIp\": [\"203.0.113.0/24\"] }\n      }\n    }\n  ]\n}\n```\n\n追加後、社内ネットワークから直接呼び出す API は成功していますが、運用担当者が社内から AWS CloudFormation のスタックを作成すると、CloudFormation が担当者の権限で行うリソースの作成が AccessDenied で失敗するようになりました。社内ネットワーク以外からの直接の操作を拒否したまま、この問題を解消する方法はどれですか。",
+    "options": [
+      "aws:SourceIp に CloudFormation のサービスが使う IP アドレス範囲を追加する。",
+      "Deny を削除し、Allow のステートメントに IpAddress 条件を付ける形に書き換える。",
+      "Deny の Condition に \"Bool\": {\"aws:ViaAWSService\": \"false\"} を追加する。",
+      "Condition の演算子を NotIpAddress から NotIpAddressIfExists に変更する。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "CloudFormation のような AWS サービスがユーザーの代わりに別のサービスを呼び出すと、呼び出し先のサービスには元のユーザーの IP ではなく、呼び出し元のサービスの情報が渡ります。そのため aws:SourceIp による Deny に一致し、拒否されます。aws:ViaAWSService は、AWS サービスがプリンシパルの認証情報で代わりに呼び出した場合に true になる条件キーです。Deny の条件に aws:ViaAWSService が false であることを加えると、IP による拒否はプリンシパルが直接行う要求にだけ適用され、サービス経由の要求は対象外になります。条件ブロック内の複数の条件は AND で評価されます。",
+    "optionNotes": [
+      "サービスが使う IP 範囲を列挙して保守するのは現実的ではなく、IAM のドキュメントで勧められている方法でもありません。",
+      "Allow に条件を付けても、サービス経由の要求には社内の IP が渡らないため、同じように許可されず失敗します。",
+      "正解です。サービス経由の要求を Deny の対象から外し、直接の要求にだけ IP 制限を適用できます。",
+      "サービス経由の要求では呼び出し元のサービスの IP アドレスが評価されるため、IfExists を付けても拒否は解消しません。"
+    ],
+    "services": [
+      "AWS IAM",
+      "AWS CloudFormation"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "AWS: Denies access to AWS based on the source IP",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_aws_deny-ip.html"
+      },
+      {
+        "title": "How can I use IAM roles to restrict API calls from specific IP addresses to the AWS Management Console?",
+        "url": "https://repost.aws/knowledge-center/iam-restrict-calls-ip-addresses"
+      }
+    ]
+  },
+  {
+    "id": "D4-021",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある企業は、組織外のプリンシパルが社内の S3 バケットにアクセスできないようにするため、AWS Organizations の組織のルートに次のリソースコントロールポリシー(RCP)をアタッチしました。\n\n```json\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Sid\": \"EnforceOrgIdentities\",\n      \"Effect\": \"Deny\",\n      \"Principal\": \"*\",\n      \"Action\": \"s3:*\",\n      \"Resource\": \"*\",\n      \"Condition\": {\n        \"StringNotEqualsIfExists\": { \"aws:PrincipalOrgID\": \"o-a1b2c3d4e5\" },\n        \"BoolIfExists\": { \"aws:PrincipalIsAWSService\": \"false\" }\n      }\n    }\n  ]\n}\n```\n\nこの RCP の効果について正しい説明はどれですか。（2 つ選択）",
+    "options": [
+      "管理アカウントのバケットも含め、組織内のすべてのアカウントのバケットに適用される。",
+      "メンバーアカウントのバケットのバケットポリシーが組織外のアカウントにアクセスを許可していても、そのアカウントのプリンシパルからの要求は拒否される。",
+      "サービスにリンクされたロールによる呼び出しには適用されない。",
+      "組織内のプリンシパルには、IAM ポリシーがなくても全バケットへの s3:* が許可される。",
+      "組織内のプリンシパルが、組織外のアカウントが所有するバケットにアクセスすることも拒否される。"
+    ],
+    "answer": [
+      1,
+      2
+    ],
+    "explanation": "RCP は組織のリソースに対する最大の権限を定めるポリシーで、リソースにアクセスする側のプリンシパルが組織の内外どちらであっても評価されます。この RCP は、aws:PrincipalOrgID が組織 ID と一致せず、AWS サービスプリンシパルでもない要求を拒否するため、バケットポリシーが外部アカウントに許可を与えていても外部からの要求は拒否されます。RCP はサービスにリンクされたロールによる呼び出しには適用されず、管理アカウントのリソースにも効きません。また RCP は権限を与えないため、組織内のプリンシパルにも IAM ポリシーなどによる許可が必要です。RCP が効くのは組織のアカウントが所有するリソースだけで、外部のバケットへのアクセスを制限するには SCP を使います。",
+    "optionNotes": [
+      "RCP はメンバーアカウントのリソースにだけ効き、管理アカウントのリソースには影響しません。",
+      "正解です。RCP の Deny はバケットポリシーの Allow より優先され、組織外のプリンシパルからの要求は拒否されます。",
+      "正解です。RCP はサービスにリンクされたロールによる呼び出しを制限しません。",
+      "RCP は権限を与えず、上限を定めるだけです。IAM ポリシーやリソースベースのポリシーによる許可が別に必要です。",
+      "RCP は組織のアカウントが所有するリソースにだけ適用されるため、外部のバケットへのアクセスは制限しません。"
+    ],
+    "services": [
+      "AWS Organizations",
+      "Amazon S3",
+      "AWS IAM"
+    ],
+    "difficulty": 3,
+    "refs": [
+      {
+        "title": "Resource control policies (RCPs)",
+        "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_rcps.html"
+      },
+      {
+        "title": "Perimeter overview (Building a data perimeter on AWS)",
+        "url": "https://docs.aws.amazon.com/whitepapers/latest/building-a-data-perimeter-on-aws/perimeter-overview.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-022",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある企業の開発者が、ロール DevOpsRole で aws ec2 run-instances を実行したところ、次のエラーが返りました。\n\n```text\nAn error occurred (UnauthorizedOperation) when calling the RunInstances operation: You are not authorized to perform this operation. User: arn:aws:sts::777777777777:assumed-role/DevOpsRole/dev-user is not authorized to perform: ec2:RunInstances on resource: arn:aws:ec2:ap-northeast-1:777777777777:instance/* with an explicit deny in a service control policy. Encoded authorization failure message: ...\n```\n\nDevOpsRole の IAM ポリシーでは ec2:RunInstances が許可されています。セキュリティエンジニアは、どのポリシーのどの条件で拒否されたのかを特定したいと考えています。有効な調査方法はどれですか。（2 つ選択）",
+    "options": [
+      "エラーメッセージの「explicit deny in a service control policy」から、拒否したのは SCP であると判断し、メッセージにポリシーの ARN が含まれていればその SCP の内容を確認する。",
+      "IAM Access Analyzer の未使用のアクセスの分析で、DevOpsRole の未使用の権限を確認する。",
+      "AWS Trusted Advisor のセキュリティチェックで、DevOpsRole に関する推奨事項を確認する。",
+      "Amazon GuardDuty の検出結果で、DevOpsRole による RunInstances の呼び出しを確認する。",
+      "sts:DecodeAuthorizationMessage の権限を持つプリンシパルで、エラーに含まれる符号化されたメッセージを復号し、要求の条件キーの値を確認する。"
+    ],
+    "answer": [
+      0,
+      4
+    ],
+    "explanation": "アクセス拒否のエラーメッセージには、拒否の原因になったポリシーの種類が含まれます。「explicit deny in a service control policy」とあるので、IAM ポリシーではなく SCP の明示的な Deny が原因です。現在は SCP、RCP、許可の境界、セッションポリシー、アイデンティティベースのポリシーについて、メッセージに拒否したポリシーの ARN も含まれるようになっています。EC2 の一部の操作は符号化された認可失敗メッセージも返します。sts:DecodeAuthorizationMessage で復号すると、明示的な拒否か暗黙的な拒否か、要求されたアクションとリソース、要求時の条件キーの値が分かり、SCP のどの条件に一致したかを突き合わせられます。",
+    "optionNotes": [
+      "正解です。エラーメッセージのポリシーの種類と ARN から、拒否したポリシーを特定できます。",
+      "未使用のアクセスの分析は使われていない権限を見つける機能で、拒否の原因の特定には使えません。",
+      "Trusted Advisor は個々の API 呼び出しが拒否された原因を示しません。",
+      "GuardDuty は脅威の検出を行うサービスで、認可の失敗の原因になったポリシーは分かりません。",
+      "正解です。復号したメッセージで要求の条件キーの値を確認し、SCP の条件と照合できます。"
+    ],
+    "services": [
+      "AWS IAM",
+      "AWS STS",
+      "AWS Organizations",
+      "Amazon EC2"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "DecodeAuthorizationMessage (AWS STS API Reference)",
+        "url": "https://docs.aws.amazon.com/STS/latest/APIReference/API_DecodeAuthorizationMessage.html"
+      },
+      {
+        "title": "Enhanced access denied error messages with policy ARNs",
+        "url": "https://aws.amazon.com/blogs/security/enhanced-access-denied-error-messages-with-policy-arns/"
+      }
+    ]
+  },
+  {
+    "id": "D4-023",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある企業は、AWS Organizations で数百のアカウントを運用しています。セキュリティチームは 2 つの課題を抱えています。1 つ目は、S3 バケット、KMS キー、IAM ロールの信頼ポリシーなどで、組織外のアカウントにアクセスを許してしまっているリソースを継続的に見つけることです。2 つ目は、開発チームが CI/CD パイプラインで IAM ポリシーを変更する際、既存のポリシーより広いアクセスを与える変更をデプロイ前に止めることです。これらの課題を最小の運用負荷で解決する方法はどれですか。（2 つ選択）",
+    "options": [
+      "IAM Access Analyzer で未使用のアクセスのアナライザーを作成し、組織全体の未使用のロールと権限を検出する。",
+      "IAM Access Analyzer のポリシー生成で、各ロールの CloudTrail のアクティビティからポリシーを生成し直す。",
+      "組織を信頼ゾーンとする IAM Access Analyzer の外部アクセスのアナライザーを作成し、組織外のプリンシパルにアクセスを許すリソースの検出結果を確認する。",
+      "パイプラインで IAM Policy Simulator を実行し、変更後のポリシーで代表的な操作が許可されるかを確認する。",
+      "パイプラインで IAM Access Analyzer の CheckNoNewAccess API を呼び出し、変更後のポリシーが既存のポリシーより新しいアクセスを与える場合はデプロイを失敗させる。"
+    ],
+    "answer": [
+      2,
+      4
+    ],
+    "explanation": "1 つ目の課題には、組織を信頼ゾーンにした IAM Access Analyzer の外部アクセスのアナライザーを使います。リソースベースのポリシーを分析し、組織外のプリンシパルにアクセスを許すリソースを検出結果として継続的に示します。2 つ目の課題には、カスタムポリシーチェックの CheckNoNewAccess が合います。変更前と変更後のポリシーを比べ、新しいアクセスを与える場合は FAIL を返すため、パイプラインのゲートとして使えます。未使用のアクセスの分析やポリシー生成は、過剰な権限を減らすための機能で、外部への公開の検出やデプロイ前の差分チェックには向きません。",
+    "optionNotes": [
+      "未使用のアクセスの分析は使われていない権限を見つけるもので、組織外への公開の検出には使えません。",
+      "ポリシー生成は最小権限のポリシーを作る助けになりますが、どちらの課題も直接は解決しません。",
+      "正解です。組織を信頼ゾーンとする外部アクセスのアナライザーで、組織外にアクセスを許すリソースを検出できます。",
+      "Policy Simulator は指定した操作の可否を確かめるもので、変更によって新しく許可されるアクセスを網羅的には検出できません。",
+      "正解です。CheckNoNewAccess で、既存より広いアクセスを与える変更をデプロイ前に止められます。"
+    ],
+    "services": [
+      "IAM Access Analyzer",
+      "AWS Organizations",
+      "AWS IAM"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Create an IAM Access Analyzer external access analyzer",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/access-analyzer-create-external.html"
+      },
+      {
+        "title": "Validate policies with IAM Access Analyzer custom policy checks",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/access-analyzer-custom-policy-checks.html"
+      }
+    ]
+  }
+]

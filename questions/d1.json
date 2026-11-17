@@ -1,0 +1,526 @@
+[
+  {
+    "id": "D1-001",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は AWS Organizations で 120 のアカウントを管理しており、毎月新しいアカウントが追加されます。セキュリティチームは、既存のすべてのアカウントと今後追加されるアカウントで Amazon GuardDuty を有効にし、検出結果をセキュリティツール用アカウントで一元的に確認したいと考えています。ワークロードは東京リージョンと大阪リージョンで稼働しています。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "管理アカウントで GuardDuty を有効にし、各メンバーアカウントへ招待を送信して承認させます。新しいアカウントが追加されるたびに招待を送信する手順を運用手順書に追加します。",
+      "東京リージョンと大阪リージョンのそれぞれで、管理アカウントからセキュリティツール用アカウントを GuardDuty の委任管理者に指定し、委任管理者側で組織の自動有効化を ALL に設定します。",
+      "東京リージョンでのみセキュリティツール用アカウントを GuardDuty の委任管理者に指定し、自動有効化を NEW に設定します。委任管理者は組織全体に作用するため、大阪リージョンにも自動的に適用されます。",
+      "AWS CloudFormation StackSets のサービスマネージド型アクセス許可で、各アカウントに GuardDuty ディテクターを作成するスタックを配布し、検出結果は各アカウントの EventBridge からセキュリティツール用アカウントへ転送します。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「既存と今後のアカウントすべて」「一元的に確認」「最小の運用負荷」です。GuardDuty は AWS Organizations と統合でき、委任管理者アカウントから組織メンバーを管理できます。自動有効化の設定 AutoEnableOrganizationMembers を ALL にすると、既存のメンバーと新しく参加するアカウントの両方で GuardDuty が自動的に有効になります。ただし GuardDuty はリージョナルサービスであり、委任管理者もリージョンごとの設定です。東京と大阪の両方で委任管理者を指定し、それぞれで自動有効化を設定する必要があります。委任管理者アカウントではメンバーの検出結果をまとめて確認できるため、一元管理の要件も満たします。",
+    "optionNotes": [
+      "招待方式は手作業が多く、新しいアカウントのたびに招待と承認が必要です。最小の運用負荷という要件に合いません。",
+      "正解です。リージョンごとに委任管理者を指定し、自動有効化を ALL にすると既存と新規の両方のアカウントで GuardDuty が有効になり、検出結果も委任管理者に集まります。",
+      "GuardDuty の委任管理者はリージョン単位です。東京だけで指定しても大阪のアカウントは管理されません。また NEW では既存のアカウントが対象になりません。",
+      "ディテクターは作成できますが、委任管理者による一元管理にはならず、検出結果の転送経路も自前で組む必要があります。運用負荷が大きくなります。"
+    ],
+    "services": ["Amazon GuardDuty", "AWS Organizations"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Managing GuardDuty accounts with AWS Organizations", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_organizations.html" },
+      { "title": "Processing GuardDuty findings with Amazon EventBridge", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_findings_eventbridge.html" }
+    ]
+  },
+  {
+    "id": "D1-002",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、組織内のすべてのアカウントで AWS Security Hub CSPM を有効にしており、ワークロードは us-east-1、us-west-2、ap-northeast-1 の 3 リージョンにあります。セキュリティアナリストは、3 リージョンの検出結果、コントロールのコンプライアンスステータス、セキュリティスコアを 1 つのリージョンのコンソールでまとめて確認したいと考えています。最小の運用負荷でこの要件を満たすソリューションはどれですか。",
+    "options": [
+      "各リージョンに Amazon EventBridge ルールを作成し、Security Hub Findings - Imported イベントを ap-northeast-1 の AWS Lambda 関数へ送り、BatchImportFindings で ap-northeast-1 の Security Hub CSPM に取り込みます。",
+      "Security Hub CSPM の検出結果を各リージョンで Amazon S3 にエクスポートし、Amazon Athena と Amazon QuickSight でリージョン横断のダッシュボードを作成します。",
+      "AWS Config のアグリゲーターを ap-northeast-1 に作成し、Security Hub CSPM のコントロールの結果を AWS Config の画面でまとめて確認します。",
+      "委任管理者アカウントで ap-northeast-1 をホームリージョンに指定してクロスリージョン集約を有効にし、us-east-1 と us-west-2 をリンクされたリージョンに設定します。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「検出結果、コンプライアンスステータス、セキュリティスコアを 1 つのリージョンで」と「最小の運用負荷」です。Security Hub CSPM のクロスリージョン集約を使うと、リンクされたリージョンの検出結果、検出結果の更新、インサイト、コントロールのコンプライアンスステータス、セキュリティスコアがホームリージョン(以前の名称は集約リージョン)に集まります。ホームリージョンでの検出結果の更新はリンクされたリージョンにも反映されます。マネージドな機能なので、転送用の関数やダッシュボードを自前で作る必要がありません。",
+    "optionNotes": [
+      "検出結果の転送は自作できますが、コンプライアンスステータスやセキュリティスコアは集約されず、Lambda の保守も必要になります。",
+      "可視化はできますが、パイプラインとダッシュボードを構築して保守する必要があり、Security Hub CSPM のスコアもそのままでは再現できません。",
+      "AWS Config アグリゲーターは Config のルール評価や構成情報を集めるものです。Security Hub CSPM の検出結果やセキュリティスコアをまとめて見る仕組みではありません。",
+      "正解です。クロスリージョン集約により、3 リージョンの検出結果、コントロールのステータス、セキュリティスコアをホームリージョンで一元的に確認できます。"
+    ],
+    "services": ["AWS Security Hub CSPM"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Understanding cross-Region aggregation in Security Hub CSPM", "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/finding-aggregation.html" }
+    ]
+  },
+  {
+    "id": "D1-003",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は 40 のアカウントに合計 3,000 以上の Amazon S3 汎用バケットを持っています。セキュリティチームは、どのバケットに個人情報などの機密データが含まれている可能性が高いかを継続的に把握したいと考えています。すべてのオブジェクトを毎回フルスキャンするとコストが大きくなりすぎるため避けたいとしています。また、AWS のログ保存用バケットは分析対象から外したいと考えています。最もコスト効率が良いソリューションはどれですか。",
+    "options": [
+      "Amazon Macie の委任管理者アカウントで自動機密データ検出を有効にし、分類スコープでログ保存用バケットを除外します。",
+      "Amazon Macie の委任管理者アカウントで、すべてのバケットを対象にした機密データ検出ジョブを毎日実行するようスケジュールし、ログ保存用バケットはジョブの条件で除外します。",
+      "Amazon GuardDuty の S3 Protection を全アカウントで有効にし、機密データを含むバケットへのアクセスを検出結果として受け取ります。",
+      "各バケットで S3 インベントリを有効にし、Amazon Athena でオブジェクトのキー名に含まれる文字列から機密データの有無を判定します。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「継続的に把握」「フルスキャンは避けたい」「最もコスト効率が良い」です。Macie の自動機密データ検出は、S3 バケットのインベントリを継続的に評価し、サンプリングで代表的なオブジェクトを選んで分析します。分析対象が一部に絞られるため、全オブジェクトを検査するジョブより低コストで、バケットごとの機密度をヒートマップなどで確認できます。組織の Macie 管理者はメンバーアカウントのバケットも対象にでき、分類スコープでログ保存用バケットのような特定のバケットを除外できます。",
+    "optionNotes": [
+      "正解です。サンプリングによる継続的な分析で、組織全体の機密データの所在を低コストで把握できます。分類スコープでバケットを除外できます。",
+      "毎日の全件ジョブは検査量が多く、コストが大きくなります。深掘りが必要なバケットに絞って使うのが向いています。",
+      "S3 Protection は S3 に対する不審なアクセスなどの脅威を検出するもので、オブジェクトの中身に機密データがあるかは判定しません。",
+      "キー名だけではオブジェクトの中身に含まれる機密データを判定できず、精度も保守性も要件に合いません。"
+    ],
+    "services": ["Amazon Macie", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Performing automated sensitive data discovery", "url": "https://docs.aws.amazon.com/macie/latest/user/discovery-asdd.html" }
+    ]
+  },
+  {
+    "id": "D1-004",
+    "domain": 1,
+    "task": "1.1",
+    "type": "multi",
+    "question": "ある企業は AWS Organizations のすべての機能を有効にしています。セキュリティチームは、CIS ベンチマークに沿った AWS Config ルールのセットを組織内の全メンバーアカウントへ配布し、定期的に評価したいと考えています。配布はセキュリティツール用アカウントから行い、管理アカウントは日常運用で使わない方針です。メンバーアカウントの IAM ポリシーを個別に変更することは避けたいとしています。これらの要件を満たすために必要な手順はどれですか。（2 つ選択）",
+    "options": [
+      "各メンバーアカウントに、セキュリティツール用アカウントが引き受けられる IAM ロールを作成し、config:PutConfigRule を許可します。",
+      "管理アカウントから config-multiaccountsetup.amazonaws.com の委任管理者としてセキュリティツール用アカウントを登録し、そのアカウントから PutOrganizationConformancePack で組織のコンフォーマンスパックをデプロイします。",
+      "セキュリティツール用アカウントに AWS Config アグリゲーターを作成します。アグリゲーターを作成すると、メンバーアカウントで設定レコーダーが自動的に有効になります。",
+      "各メンバーアカウントのコンソールにサインインし、同じテンプレートからコンフォーマンスパックを個別にデプロイします。",
+      "コンフォーマンスパックを配布する各メンバーアカウントとリージョンで、AWS Config の設定レコーダーが有効になっていることを確認します。"
+    ],
+    "answer": [1, 4],
+    "explanation": "組織のコンフォーマンスパックは PutOrganizationConformancePack で配布します。この API を呼べるのは管理アカウントと委任管理者だけで、委任管理者を使うには config-multiaccountsetup.amazonaws.com に対して登録が必要です。各メンバーアカウントでは AWSServiceRoleForConfigConforms というサービスリンクロールがルールを作成するため、メンバー側の IAM ポリシーで config:PutConfigRule を許可する必要はありません。一方で、ルールが構成を評価するには、対象アカウントで AWS Config の記録が有効になっていることが前提になります。",
+    "optionNotes": [
+      "組織のコンフォーマンスパックはサービスリンクロールでルールを作成するため、このロールは不要です。メンバーの IAM を個別に変更しないという要件にも反します。",
+      "正解です。委任管理者を登録すると、管理アカウントを使わずに組織全体へコンフォーマンスパックを配布できます。",
+      "アグリゲーターは複数アカウントの Config データを集めて表示するだけで、メンバーアカウントの設定レコーダーを有効にはしません。",
+      "アカウントごとの手作業は組織全体への配布として非効率で、新しいアカウントへの展開も漏れやすくなります。",
+      "正解です。AWS Config の記録が有効でないアカウントでは、コンフォーマンスパックのルールが評価を行えません。"
+    ],
+    "services": ["AWS Config", "AWS Organizations"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "put-organization-conformance-pack (AWS CLI Command Reference)", "url": "https://docs.aws.amazon.com/cli/latest/reference/configservice/put-organization-conformance-pack.html" },
+      { "title": "Deploy Conformance Packs across an Organization with Automatic Remediation", "url": "https://aws.amazon.com/blogs/mt/deploying-conformance-packs-across-an-organization-with-automatic-remediation/" }
+    ]
+  },
+  {
+    "id": "D1-005",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、AWS CloudTrail の証跡をすでに Amazon CloudWatch Logs のロググループに配信しています。セキュリティチームは、ルートユーザーが使われた回数を CloudWatch ダッシュボードのグラフで確認し、5 分間に 1 回以上使われたらセキュリティ担当者へメールで通知したいと考えています。最小の運用負荷でこの要件を満たすソリューションはどれですか。",
+    "options": [
+      "ロググループにサブスクリプションフィルターを作成して AWS Lambda 関数を呼び出し、ルートユーザーのイベントを見つけたら PutMetricData でカスタムメトリクスを発行します。そのメトリクスに CloudWatch アラームを設定します。",
+      "CloudTrail Insights を有効にし、Insights イベントが記録されたら Amazon SNS トピックへ通知されるよう設定します。",
+      "ロググループに userIdentity.type が Root のイベントに一致するメトリクスフィルターを作成し、生成されたメトリクスをダッシュボードに追加します。メトリクスに CloudWatch アラームを作成し、Amazon SNS トピックにメールで通知します。",
+      "AWS Config のマネージドルール root-account-mfa-enabled を有効にし、非準拠になったら Amazon SNS トピックへ通知します。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「回数をダッシュボードのグラフで」「5 分間に 1 回以上で通知」「最小の運用負荷」です。CloudWatch Logs のメトリクスフィルターは、ログに含まれる語やパターンを数値のメトリクスに変換します。CloudTrail のロググループに { $.userIdentity.type = \"Root\" ... } のようなパターンを設定すれば、ルートユーザーの利用回数がメトリクスになり、そのままダッシュボードに表示できます。メトリクスに CloudWatch アラームを作り、しきい値 1 以上で SNS に通知すれば要件を満たします。コードを書く必要もありません。",
+    "optionNotes": [
+      "同じ結果は得られますが、Lambda 関数の実装と保守が必要です。メトリクスフィルターで足りる処理をコードで行うことになり、運用負荷が大きくなります。",
+      "CloudTrail Insights は、管理 API の呼び出し量やエラー率が通常のパターンから大きく外れたときにイベントを記録する機能です。ルートユーザーの利用を回数として数えたり、1 回の利用で通知したりする仕組みではありません。",
+      "正解です。メトリクスフィルター、アラーム、SNS の組み合わせで、回数の可視化と通知をマネージド機能だけで実現できます。",
+      "このルールはルートユーザーに MFA が設定されているかを評価するもので、ルートユーザーの利用回数は分かりません。"
+    ],
+    "services": ["Amazon CloudWatch", "AWS CloudTrail", "Amazon SNS"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "How do I use CloudWatch alarms to monitor CloudTrail events?", "url": "https://repost.aws/knowledge-center/cloudwatch-monitor-cloudtrail-events" },
+      { "title": "Security Hub CSPM controls for Amazon CloudWatch", "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html" },
+      { "title": "Understanding CloudTrail events", "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-events.html" }
+    ]
+  },
+  {
+    "id": "D1-006",
+    "domain": 1,
+    "task": "1.1",
+    "type": "multi",
+    "question": "ある企業は、Env=prod タグが付いたすべての Amazon EC2 インスタンスにセキュリティエージェントが導入された状態を保ちたいと考えています。誰かがエージェントをアンインストールしても 1 時間以内に自動で元の状態に戻し、各インスタンスが求める状態に準拠しているかを AWS Config のコンプライアンス画面で確認できるようにする必要があります。すべてのインスタンスは AWS Systems Manager のマネージドノードです。これらの要件を満たすために実施すべきことはどれですか。（2 つ選択）",
+    "options": [
+      "Systems Manager State Manager で、Env=prod タグを対象に AWS-ConfigureAWSPackage ドキュメントでエージェントをインストールする関連付けを作成し、スケジュールを rate(1 hour) に設定します。",
+      "Systems Manager State Manager で、同じ関連付けのスケジュールを rate(10 minutes) に設定し、より短い間隔で状態を戻すようにします。",
+      "Systems Manager のメンテナンスウィンドウを週 1 回で作成し、Run Command でエージェントのインストールコマンドを実行します。",
+      "AWS Config のマネージドルール ec2-managedinstance-association-compliance-status-check を有効にします。",
+      "Amazon EventBridge のスケジュールで 1 時間ごとに AWS Lambda 関数を起動し、各インスタンスに SSH 接続してエージェントの有無を確認します。"
+    ],
+    "answer": [0, 3],
+    "explanation": "State Manager の関連付けは、マネージドノードを定義した状態に保つための機能です。タグでターゲットを指定し、スケジュールに沿って繰り返し適用されるため、エージェントが削除されても次の実行で元に戻ります。関連付けのスケジュールは 30 分以上の間隔である必要があり、rate(1 hour) は使えますが rate(10 minutes) は使えません。関連付けの実行結果は関連付けのコンプライアンスとして記録され、AWS Config のマネージドルール ec2-managedinstance-association-compliance-status-check で COMPLIANT か NON_COMPLIANT かを評価できます。",
+    "optionNotes": [
+      "正解です。タグで対象を指定した関連付けを 1 時間ごとに実行し、状態のずれを自動で戻せます。",
+      "State Manager の関連付けでは 30 分未満の間隔を指定できないため、この設定は作成できません。",
+      "週 1 回では 1 時間以内に戻すという要件を満たせず、関連付けのコンプライアンスとして記録されることもありません。",
+      "正解です。関連付けの実行後のコンプライアンス状態を AWS Config のルールとして評価し、コンプライアンス画面で確認できます。",
+      "SSH 接続の管理や認証情報の扱いが増え、Config での準拠状況の確認も別途作り込む必要があります。運用負荷が大きくなります。"
+    ],
+    "services": ["AWS Systems Manager", "AWS Config", "Amazon EC2"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Reference: Cron and rate expressions for Systems Manager", "url": "https://docs.aws.amazon.com/systems-manager/latest/userguide/reference-cron-and-rate-expressions.html" },
+      { "title": "ec2-managedinstance-association-compliance-status-check", "url": "https://docs.aws.amazon.com/config/latest/developerguide/ec2-managedinstance-association-compliance-status-check.html" }
+    ]
+  },
+  {
+    "id": "D1-007",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、外部の取引先がファイルをアップロードする Amazon S3 バケットを運用しています。社内のアプリケーションはこのバケットからファイルを読み取って処理します。セキュリティチームは、アップロードされたファイルのマルウェアをスキャンし、問題がないと判定されたオブジェクトだけをアプリケーションが読み取れるようにしたいと考えています。このアカウントでは Amazon GuardDuty の脅威検出は有効にしておらず、今後も有効にする予定はありません。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "S3 イベント通知で AWS Lambda 関数を起動し、関数に組み込んだオープンソースのウイルス対策エンジンでスキャンします。結果に応じてオブジェクトを別のバケットへコピーし、アプリケーションはコピー先から読み取ります。",
+      "GuardDuty Malware Protection for S3 を独立した機能としてバケットで有効にし、オブジェクトのタグ付けを有効にします。バケットポリシーで、GuardDutyMalwareScanStatus タグが NO_THREATS_FOUND でないオブジェクトの s3:GetObject を拒否します。",
+      "GuardDuty の S3 Protection を有効にし、S3 データイベントの分析でマルウェアを含むオブジェクトを検出します。検出結果に応じてアプリケーション側で読み取りを止めます。",
+      "Amazon Inspector を有効にし、S3 バケットのオブジェクトをスキャン対象に追加します。検出結果が出たオブジェクトを Amazon EventBridge と Lambda で削除します。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「アップロードされたファイルのマルウェアをスキャン」「脅威検出は有効にしない」「問題ないものだけ読ませる」です。Malware Protection for S3 は、選択したバケットに新しくアップロードされたオブジェクトを自動でスキャンします。GuardDuty の脅威検出を有効にせず、独立した機能として使えます。その場合ディテクター ID がないため GuardDuty の検出結果は作られませんが、結果は EventBridge と CloudWatch に送られます。タグ付けを有効にすると GuardDutyMalwareScanStatus タグが付くので、タグベースのアクセス制御で NO_THREATS_FOUND 以外の読み取りを拒否できます。",
+    "optionNotes": [
+      "実現はできますが、スキャンエンジンや定義ファイルの更新、コピー処理を自前で保守する必要があり、運用負荷が大きくなります。",
+      "正解です。マネージドなスキャンとオブジェクトタグを組み合わせ、バケットポリシーで未スキャンや脅威ありのオブジェクトの読み取りを止められます。",
+      "S3 Protection は S3 へのアクセスの不審な挙動を検出するもので、オブジェクトの中身のマルウェアはスキャンしません。脅威検出を有効にしない方針にも反します。",
+      "Amazon Inspector は EC2、ECR のコンテナイメージ、Lambda などの脆弱性を評価するサービスで、S3 オブジェクトのマルウェアスキャン機能はありません。"
+    ],
+    "services": ["Amazon GuardDuty", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "GuardDuty Malware Protection for S3", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/gdu-malware-protection-s3.html" },
+      { "title": "Using tag-based access control (TBAC) with Malware Protection for S3", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/tag-based-access-s3-malware-protection.html" }
+    ]
+  },
+  {
+    "id": "D1-008",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は AWS Organizations で数十のアカウントを管理しています。監査要件として、すべてのアカウントとすべての有効なリージョンの管理イベントを記録し、ログアーカイブ用アカウントの Amazon S3 バケットに集約する必要があります。今後追加されるアカウントも自動的に対象にし、メンバーアカウントの管理者がログ記録を停止したり設定を変更したりできないようにしなければなりません。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "管理アカウントまたは CloudTrail の委任管理者アカウントで、マルチリージョンの組織の証跡を作成し、ログアーカイブ用アカウントの S3 バケットを配信先に指定します。",
+      "AWS CloudFormation StackSets で各アカウントにマルチリージョンの証跡を作成し、SCP で cloudtrail:StopLogging と cloudtrail:DeleteTrail を拒否します。",
+      "各アカウントで CloudTrail Lake のイベントデータストアを作成し、ログアーカイブ用アカウントから各イベントデータストアへクエリを実行します。",
+      "ログアーカイブ用アカウントで単一リージョンの証跡を作成し、各メンバーアカウントの S3 バケットポリシーでログの書き込みを許可します。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「全アカウント、全リージョン」「新しいアカウントも自動的に」「メンバーが停止や変更をできない」「最小の運用負荷」です。組織の証跡は管理アカウントと全メンバーアカウントのイベントを記録します。アカウントが組織に追加されると、証跡とサービスリンクロールがそのアカウントに追加され、自動的にログ記録が始まります。メンバーアカウントのユーザーは組織の証跡を参照できますが、削除、ログ記録のオンとオフ、記録するイベントの変更はできません。証跡を変更できるのは管理アカウントか委任管理者だけです。",
+    "optionNotes": [
+      "正解です。組織の証跡なら新しいアカウントも自動で対象になり、メンバーアカウントからは変更や停止ができません。",
+      "実現はできますが、スタックと SCP の両方を保守する必要があり、組織の証跡に比べて運用負荷が大きくなります。",
+      "アカウントごとのイベントデータストアは集約になっておらず、管理も分散します。メンバー側での削除を防ぐ仕組みもありません。",
+      "単一リージョンでは全リージョンの要件を満たせません。また通常の証跡は自アカウントのイベントしか記録しません。"
+    ],
+    "services": ["AWS CloudTrail", "AWS Organizations", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Creating a trail for an organization", "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/creating-trail-organization.html" },
+      { "title": "Organization delegated administrator", "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-delegated-administrator.html" }
+    ]
+  },
+  {
+    "id": "D1-009",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は、組織内の多数のアカウントでアプリケーションのログを Amazon CloudWatch Logs に出力しています。ワークロードは ap-northeast-1 と us-east-1 にあります。セキュリティチームは専用のロギングアカウントを用意し、すべてのアカウントとリージョンのログのコピーをロギングアカウントの ap-northeast-1 に集め、障害に備えて別リージョンにもう 1 つのコピーを保持したいと考えています。新しいアカウントも自動的に対象にする必要があります。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "各アカウントの各ロググループにサブスクリプションフィルターを作成し、ロギングアカウントの Amazon Data Firehose 配信ストリームへ送ります。Firehose から Amazon S3 に保存し、S3 のクロスリージョンレプリケーションを設定します。",
+      "CloudWatch のクロスアカウントオブザーバビリティで、ロギングアカウントをモニタリングアカウント、他のアカウントをソースアカウントとして組織単位でリンクします。",
+      "管理アカウントまたは委任管理者アカウントで CloudWatch Logs の集約ルールを作成し、ソースに組織全体と 2 つのリージョンを、宛先にロギングアカウントの ap-northeast-1 を、バックアップリージョンに別のリージョンを指定します。",
+      "各アカウントで CreateExportTask を毎日実行する AWS Lambda 関数をデプロイし、ロギングアカウントの S3 バケットにロググループをエクスポートします。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「ログのコピーを集める」「アカウントとリージョンをまたぐ」「バックアップリージョン」「新しいアカウントも自動で」です。CloudWatch Logs のクロスアカウント、クロスリージョンの集約ルールは、管理アカウントか委任管理者から作成し、ソースとしてアカウント、OU、組織全体と複数のリージョンを指定できます。宛先のアカウントとリージョンにログデータが複製され、任意でバックアップリージョンに 2 つ目のコピーを持てます。組織単位で指定すれば新しいアカウントも対象になり、ロググループごとの設定は不要です。",
+    "optionNotes": [
+      "実現はできますが、ロググループごとにフィルターを作り続ける必要があり、新しいロググループやアカウントへの対応も自前になります。",
+      "クロスアカウントオブザーバビリティは同じリージョン内で、ソースアカウントのデータをモニタリングアカウントから参照する仕組みです。ログのコピーを集めるものではなく、リージョンもまたげません。",
+      "正解です。集約ルールにより、組織全体の複数リージョンのログを宛先アカウントに複製し、バックアップリージョンにもコピーを保持できます。",
+      "エクスポートはバッチ処理でリアルタイム性がなく、関数の配布と保守も必要です。運用負荷が大きくなります。"
+    ],
+    "services": ["Amazon CloudWatch Logs", "AWS Organizations"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Cross-account cross-Region log centralization", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CloudWatchLogs_Centralization.html" },
+      { "title": "CloudWatch cross-account observability", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Unified-Cross-Account.html" }
+    ]
+  },
+  {
+    "id": "D1-010",
+    "domain": 1,
+    "task": "1.2",
+    "type": "multi",
+    "question": "ある企業は Amazon Security Lake を組織全体で有効にし、ap-northeast-1 をロールアップリージョンに設定しています。外部ベンダーの SIEM は別の AWS アカウントで稼働しており、新しいログが Security Lake に書き込まれるたびに通知を受けて S3 オブジェクトを取り込みたいと考えています。社内のセキュリティアナリストは別のアカウントから Amazon Athena で SQL を実行して調査したいと考えています。どちらもソースごとに最小権限でアクセスさせる必要があります。これらの要件を満たす構成はどれですか。（2 つ選択）",
+    "options": [
+      "Security Lake の S3 バケットのバケットポリシーで SIEM のアカウントに s3:GetObject を許可し、S3 イベント通知を SIEM のアカウントの Amazon SNS トピックに直接送ります。",
+      "Security Lake のデータを AWS Lambda で ASFF に変換してから SIEM のアカウントの S3 バケットに書き込みます。",
+      "SIEM のアカウントを、必要なソースだけを指定したデータアクセスのサブスクライバーとして ap-northeast-1 に作成し、Amazon SQS キューで新しいオブジェクトの通知を受け取るようにします。",
+      "アナリストのアカウントをデータアクセスのサブスクライバーとして作成し、HTTPS エンドポイントで通知を受けたあとにオブジェクトをダウンロードして Athena で分析します。",
+      "アナリストのアカウントを、必要なソースだけを指定したクエリアクセスのサブスクライバーとして ap-northeast-1 に作成し、共有された AWS Lake Formation のテーブルを Athena でクエリします。"
+    ],
+    "answer": [2, 4],
+    "explanation": "Security Lake のサブスクライバーには、データアクセスとクエリアクセスの 2 種類があり、アクセスはソースごとに与えます。データアクセスのサブスクライバーは、S3 バケットに新しいオブジェクトが書き込まれると通知を受けます。通知は既定では HTTPS エンドポイントですが、SQS キューのポーリングも選べ、SIEM が取り込む用途に向いています。クエリアクセスのサブスクライバーは、Lake Formation のテーブルを Athena などで直接クエリできます。サブスクライバーは作成したリージョンのデータにしかアクセスできないため、複数リージョンのデータを見せるにはロールアップリージョンで作成します。",
+    "optionNotes": [
+      "Security Lake のサブスクライバー機能を通さずバケットを直接開放する方法で、ソースごとの最小権限の制御になりません。",
+      "Security Lake のデータは OCSF の Parquet で保存されており、変換の仕組みを自前で保守する必要があります。要件にもない処理です。",
+      "正解です。データアクセスのサブスクライバーにすると、新しいオブジェクトの通知を SQS で受け取って取り込めます。",
+      "SQL で調査したいアナリストにはクエリアクセスが適しています。オブジェクトを都度ダウンロードする方法は手間が大きく、目的に合いません。",
+      "正解です。クエリアクセスのサブスクライバーなら、共有された Lake Formation のテーブルに Athena で直接 SQL を実行できます。"
+    ],
+    "services": ["Amazon Security Lake", "Amazon Athena", "AWS Lake Formation", "Amazon SQS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Subscriber management in Security Lake", "url": "https://docs.aws.amazon.com/security-lake/latest/userguide/subscriber-management.html" },
+      { "title": "Open Cybersecurity Schema Framework (OCSF) in Security Lake", "url": "https://docs.aws.amazon.com/security-lake/latest/userguide/open-cybersecurity-schema-framework.html" }
+    ]
+  },
+  {
+    "id": "D1-011",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は、組織の証跡で 3 年分の AWS CloudTrail ログを Amazon S3 に保存しています。セキュリティチームは、インシデント調査のたびに特定のアカウント、リージョン、期間に絞って SQL でアドホックに分析したいと考えています。これまで Amazon Athena のテーブルを日付でパーティション分割していましたが、パーティションの追加作業が手間で、パーティション数が増えてクエリの計画に時間がかかるようになりました。最小の運用負荷でこの問題を解決する方法はどれですか。",
+    "options": [
+      "毎日 AWS Glue クローラーを実行して新しいパーティションを自動で追加し、Athena のテーブルを最新に保ちます。",
+      "CloudTrail ログを毎日 Amazon OpenSearch Service に取り込み、OpenSearch Dashboards で検索します。",
+      "毎日 MSCK REPAIR TABLE を実行する AWS Lambda 関数をスケジュールし、パーティションを追加します。",
+      "アカウント、リージョン、日付をパーティションキーにし、パーティション射影を設定した Athena のテーブルを作成します。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「パーティションの追加作業が手間」と「パーティション数が増えて計画に時間がかかる」です。Athena のパーティション射影を使うと、パーティションの値と場所がテーブルの設定から計算されるため、メタストアにパーティションを登録する必要がなくなります。分割数が非常に多いテーブルでもクエリの計画が速くなります。組織の証跡のログは、プレフィックスに組織 ID、アカウント ID、リージョン、日付が並ぶ構造なので、アカウントとリージョンと日付で射影すると調査対象を絞ってスキャン量も減らせます。",
+    "optionNotes": [
+      "パーティションの追加は自動化できますが、パーティション数が増えることによる計画時間の問題は解決しません。クローラーの実行コストもかかります。",
+      "検索はできますが、3 年分のログを取り込んで保持するクラスターの運用とコストが必要になり、アドホックな SQL 分析という要件からも外れます。",
+      "パーティションの登録を自動化するだけで、計画時間の問題は残ります。CloudTrail のプレフィックス構造では MSCK REPAIR TABLE がそのまま使えない点にも注意が必要です。",
+      "正解です。パーティション射影でパーティション管理が不要になり、パーティション数が多くてもクエリの計画が速くなります。"
+    ],
+    "services": ["Amazon Athena", "AWS CloudTrail", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "How can I use partition projection to create CloudTrail tables for Athena queries?", "url": "https://repost.aws/knowledge-center/athena-cloudtrail-data-timeout" },
+      { "title": "Optimize querying AWS CloudTrail logs with partitioning in Amazon Athena", "url": "https://aws.amazon.com/blogs/mt/optimize-querying-aws-cloudtrail-logs-with-partitioning-in-amazon-athena/" }
+    ]
+  },
+  {
+    "id": "D1-012",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "あるセキュリティエンジニアは、プライベートサブネットの Amazon EC2 インスタンスがゾーン NAT ゲートウェイ経由でインターネット上の不審なホストと通信していないかを調べています。NAT ゲートウェイのネットワークインターフェイスで既定形式の VPC フローログを取得していますが、どのインスタンスが通信の発信元なのか、最終的な宛先がどのホストなのかをレコードから判別できません。この問題を解決するためにエンジニアが行うべきことはどれですか。",
+    "options": [
+      "フローログの集約間隔を 10 分から 1 分に変更し、レコードの粒度を細かくします。",
+      "VPC フローログを停止し、Amazon Route 53 Resolver のクエリログを有効にして通信先を特定します。",
+      "pkt-srcaddr と pkt-dstaddr のフィールドを含むカスタム形式でフローログを作成し直します。",
+      "Traffic Mirroring を NAT ゲートウェイに設定し、すべてのパケットを分析用のインスタンスに複製します。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「NAT ゲートウェイ経由」で「発信元と最終的な宛先が判別できない」です。既定形式の srcaddr と dstaddr は、そのネットワークインターフェイスから見た送信元と宛先を記録するため、NAT ゲートウェイのインターフェイスでは片側が NAT ゲートウェイのプライベート IP になります。pkt-srcaddr と pkt-dstaddr はパケットレベルの元の送信元と宛先を記録するので、インスタンスの IP とインターネット上のホストの IP を同じレコードで確認できます。これらは既定形式に含まれないため、カスタム形式でフローログを作成する必要があります。",
+    "optionNotes": [
+      "集約間隔を短くしても記録されるフィールドは変わらず、元の送信元と宛先は分かりません。",
+      "Resolver のクエリログは DNS の問い合わせを記録するもので、IP アドレスで直接行われた通信は分かりません。フローログを止める理由もありません。",
+      "正解です。pkt-srcaddr と pkt-dstaddr により、NAT を経由する通信でも元の送信元と最終的な宛先を確認できます。",
+      "Traffic Mirroring は対象を選ぶ機能で、NAT ゲートウェイはミラーリングの送信元にできません。パケットの全量分析は要件に対して過剰です。"
+    ],
+    "services": ["Amazon VPC", "Amazon EC2"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Flow log records", "url": "https://docs.aws.amazon.com/vpc/latest/userguide/flow-log-records.html" },
+      { "title": "Flow log record examples", "url": "https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-records-examples.html" }
+    ]
+  },
+  {
+    "id": "D1-013",
+    "domain": 1,
+    "task": "1.2",
+    "type": "multi",
+    "question": "ある企業は、ネットワークアカウントの AWS Transit Gateway で複数アカウントの VPC を接続しています。セキュリティチームは、マルウェアに感染したインスタンスが不審なドメインを名前解決していないかを調べるため、すべての VPC から Amazon Route 53 Resolver に送られた DNS クエリを記録したいと考えています。また、VPC 間の横移動を調べるため、Transit Gateway を通過する通信を、送信元と宛先の VPC やアカウントの情報付きで記録したいと考えています。これらの要件を満たす構成はどれですか。（2 つ選択）",
+    "options": [
+      "ネットワークアカウントで Resolver のクエリログ設定を作成し、AWS RAM で各アカウントに共有します。各アカウントで自分の VPC をクエリログ設定に関連付けます。",
+      "各 VPC で VPC フローログを有効にし、UDP 53 番ポートの通信から問い合わせたドメイン名を確認します。",
+      "Transit Gateway のフローログを作成し、tgw-src-vpc-id や tgw-dst-vpc-account-id などのフィールドを含む形式で出力します。",
+      "AWS CloudTrail のデータイベントで Route 53 を対象にし、Resolver への DNS クエリを記録します。",
+      "Transit Gateway のアタッチメントごとに AWS Network Firewall を挿入し、フローログの代わりにファイアウォールのアラートログで VPC 間の通信を記録します。"
+    ],
+    "answer": [0, 2],
+    "explanation": "Resolver のクエリログは、関連付けた VPC から発生した DNS クエリを S3、CloudWatch Logs、Firehose に記録します。クエリログ設定は AWS RAM で他のアカウントに共有でき、共有されたアカウントは自分の VPC を関連付けられます。Transit Gateway のフローログは、Transit Gateway 全体またはアタッチメント単位で通信を記録し、tgw-src-vpc-id、tgw-dst-vpc-id、tgw-src-vpc-account-id、tgw-dst-vpc-account-id などのフィールドで、どの VPC とアカウントの間の通信かを確認できます。",
+    "optionNotes": [
+      "正解です。共有したクエリログ設定に各アカウントの VPC を関連付けると、すべての VPC の DNS クエリを記録できます。",
+      "VPC フローログは IP、ポート、プロトコルなどを記録するだけで、DNS で問い合わせたドメイン名は含まれません。",
+      "正解です。Transit Gateway のフローログには送信元と宛先の VPC やアカウントを示すフィールドがあり、VPC 間の通信の追跡に向いています。",
+      "CloudTrail は API の呼び出しを記録するサービスで、VPC 内のリソースから Resolver に送られる DNS クエリは記録しません。",
+      "Network Firewall の挿入はネットワーク構成の変更とコストが大きく、アラートログはルールに一致した通信だけを記録します。通信の記録という要件に対して過剰です。"
+    ],
+    "services": ["Amazon Route 53 Resolver", "AWS Transit Gateway", "AWS RAM", "Amazon VPC"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Sharing Resolver query logging configurations with other AWS accounts", "url": "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/query-logging-configurations-managing-sharing.html" },
+      { "title": "AWS Transit Gateway Flow Logs", "url": "https://docs.aws.amazon.com/vpc/latest/tgw/tgw-flow-logs.html" }
+    ]
+  },
+  {
+    "id": "D1-014",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は 300 台の Amazon EC2 インスタンスで Linux のアプリケーションを稼働させています。セキュリティチームは、/var/log/secure と /var/log/app/*.log を Amazon CloudWatch Logs に集めたいと考えています。収集の設定は 1 か所で管理し、変更があれば全インスタンスへ反映したいとしています。インスタンスはすべて AWS Systems Manager のマネージドノードです。最小権限を守りつつ、最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "各インスタンスのインスタンスプロファイルに CloudWatchAgentAdminPolicy を付与し、各インスタンスで設定ウィザードを実行して CloudWatch エージェントの設定ファイルを作成します。",
+      "CloudWatch エージェントの設定ファイルを Systems Manager Parameter Store に保存し、インスタンスプロファイルに CloudWatchAgentServerPolicy を付与します。State Manager の関連付けで AWS-ConfigureAWSPackage によりエージェントを導入し、AmazonCloudWatch-ManageAgent で Parameter Store の設定を適用します。",
+      "各インスタンスの cron で 5 分ごとにログファイルを Amazon S3 にコピーし、S3 イベント通知で AWS Lambda 関数を起動して CloudWatch Logs に書き込みます。",
+      "インスタンスプロファイルに CloudWatchLogsFullAccess を付与し、ユーザーデータで CloudWatch エージェントをインストールして、AMI に設定ファイルを焼き込みます。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「設定を 1 か所で管理して全台に反映」「最小権限」「最小の運用負荷」です。CloudWatch エージェントの設定ファイルは Parameter Store に保存でき、State Manager の関連付けで AWS-ConfigureAWSPackage によるインストールと AmazonCloudWatch-ManageAgent による設定の適用を全台に行えます。設定を変えたら Parameter Store を更新して関連付けを再実行するだけです。インスタンスに付けるのは、設定の読み取りとメトリクスやログの送信ができる CloudWatchAgentServerPolicy で足ります。CloudWatchAgentAdminPolicy は Parameter Store へ設定を書き込む権限を含むため、設定を作るインスタンスだけに付けます。",
+    "optionNotes": [
+      "全台に Admin ポリシーを付けるのは最小権限に反します。300 台でウィザードを実行するのも運用負荷が大きくなります。",
+      "正解です。設定を Parameter Store で一元管理し、State Manager で全台に導入と適用ができます。権限も Server ポリシーで足ります。",
+      "独自のコピーと変換の仕組みを保守する必要があり、ログの遅延も大きくなります。",
+      "CloudWatchLogsFullAccess は必要以上の権限です。設定を AMI に焼き込むと、変更のたびに AMI を作り直して入れ替える必要があります。"
+    ],
+    "services": ["Amazon CloudWatch", "AWS Systems Manager", "Amazon EC2"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Prerequisites (CloudWatch agent)", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/prerequisites.html" },
+      { "title": "Manually create or edit the CloudWatch agent configuration file", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Agent-Configuration-File-Details.html" }
+    ]
+  },
+  {
+    "id": "D1-015",
+    "domain": 1,
+    "task": "1.3",
+    "type": "multi",
+    "question": "ある開発チームが新しい AWS Lambda 関数をデプロイしました。セキュリティエンジニアが Amazon CloudWatch Logs の /aws/lambda/<関数名> ロググループを確認したところ、関数は正常に実行されているにもかかわらず、新しいログが 1 件も記録されていません。このロググループが存在しないこともあります。原因として考えられるものはどれですか。（2 つ選択）",
+    "options": [
+      "関数のロググループの保持期間が 1 日に設定されています。",
+      "関数の実行ロールに logs:CreateLogStream と logs:PutLogEvents の権限がありません。",
+      "関数のアプリケーションログレベルが DEBUG に設定されています。",
+      "関数のログ設定で、既定とは別のカスタムロググループが指定されています。",
+      "関数で AWS X-Ray のアクティブトレースが無効になっています。"
+    ],
+    "answer": [1, 3],
+    "explanation": "Lambda 関数がログを CloudWatch Logs に送るには、実行ロールに logs:CreateLogGroup、logs:CreateLogStream、logs:PutLogEvents の権限が必要です。AWSLambdaBasicExecutionRole にはこれらが含まれますが、独自のロールで漏れているとログが書き込まれず、ロググループも作られません。また Lambda の LoggingConfig では LogGroup を指定でき、既定の /aws/lambda/<関数名> 以外のロググループにログを送れます。カスタムロググループが設定されていると、既定のロググループには何も出ません。",
+    "optionNotes": [
+      "保持期間は古いログを削除する設定です。新しいログが 1 件も出ない原因にはなりません。",
+      "正解です。実行ロールにログを書き込む権限がないと、ロググループやログストリームを作成できず、ログが記録されません。",
+      "DEBUG は詳しいログまで送る設定で、ログが減る原因になりません。ログレベルの絞り込みで出なくなるのは、WARN や ERROR などより粗いレベルを指定した場合です。",
+      "正解です。LoggingConfig の LogGroup で別のロググループを指定すると、ログはそちらに送られ、既定のロググループには出ません。",
+      "X-Ray のトレースはログとは別の仕組みで、無効でも CloudWatch Logs へのログ出力には影響しません。"
+    ],
+    "services": ["AWS Lambda", "Amazon CloudWatch Logs", "AWS IAM"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Sending Lambda function logs to CloudWatch Logs", "url": "https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs.html" },
+      { "title": "LoggingConfig (AWS Lambda API Reference)", "url": "https://docs.aws.amazon.com/lambda/latest/api/API_LoggingConfig.html" }
+    ]
+  },
+  {
+    "id": "D1-016",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "あるセキュリティエンジニアは、ap-northeast-1 に新しく作成した Amazon API Gateway の REST API で、ステージの CloudWatch Logs の実行ログを有効にしました。しかし API を呼び出しても、CloudWatch Logs に実行ログが記録されません。同じアカウントの us-east-1 にある別の REST API では実行ログが正常に記録されています。最も可能性が高い原因はどれですか。",
+    "options": [
+      "ap-northeast-1 の API Gateway のアカウント設定に、CloudWatch Logs への書き込みを許可する IAM ロールの ARN(cloudWatchRoleArn)が設定されていません。",
+      "REST API のリソースポリシーで、CloudWatch Logs のサービスプリンシパルからのアクセスが許可されていません。",
+      "ステージのアクセスログの形式に $context.requestId が含まれていません。",
+      "ステージで AWS X-Ray のトレースが有効になっていません。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「別のリージョンでは記録されている」です。API Gateway が CloudWatch Logs にログを書くには、apigateway.amazonaws.com を信頼する IAM ロールを作り、AmazonAPIGatewayPushToCloudWatchLogs などの権限を付けて、アカウントの cloudWatchRoleArn に設定する必要があります。この設定はリージョンごとで、ログを有効にしたいリージョンそれぞれで行わなければなりません。us-east-1 で設定済みでも、ap-northeast-1 で未設定なら実行ログは記録されません。",
+    "optionNotes": [
+      "正解です。cloudWatchRoleArn はリージョン単位のアカウント設定で、ap-northeast-1 でも設定が必要です。",
+      "リソースポリシーは API を呼び出せるプリンシパルを制御するもので、API Gateway から CloudWatch Logs への書き込みには関係しません。",
+      "アクセスログの形式は実行ログとは別の設定です。この変数がなくても実行ログが記録されない原因にはなりません。",
+      "X-Ray のトレースはログとは独立した機能で、実行ログの記録の有無に影響しません。"
+    ],
+    "services": ["Amazon API Gateway", "Amazon CloudWatch Logs", "AWS IAM"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Set up CloudWatch logging for REST APIs in API Gateway", "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-logging.html" },
+      { "title": "How do I troubleshoot missing CloudWatch logs for API Gateway REST APIs?", "url": "https://repost.aws/knowledge-center/api-gateway-missing-cloudwatch-logs" }
+    ]
+  },
+  {
+    "id": "D1-017",
+    "domain": 1,
+    "task": "1.3",
+    "type": "multi",
+    "question": "ある企業は、Amazon CloudFront ディストリビューションでレガシーの標準ログ(Amazon S3 への直接配信)を有効にしました。ログの保存先として新しく作成した S3 バケットを指定しましたが、バケットにアクセスログが 1 件も配信されません。バケットの S3 オブジェクト所有者は既定の「バケット所有者の強制」のままです。セキュリティエンジニアはアクセスログを S3 に保存できるようにする必要があります。この問題を解決できる対応はどれですか。（2 つ選択）",
+    "options": [
+      "バケットの S3 オブジェクト所有者の設定を変更して ACL を有効にし、CloudFront が awslogsdelivery アカウントにバケットへの書き込み権限を付与できるようにします。",
+      "バケットポリシーで cloudfront.amazonaws.com サービスプリンシパルに s3:PutObject を許可します。",
+      "バケットで S3 サーバーアクセスログを有効にし、CloudFront へのリクエストを記録します。",
+      "CloudFront のリアルタイムログを設定し、配信先に S3 バケットを直接指定します。",
+      "CloudWatch の vended logs を使う標準ログ(v2)に切り替え、配信先に S3 バケットを指定します。"
+    ],
+    "answer": [0, 4],
+    "explanation": "レガシーの標準ログは、バケットの ACL で awslogsdelivery アカウントに FULL_CONTROL を付与してログを書き込みます。S3 オブジェクト所有者が「バケット所有者の強制」だと ACL が無効なので、CloudFront はログを書き込めません。ACL を有効にすればレガシーの方式で配信できます。もう 1 つの方法は標準ログ(v2)への切り替えです。v2 は CloudWatch の vended logs でログを配信し、配信先に CloudWatch Logs、Amazon Data Firehose、S3 を選べます。S3 への配信はバケットポリシーの権限で行われるため、ACL に依存しません。",
+    "optionNotes": [
+      "正解です。ACL を有効にすると、レガシーの標準ログが必要とする awslogsdelivery への権限付与ができるようになります。",
+      "レガシーの標準ログはバケット ACL で書き込み権限を得る方式で、このバケットポリシーを足しても ACL が無効な問題は解決しません。",
+      "S3 サーバーアクセスログは S3 バケットへのリクエストを記録するもので、CloudFront のアクセスログの代わりにはなりません。",
+      "リアルタイムログの配信先は Amazon Kinesis Data Streams で、S3 バケットを直接指定することはできません。",
+      "正解です。標準ログ(v2)は vended logs の仕組みで S3 に配信するため、ACL を有効にせずにログを保存できます。"
+    ],
+    "services": ["Amazon CloudFront", "Amazon S3", "Amazon CloudWatch Logs"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Configure standard logging (legacy)", "url": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/standard-logging-legacy-s3.html" },
+      { "title": "Configure standard logging (v2)", "url": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/standard-logging.html" }
+    ]
+  },
+  {
+    "id": "D1-018",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、ap-northeast-1 で稼働する公開 Web アプリケーションに Amazon Route 53 のヘルスチェックを設定しています。運用チームは、ヘルスチェックが異常になったら通知を受けるため、ap-northeast-1 の Amazon CloudWatch コンソールでアラームを作成しようとしましたが、Route 53 のヘルスチェックのメトリクスが一覧に表示されません。ヘルスチェック自体は正常に動作しています。この問題を解決する方法はどれですか。",
+    "options": [
+      "ヘルスチェックの設定で「CloudWatch へのメトリクス送信」を有効にし、ap-northeast-1 にメトリクスが送られるようにします。",
+      "ヘルスチェックを削除し、ap-northeast-1 のエンドポイントを指定して作成し直します。",
+      "Route 53 のホストゾーンで DNSSEC 署名を有効にし、ヘルスチェックの結果がメトリクスとして出力されるようにします。",
+      "CloudWatch コンソールのリージョンを us-east-1 に切り替え、そこで HealthCheckStatus メトリクスに対するアラームと Amazon SNS の通知を作成します。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「ヘルスチェックは動いているがメトリクスが見えない」と「ap-northeast-1 のコンソール」です。Route 53 はグローバルサービスで、ヘルスチェックのメトリクスは US East (N. Virginia) リージョンの CloudWatch にのみ発行されます。ほかのリージョンを選んでいると Route 53 のメトリクスは表示されません。そのため HealthCheckStatus のアラームと通知先の SNS トピックは us-east-1 に作成する必要があります。",
+    "optionNotes": [
+      "ヘルスチェックのメトリクスを任意のリージョンに送る設定はありません。メトリクスは us-east-1 にのみ発行されます。",
+      "エンドポイントの所在地にかかわらず、Route 53 のメトリクスは us-east-1 に発行されます。作り直しても解決しません。",
+      "DNSSEC 署名は DNS 応答の改ざん防止の機能で、ヘルスチェックのメトリクスとは関係ありません。",
+      "正解です。Route 53 のヘルスチェックのメトリクスは us-east-1 にあるため、アラームもそこで作成します。"
+    ],
+    "services": ["Amazon Route 53", "Amazon CloudWatch", "Amazon SNS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Monitoring health checks using CloudWatch", "url": "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/monitoring-health-checks.html" }
+    ]
+  },
+  {
+    "id": "D1-019",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、以前から AWS Security Hub CSPM の検出結果を Amazon EventBridge ルールで受け取り、重大度が CRITICAL のものをチケットシステムへ送っていました。最近、新しい AWS Security Hub を有効にし、相関分析で生成されるエクスポージャー検出結果もチケット化したいと考えています。既存のルールのイベントパターンは source が aws.securityhub、detail-type が Security Hub Findings - Imported です。新しい Security Hub の検出結果がチケットになりません。最も適切な対応はどれですか。",
+    "options": [
+      "新しい Security Hub の検出結果は EventBridge に送られないため、Security Hub の API を定期的に呼び出す AWS Lambda 関数を作成して検出結果を取得します。",
+      "既存のルールの source を aws.securityhub-v2 に変更します。",
+      "detail-type が Findings Imported V2 のイベントに一致する新しいルールを作成し、OCSF 形式の検出結果のフィールドに合わせて重大度の条件を書きます。",
+      "新しい Security Hub で ASFF 形式の出力を有効にし、既存のルールのパターンがそのまま一致するようにします。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「Security Hub CSPM と新しい Security Hub でイベントの種類が違う」点です。Security Hub CSPM は ASFF 形式の検出結果を Security Hub Findings - Imported として送ります。新しい Security Hub は OCSF 形式の検出結果を Findings Imported V2 として EventBridge に送ります。どちらも source は aws.securityhub なので、detail-type で区別します。新しい Security Hub 用には Findings Imported V2 に一致するルールを作り、条件は OCSF のフィールドで書く必要があります。detail-type を分けておくと CSPM の検出結果との重複通知も避けられます。",
+    "optionNotes": [
+      "新しい Security Hub も検出結果を EventBridge に自動で送ります。ポーリングの仕組みを作る必要はありません。",
+      "どちらのサービスも source は aws.securityhub です。aws.securityhub-v2 という値は使われません。",
+      "正解です。新しい Security Hub の検出結果は Findings Imported V2 として届くため、その detail-type と OCSF のフィールドでルールを作ります。",
+      "新しい Security Hub の検出結果は OCSF 形式で、ASFF で出力を切り替える設定はありません。"
+    ],
+    "services": ["AWS Security Hub", "AWS Security Hub CSPM", "Amazon EventBridge"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "EventBridge event types (Security Hub)", "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-v2-cwe-event-types.html" },
+      { "title": "EventBridge event formats for Security Hub CSPM", "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-cwe-event-formats.html" },
+      { "title": "Security Hub and the Open Cybersecurity Schema Framework (OCSF)", "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-ocsf.html" }
+    ]
+  }
+]

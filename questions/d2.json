@@ -1,0 +1,465 @@
+[
+  {
+    "id": "D2-001",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は AWS Organizations で 40 のアカウントを運用し、AWS Security Hub CSPM の委任管理者アカウントで検出結果を集約しています。運用チームは、重大度が高い検出結果ごとに対応の記録を残し、担当者がその記録から定められた修復手順をすぐ実行できるようにしたいと考えています。検出結果の状態と対応記録の状態は双方向で同期させる必要があります。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Security Hub CSPM の検出結果を Amazon EventBridge 経由で AWS Lambda 関数に送り、Amazon DynamoDB に対応記録を書き込みます。修復手順は Lambda 関数として用意し、担当者が手動で呼び出します。",
+      "委任管理者アカウントで AWS Systems Manager OpsCenter と Security Hub CSPM の統合を設定し、検出結果から OpsItem を作成させます。修復手順は Systems Manager Automation ランブックとして用意し、OpsItem から実行します。",
+      "Security Hub CSPM の検出結果を Amazon SNS トピックに送り、チケット管理用のメーリングリストに配信します。修復手順は社内 Wiki にまとめ、担当者が AWS CLI で実行します。",
+      "各メンバーアカウントで AWS Config ルールを作成し、非準拠のリソースに対して自動修復を設定します。対応記録は AWS Config の準拠履歴で代用します。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「検出結果ごとの対応記録」「記録から修復手順を実行」「状態の双方向同期」「最小の運用負荷」です。Systems Manager OpsCenter は Security Hub CSPM と統合でき、統合を設定すると検出結果から OpsItem が作成されます。この統合は双方向で、OpsItem の Status や Severity を更新すると Security Hub CSPM の検出結果に反映され、逆方向の変更も OpsItem に反映されます。既定では重大度 CRITICAL と HIGH の検出結果が対象です。委任管理者アカウントで設定するとメンバーアカウントの検出結果の OpsItem も管理者アカウントに作られます。OpsItem からは Automation ランブックを直接実行でき、実行したランブックは OpsItem に関連付けられるため、手順書と記録を一か所で扱えます。",
+    "optionNotes": [
+      "動作はしますが、対応記録と修復手順の仕組みを自前で作り、状態の同期も自分で実装する必要があり、運用負荷が大きくなります。",
+      "OpsCenter と Security Hub CSPM の統合は双方向同期に対応し、OpsItem から Automation ランブックを実行できるため、すべての要件を最小の運用負荷で満たします。",
+      "メールと Wiki の運用では状態の同期ができず、記録から手順を直接実行することもできません。",
+      "AWS Config の自動修復は Config ルールの評価結果が対象で、Security Hub CSPM の検出結果ごとの対応記録や状態同期の要件を満たしません。"
+    ],
+    "services": ["AWS Systems Manager", "AWS Security Hub CSPM"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Integrate OpsCenter with other AWS services", "url": "https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-applications-that-integrate.html" },
+      { "title": "Remediate OpsItem issues", "url": "https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-remediating.html" }
+    ]
+  },
+  {
+    "id": "D2-002",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は Amazon Security Lake を組織全体で有効にし、委任管理者アカウントでログを集約しています。セキュリティ調査チームは別のアカウントで作業しており、インシデントの種類ごとに調査の手順書を作りたいと考えています。手順書には、説明文と一緒に、Security Lake のデータを検索するクエリとその結果の可視化を含め、調査担当者が上から順に実行できる形にする必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "調査チームのアカウントで Amazon CloudWatch Logs Insights のクエリを保存し、インシデントの種類ごとにクエリ名を付けます。説明文は Amazon S3 にテキストファイルで置きます。",
+      "Security Lake のデータを AWS Glue ジョブで毎日 Amazon OpenSearch Service にコピーし、OpenSearch Dashboards のダッシュボードを手順書として使います。",
+      "Systems Manager OpsCenter の OpsItem に説明文を書き、Security Lake の S3 バケットへの署名付き URL を添付して、担当者がオブジェクトをダウンロードして確認します。",
+      "Security Lake で調査チームのアカウントをクエリアクセスのサブスクライバーとして作成し、AWS Lake Formation の共有を受け入れます。調査チームは Amazon SageMaker AI のノートブックに説明文と Amazon Athena のクエリ、可視化のコードをまとめ、手順書として使います。"
+    ],
+    "answer": [3],
+    "explanation": "要件は「別アカウントから Security Lake のデータを検索」「説明文、クエリ、可視化を一体にした順に実行できる手順書」です。Security Lake のクエリアクセスのサブスクライバーは、AWS Lake Formation のクロスアカウント共有で Security Lake のテーブルを受け取り、Amazon Athena などで直接クエリできます。Jupyter 形式のノートブックは、マークダウンの説明文とクエリを実行するセル、結果を可視化するセルを並べられるため、インシデント対応の手順書として使えます。試験ガイドのスキル 2.1.1 でも、対応計画とランブックの例として Amazon SageMaker AI のノートブックが挙げられています。データをコピーせずに済み、手順の再現性も高くなります。",
+    "optionNotes": [
+      "Security Lake のデータは S3 上の Lake Formation テーブルで、CloudWatch Logs Insights の検索対象ではありません。",
+      "動作はしますが、データを毎日コピーするパイプラインの運用が必要で、説明文と手順を一体化した手順書にもなりません。",
+      "Parquet 形式のオブジェクトを手でダウンロードして読む方法は、クエリや可視化を含む手順書の要件を満たしません。",
+      "クエリアクセスのサブスクライバーで Athena から直接検索でき、ノートブックで説明文、クエリ、可視化を順に実行できる手順書を作れます。"
+    ],
+    "services": ["Amazon Security Lake", "Amazon SageMaker AI", "Amazon Athena", "AWS Lake Formation"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Managing query access for Security Lake subscribers", "url": "https://docs.aws.amazon.com/security-lake/latest/userguide/subscriber-query-access.html" },
+      { "title": "Generate machine learning insights for Amazon Security Lake data using Amazon SageMaker", "url": "https://aws.amazon.com/blogs/security/generate-machine-learning-insights-for-amazon-security-lake-data-using-amazon-sagemaker/" }
+    ]
+  },
+  {
+    "id": "D2-003",
+    "domain": 2,
+    "task": "2.1",
+    "type": "multi",
+    "question": "ある企業は Amazon CloudFront ディストリビューションと Application Load Balancer で公開している EC2 ベースの Web アプリケーションを AWS Shield Advanced で保護しています。DDoS 攻撃でアプリケーションの可用性が下がったときに、企業から連絡しなくても Shield Response Team (SRT) が直接連絡してくる体制を整えたいと考えています。この体制を実現するために必要な作業はどれですか。（2 つ選択）",
+    "options": [
+      "保護対象の各リソースのアプリケーションの状態を反映する Amazon Route 53 ヘルスチェックを作成し、Shield Advanced の保護に関連付けます。",
+      "AWS WAF の Anti-DDoS マネージドルールグループを Web ACL に追加し、そのルールグループの検出イベントで SRT が連絡するよう設定します。",
+      "各リソースで AWS Shield Standard を明示的に有効にし、Shield Advanced と併用します。",
+      "AWS Business Support または AWS Enterprise Support のプランに加入し、Shield Advanced で事前対応 (proactive engagement) を有効にして連絡先を登録します。",
+      "Shield Advanced の保護グループを作成し、すべてのリソースを 1 つのグループにまとめます。"
+    ],
+    "answer": [0, 3],
+    "explanation": "SRT が企業に直接連絡する仕組みは Shield Advanced の事前対応 (proactive engagement) です。事前対応を使うには Business Support か Enterprise Support のプランへの加入が必要で、さらに事前対応で守りたいリソースの保護に Route 53 ヘルスチェックを関連付けておく必要があります。Shield Advanced が検出したイベントの最中に、SRT はヘルスチェックの状態を見て事前対応の対象かを判断し、登録された連絡先 (最大 10 件) に連絡します。ヘルスチェックはアプリケーションの状態を正しく表すように作り、関連付ける時点で正常と報告されている必要があります。Anti-DDoS マネージドルールグループが検出したイベントは事前対応のきっかけにならない点も押さえておきます。",
+    "optionNotes": [
+      "事前対応は Route 53 ヘルスチェックが関連付けられた保護にだけ使えるため必要です。",
+      "ドキュメントには、Anti-DDoS マネージドルールグループで検出したイベントは事前対応の対象外で、Shield Advanced が検出したイベントだけがきっかけになると書かれています。",
+      "Shield Standard はすべての AWS のお客様に追加料金なしで自動的に適用されるため、明示的に有効にする作業はなく、事前対応の条件でもありません。",
+      "事前対応には Business Support か Enterprise Support のプランが必要で、連絡先の登録も含めて事前対応を有効にする作業が要ります。",
+      "保護グループは検出と緩和の単位をまとめる機能で、事前対応の前提条件ではありません。"
+    ],
+    "services": ["AWS Shield Advanced", "Amazon Route 53", "AWS WAF"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Setting up proactive engagement for the SRT to contact you directly", "url": "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-srt-proactive-engagement.html" },
+      { "title": "Health-based detection using health checks with Shield Advanced and Route 53", "url": "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-advanced-health-checks.html" }
+    ]
+  },
+  {
+    "id": "D2-004",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は AWS Organizations で 120 のアカウントを運用し、AWS IAM Identity Center で外部 IdP と連携しています。過去のインシデントでは、調査担当者が影響を受けたアカウントへのアクセス権を得るまでに数時間かかりました。セキュリティチームは、インシデント発生時にすぐ調査を始められるようにしつつ、普段は不要な権限を持たせない体制にしたいと考えています。最小権限の原則に沿って、この要件を最も適切に満たす準備はどれですか。",
+    "options": [
+      "IAM Identity Center で、調査用の読み取り中心の権限セットと、隔離やスナップショット取得などの封じ込め操作に絞った権限セットを作成します。IdP のインシデント対応グループにすべてのアカウントで割り当て、グループへの参加はインシデント時の承認手続きで行います。",
+      "各アカウントのルートユーザーの認証情報をセキュリティチームの金庫に保管し、インシデント時にルートユーザーでサインインして調査します。",
+      "インシデントが起きたときに、影響を受けたアカウントで調査担当者用の IAM ユーザーを作成し、AdministratorAccess を付けたアクセスキーを発行します。",
+      "セキュリティチーム全員に、全アカウントで AdministratorAccess の権限セットを常時割り当て、いつでも調査できるようにします。"
+    ],
+    "answer": [0],
+    "explanation": "要件は「すぐ調査を始められる」と「普段は不要な権限を持たせない」の両立です。IAM Identity Center の権限セットは、割り当てると対象の各アカウントに IAM Identity Center が管理する IAM ロールを作成するため、全アカウントへの事前配備を一度に行えます。調査用と封じ込め用の権限を分けた権限セットを前もって全アカウントに割り当てておけば、インシデント時に新しい認証情報を作る必要がありません。誰がその権限を使えるかは IdP のグループ所属で制御し、インシデント時の承認手続きでだけメンバーを追加すれば、平時の権限を最小に保てます。事前のアクセス準備は、試験ガイドのスキル 2.1.2 の「アクセスのプロビジョニング」にあたります。",
+    "optionNotes": [
+      "権限セットで全アカウントに調査用と封じ込め用のロールを事前配備し、利用者はグループ所属で絞るため、即応性と最小権限を両立できます。",
+      "ルートユーザーは権限が強すぎ、日常の調査に使うべきではありません。120 アカウント分の認証情報管理も負担になります。",
+      "インシデント時に IAM ユーザーと長期のアクセスキーを作る方法は時間がかかり、過剰な権限と漏えいしやすい認証情報を生みます。",
+      "常時の AdministratorAccess は即応性はありますが、最小権限の原則に反し、侵害されたときの影響範囲が大きくなります。"
+    ],
+    "services": ["AWS IAM Identity Center", "AWS Organizations"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Manage AWS accounts with permission sets", "url": "https://docs.aws.amazon.com/singlesignon/latest/userguide/permissionsetsconcept.html" }
+    ]
+  },
+  {
+    "id": "D2-005",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "あるセキュリティエンジニアは、本番環境で EC2 インスタンスの CPU が高騰したときに Amazon CloudWatch アラームが発報し、運用チームの手順書どおりに対応できるかを定期的に検証したいと考えています。検証中に顧客向けのレイテンシが許容値を超えた場合は、障害の注入を自動で止める必要があります。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "AWS Systems Manager Run Command で対象インスタンスに負荷ツールを配布して実行し、レイテンシが上がったら担当者がコマンドを取り消します。",
+      "AWS Resilience Hub でアプリケーションを評価し、評価結果のレジリエンシースコアが基準を満たしていれば検証完了とします。",
+      "AWS Fault Injection Service (AWS FIS) で CPU 負荷を注入する実験テンプレートを作成し、レイテンシの CloudWatch アラームを停止条件 (stop condition) に設定して実験を実行します。",
+      "AWS Lambda 関数で対象インスタンスを停止し、Auto Scaling グループが新しいインスタンスを起動するまでの時間を計測します。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「障害を注入して検知と手順書を検証する」と「許容値を超えたら自動で止める」です。AWS FIS は本番環境でも安全に実験を行うためのガードレールを持ち、その一つが停止条件です。停止条件はアプリケーションの定常状態から外れたことを示す CloudWatch アラームとして定義し、実験中にアラームが発動すると AWS FIS が実験を止めます。止まった実験は再開できません。CPU 負荷の注入でアラームが期待どおり発報するか、手順書どおりに対応できるかを繰り返し確かめられます。試験ガイドのスキル 2.1.3 では、対応計画の有効性を検証する手段として AWS FIS が例示されています。",
+    "optionNotes": [
+      "負荷はかけられますが、レイテンシ超過時の停止が人手に依存し、自動停止の要件を満たしません。",
+      "Resilience Hub の評価は RTO と RPO の観点で構成を分析するもので、障害を注入して検知や手順書を実地で確かめる検証にはなりません。",
+      "AWS FIS の実験で障害を注入し、CloudWatch アラームを停止条件にすれば許容値超過で自動停止できます。",
+      "インスタンスの停止は CPU 高騰のシナリオと合わず、レイテンシ超過時に止める仕組みもありません。"
+    ],
+    "services": ["AWS Fault Injection Service", "Amazon CloudWatch"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Stop conditions for AWS FIS", "url": "https://docs.aws.amazon.com/fis/latest/userguide/stop-conditions.html" }
+    ]
+  },
+  {
+    "id": "D2-006",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は Amazon GuardDuty の委任管理者アカウントに Amazon EventBridge ルールを作成し、重大度の高い GuardDuty の検出結果が出たら AWS Step Functions のワークフローで通知と初動対応を行う仕組みを作りました。セキュリティチームは、本物の攻撃を起こさずに、イベントパターンの絞り込みとワークフローが正しく動くかを、検出結果の種類ごとに確かめたいと考えています。最小の労力でこれを実現する方法はどれですか。",
+    "options": [
+      "テスト用の EC2 インスタンスから既知の悪意ある IP アドレスに通信させ、実際に GuardDuty の検出結果を発生させます。",
+      "GuardDuty の CreateSampleFindings API で、確かめたい検出結果の種類を指定してサンプルの検出結果を生成し、EventBridge ルールとワークフローの動作を確認します。",
+      "EventBridge ルールのターゲットを一時的に Amazon SNS に変更し、検出結果が来るまで待ってからターゲットを元に戻します。",
+      "AWS CloudTrail のイベント履歴から過去の GuardDuty の API 呼び出しを抽出し、Step Functions に手動で入力して実行します。"
+    ],
+    "answer": [1],
+    "explanation": "要件は「本物の攻撃を起こさない」「種類ごとに確かめる」「最小の労力」です。GuardDuty はサンプルの検出結果を生成でき、コンソールではサポートするすべての種類を 1 件ずつ、CreateSampleFindings API では FindingTypes で指定した種類だけを生成できます。サンプルは値がプレースホルダーの近似ですが、EventBridge のイベントやフィルターの設定を検証する用途に使えるとドキュメントに書かれています。委任管理者アカウントの EventBridge ルールはメンバーアカウントの検出結果でも発火するため、通知から初動までを一連で試せます。サンプルにはタイトルに SAMPLE が付くので、本物と区別できます。",
+    "optionNotes": [
+      "実際の悪性通信を発生させる方法は、本物の攻撃を起こさないという要件に反し、種類ごとの検証にも手間がかかります。",
+      "CreateSampleFindings で種類を指定してサンプルを生成すれば、攻撃を起こさずに EventBridge ルールとワークフローを検証できます。",
+      "検出結果が来るまで待つ方法では、いつ何の種類で検証できるかが分からず、種類ごとの確認ができません。",
+      "CloudTrail の API 呼び出し記録は GuardDuty の検出結果イベントそのものではなく、EventBridge のイベントパターンの検証にもなりません。"
+    ],
+    "services": ["Amazon GuardDuty", "Amazon EventBridge", "AWS Step Functions"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Generating sample findings in GuardDuty", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/sample_findings.html" },
+      { "title": "Processing GuardDuty findings with Amazon EventBridge", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_findings_eventbridge.html" }
+    ]
+  },
+  {
+    "id": "D2-007",
+    "domain": 2,
+    "task": "2.1",
+    "type": "multi",
+    "question": "ある企業は、3 つのアベイラビリティーゾーン (AZ) にまたがる Application Load Balancer と EC2 インスタンスで決済 API を運用しています。インシデント対応計画には、1 つの AZ でのデプロイ不良や障害を検知したら、その AZ からトラフィックを外して業務を継続する手順が含まれています。セキュリティエンジニアは、この手順が目標の RTO と RPO の範囲で機能するかを定期的に検証したいと考えています。検証の方法として適切なものはどれですか。（2 つ選択）",
+    "options": [
+      "AWS Trusted Advisor のチェック結果を毎週確認し、障害耐性の項目が緑であれば手順が機能していると判断します。",
+      "AWS Resilience Hub で RTO と RPO を定めたレジリエンシーポリシーにアプリケーションを割り当てて評価し、推奨される AWS FIS の実験を実行して、アラームと標準作業手順 (SOP) が機能するかを確かめます。",
+      "Amazon Inspector で EC2 インスタンスの脆弱性をスキャンし、重大な脆弱性がないことを確認します。",
+      "AWS Config の適合パックで ALB が複数の AZ に配置されているかを評価し、準拠していれば手順の検証が完了したとみなします。",
+      "Amazon Application Recovery Controller (ARC) のゾーンシフトを、十分な容量を事前にスケールしたうえで定期的に開始し、残りの AZ で処理を継続できるかを確かめます。"
+    ],
+    "answer": [1, 4],
+    "explanation": "求められているのは、AZ からトラフィックを外す手順が RTO と RPO の範囲で機能するかを実地で検証する方法です。AWS Resilience Hub はレジリエンシーポリシーで RTO と RPO の目標を定めてアプリケーションを評価し、アラーム、SOP、AWS FIS の実験を推奨します。推奨された実験で障害を注入すれば、アラームが検知するか、SOP で復旧できるかを確かめ、推定 RTO と RPO を測れます。ARC のゾーンシフトはサポートされたリソースのトラフィックを障害のある AZ から同じリージョン内の正常な AZ へ一時的に移す機能で、ベストプラクティスとして、事前にスケールしたうえでゾーンシフトを前もって定期的に試すことが勧められています。",
+    "optionNotes": [
+      "Trusted Advisor のチェックは構成の確認で、障害時の手順が実際に機能するかは検証できません。",
+      "レジリエンシーポリシーで RTO と RPO を評価し、推奨された FIS の実験でアラームと SOP を実地で確かめられます。",
+      "脆弱性スキャンはセキュリティ上は有用ですが、AZ の切り離し手順の検証とは関係がありません。",
+      "複数 AZ への配置は前提条件の確認にすぎず、トラフィックを外す手順が機能するかは分かりません。",
+      "ゾーンシフトを前もって定期的に試すことは ARC のベストプラクティスで、手順の実効性を確かめられます。"
+    ],
+    "services": ["AWS Resilience Hub", "AWS Fault Injection Service", "Amazon Application Recovery Controller"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AWS Resilience Hub concepts", "url": "https://docs.aws.amazon.com/resilience-hub/latest/userguide/concepts-terms.html" },
+      { "title": "Best practices for zonal shifts in ARC", "url": "https://docs.aws.amazon.com/r53recovery/latest/dg/route53-arc-best-practices.zonal-shifts.html" }
+    ]
+  },
+  {
+    "id": "D2-008",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業のセキュリティオペレーションセンターは、Amazon GuardDuty が EC2 インスタンスの不審な通信を検出したときに、証拠を保全したうえでインスタンスを隔離する作業を自動化したいと考えています。インスタンスのメモリとディスクの両方を証拠として取得し、ディスクの証拠はフォレンジック専用アカウントで解析する必要があります。証拠保全の連鎖 (chain of custody) を損なわないことも求められています。これらの要件を最も適切に満たす設計はどれですか。",
+    "options": [
+      "GuardDuty の検出結果を受けた AWS Lambda 関数が、インスタンスを直ちに停止し、ルートボリュームをデタッチしてフォレンジック専用アカウントの EC2 インスタンスにアタッチします。",
+      "GuardDuty の検出結果を受けた AWS Lambda 関数が、インスタンスを終了し、AWS Backup の最新の復旧ポイントをフォレンジック専用アカウントに復元します。",
+      "GuardDuty Malware Protection for EC2 のオンデマンドスキャンを実行し、スキャン結果をメモリとディスクの証拠として保管します。",
+      "検出結果を AWS Security Hub に集約し、Amazon EventBridge から AWS Step Functions のワークフローを起動します。ワークフローは Systems Manager のドキュメントでメモリを取得して Amazon S3 に保存したあと、専用のセキュリティグループに付け替えて隔離し、並行して EBS スナップショットを作成してフォレンジック専用アカウントに共有します。"
+    ],
+    "answer": [3],
+    "explanation": "要件は「メモリとディスクの両方を取得」「ディスクはフォレンジック専用アカウントで解析」「証拠保全の連鎖」です。AWS が公開している Automated Forensics Orchestrator for Amazon EC2 の構成では、Security Hub の検出結果を EventBridge が受けて Step Functions を起動し、メモリ取得とディスク取得の 2 つのフローを並行して実行します。メモリは Systems Manager のドキュメントで LiME などを使って取得して S3 に保存し、取得後に新しいセキュリティグループを付けてユーザーや管理者のアクセスを外し隔離します。ディスクは EBS スナップショットを作成してフォレンジック用アカウントに共有します。停止や終了を先に行うと揮発性のメモリが失われる点が他の選択肢との違いです。",
+    "optionNotes": [
+      "インスタンスを先に停止するとメモリの内容が失われ、メモリを証拠として取得する要件を満たしません。",
+      "終了すると現在の状態が失われ、バックアップは侵害時点の証拠になりません。",
+      "Malware Protection for EC2 は EBS ボリュームをスキャンしてマルウェアの有無を判定する機能で、メモリの取得やフォレンジック用アカウントでの解析には使えません。",
+      "Step Functions でメモリ取得、隔離、EBS スナップショットの共有を自動化する構成で、すべての要件を満たします。"
+    ],
+    "services": ["AWS Step Functions", "Amazon EventBridge", "AWS Security Hub", "AWS Systems Manager", "Amazon EBS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Automated Forensics Orchestrator for Amazon EC2 architecture overview", "url": "https://docs.aws.amazon.com/solutions/latest/automated-forensics-orchestrator-for-amazon-ec2/architecture-overview.html" },
+      { "title": "On-demand malware scan in GuardDuty", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/on-demand-malware-scan.html" }
+    ]
+  },
+  {
+    "id": "D2-009",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業では、開発者が誤って SSH (TCP 22) を 0.0.0.0/0 に開けたセキュリティグループを作るインシデントが繰り返し起きています。セキュリティエンジニアは、この設定を検出したら人の操作を待たずに元に戻したいと考えています。修復に失敗した場合でも無限に再試行しないようにする必要があります。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "SSH の無制限アクセスを検出する AWS Config のマネージドルールを有効にし、AWS-DisablePublicAccessForSecurityGroup などの Systems Manager Automation ランブックを自動修復アクションとして設定します。再試行の上限回数と時間枠を設定します。",
+      "AWS CloudTrail の AuthorizeSecurityGroupIngress イベントを Amazon EventBridge で受け、AWS Lambda 関数でルールを削除します。失敗時の再試行はコードで実装します。",
+      "Amazon Inspector のネットワーク到達可能性の検出結果を毎日確認し、該当するセキュリティグループを担当者が手動で修正します。",
+      "サービスコントロールポリシー (SCP) で ec2:AuthorizeSecurityGroupIngress をすべて拒否し、セキュリティグループの変更をセキュリティチームだけが行うようにします。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「人の操作を待たずに元に戻す」「無限に再試行しない」「最小の運用負荷」です。AWS Config は Config ルールで評価した非準拠リソースを、Systems Manager Automation ドキュメントで修復できます。マネージドの修復アクションも用意されており、SSH や RDP を全開放したルールを無効にする AWS-DisablePublicAccessForSecurityGroup ランブックがその一例です。自動修復を有効にすると、非準拠になったときに修復が自動で走ります。修復設定には MaximumAutomaticAttempts と RetryAttemptSeconds があり、既定では 60 秒の間に 5 回失敗すると修復の例外が付き、無限の再試行を防げます。",
+    "optionNotes": [
+      "Config ルールと Automation ランブックによる自動修復で、再試行の上限も設定でき、コードを書かずに要件を満たします。",
+      "動作はしますが、検出と修復と再試行の制御を自前のコードで作るため、運用負荷が大きくなります。",
+      "手動の対応では、人の操作を待たずに元に戻すという要件を満たしません。",
+      "SCP で全面的に拒否すると正当な変更まで止まり、業務への影響が大きくなります。既存の誤設定の修復にもなりません。"
+    ],
+    "services": ["AWS Config", "AWS Systems Manager"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Remediate noncompliant AWS Config rules with AWS Systems Manager Automation runbooks", "url": "https://aws.amazon.com/blogs/mt/remediate-noncompliant-aws-config-rules-with-aws-systems-manager-automation-runbooks/" }
+    ]
+  },
+  {
+    "id": "D2-010",
+    "domain": 2,
+    "task": "2.2",
+    "type": "multi",
+    "question": "セキュリティエンジニアは、侵害された疑いがある Amazon Linux の EC2 インスタンスについて調査を始めます。インスタンスは現在も稼働しています。調査では、不審なプロセス、開いているネットワーク接続、メモリ上だけに存在するマルウェアを確認し、あとからディスク上の痕跡も解析できるようにする必要があります。証拠を失わないために、最初に行うべき作業はどれですか。（2 つ選択）",
+    "options": [
+      "インスタンスを再起動し、起動時のログを取得します。",
+      "インスタンスを停止してから開始し、別のホストに移したうえで調査します。",
+      "インスタンスの対象カーネルに合わせて事前に用意した LiME などのツールで、インスタンスを停止する前にメモリダンプを取得し、別の場所に保存します。",
+      "インスタンスを終了し、終了前に自動で作成されるルートボリュームのスナップショットを解析します。",
+      "インスタンスに接続されているすべての EBS ボリュームのスナップショットを作成し、解析用のアカウントで扱えるようにします。"
+    ],
+    "answer": [2, 4],
+    "explanation": "要件は「メモリ上の痕跡」と「ディスク上の痕跡」の両方を失わずに確保することです。揮発性のメモリには実行中のプロセスや開いている接続、メモリだけに存在するマルウェアの情報があり、インスタンスを止めた時点で失われます。AWS のブログでは、インスタンスを止める前にメモリダンプを取得すること、そのために対象のカーネルに合った LiME のモジュールを調査対象の外で用意しておくことを勧めています。ディスクの痕跡は EBS スナップショットで保全し、解析用のアカウントに共有して元の環境から切り離して調べます。再起動、停止と開始、終了はいずれもメモリの証拠を失わせる操作です。",
+    "optionNotes": [
+      "再起動するとメモリの内容が失われ、メモリ上のマルウェアやプロセスの証拠が消えます。",
+      "停止と開始でもメモリの内容は失われます。",
+      "停止する前にメモリダンプを取得すれば、揮発性の証拠を確保できます。",
+      "終了時に自動でスナップショットが作られる仕組みはありません。ルートボリュームが削除される設定ならディスクの証拠も失われます。",
+      "EBS スナップショットでディスクの状態を保全し、解析用のアカウントで調べられます。"
+    ],
+    "services": ["Amazon EC2", "Amazon EBS"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "How to automatically build forensic kernel modules for Amazon Linux EC2 instances", "url": "https://aws.amazon.com/blogs/security/how-to-automatically-build-forensic-kernel-modules-for-amazon-linux-ec2-instances/" }
+    ]
+  },
+  {
+    "id": "D2-011",
+    "domain": 2,
+    "task": "2.2",
+    "type": "multi",
+    "question": "ある金融機関は、組織全体の AWS CloudTrail ログを、ログ保管専用アカウントの Amazon S3 バケットに集約しています。規制当局から、インシデント調査の証拠として使うログは 7 年間、どの利用者も削除や上書きができず、ログが配信後に改ざんされていないことを証明できる状態にするよう求められています。これらの要件を満たすために組み合わせるべき設定はどれですか。（2 つ選択）",
+    "options": [
+      "S3 バケットで S3 Object Lock をガバナンスモードで有効にし、保持期間を 7 年に設定します。",
+      "S3 バケットで S3 Object Lock をコンプライアンスモードで有効にし、保持期間を 7 年に設定します。",
+      "S3 バケットのデフォルト暗号化を AWS KMS のカスタマー管理キーによる SSE-KMS に変更し、キーポリシーで復号できる利用者を絞ります。",
+      "CloudTrail の証跡でログファイルの整合性の検証を有効にし、配信されるダイジェストファイルで改ざんの有無を確かめられるようにします。",
+      "S3 バケットのライフサイクルルールで、ログを 30 日後に S3 Glacier Deep Archive に移行します。"
+    ],
+    "answer": [1, 3],
+    "explanation": "要件は「どの利用者も 7 年間削除や上書きができない」と「改ざんされていないことを証明できる」です。S3 Object Lock のコンプライアンスモードでは、保護されたオブジェクトバージョンをルートユーザーを含むどの利用者も上書き、削除できず、保持モードの変更も保持期間の短縮もできません。ガバナンスモードは s3:BypassGovernanceRetention 権限を持つ利用者が上書きできるため、どの利用者もという要件に合いません。CloudTrail のログファイルの整合性の検証は、SHA-256 のハッシュと RSA 署名を使ったダイジェストファイルを 1 時間ごとに配信し、ログファイルが配信後に変更、削除されたかを判定できます。",
+    "optionNotes": [
+      "ガバナンスモードは特別な権限を持つ利用者が保持設定を外して削除できるため、どの利用者も削除できないという要件を満たしません。",
+      "コンプライアンスモードではルートユーザーを含めて誰も保持期間中に削除や上書きができません。",
+      "暗号化は読み取りの制御には役立ちますが、削除や上書きの防止にも、改ざんの証明にもなりません。",
+      "整合性の検証のダイジェストファイルで、ログが配信後に変更、削除されていないことを証明できます。",
+      "ストレージクラスの移行はコスト対策で、削除防止や改ざんの証明にはなりません。"
+    ],
+    "services": ["Amazon S3", "AWS CloudTrail"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Locking objects with Object Lock", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html" },
+      { "title": "Validating CloudTrail log file integrity", "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-intro.html" }
+    ]
+  },
+  {
+    "id": "D2-012",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "ある企業は 60 のアカウントで AWS CloudTrail、VPC フローログ、Amazon Route 53 Resolver のクエリログ、AWS WAF のログを個別に出力しており、形式もバラバラです。インシデント調査では、特定の IP アドレスについて、どのアカウントでどの API が呼ばれ、どの通信や DNS 問い合わせがあったかを横断して突き合わせる必要があります。各サービスのログ設定を個別に作り直さず、共通のスキーマで SQL を使って検索したいと考えています。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "各アカウントで Amazon CloudWatch Logs にログを送り、CloudWatch Logs Insights で各ロググループに個別のクエリを書いて結果を表計算ソフトで突き合わせます。",
+      "各アカウントのログを Amazon Data Firehose でログ保管アカウントの S3 バケットに集め、AWS Glue のクローラーでサービスごとのテーブルを作成して Amazon Athena で検索します。",
+      "Amazon Security Lake を組織全体で有効にし、委任管理者アカウントで CloudTrail、VPC フローログ、Route 53 Resolver のクエリログ、AWS WAF のログをソースとして追加して、OCSF 形式に正規化されたテーブルを Amazon Athena で検索します。",
+      "Amazon GuardDuty を全アカウントで有効にし、GuardDuty の検出結果の中から該当 IP アドレスを含むものを検索します。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「複数のアカウントとサービスのログを横断して突き合わせる」「共通のスキーマ」「各サービスのログ設定を作り直さない」です。Amazon Security Lake は CloudTrail の管理イベントとデータイベント、EKS の監査ログ、Route 53 Resolver のクエリログ、Security Hub CSPM の検出結果、VPC フローログ、AWS WAFv2 のログをネイティブに収集し、Open Cybersecurity Schema Framework (OCSF) と Apache Parquet 形式に変換します。CloudTrail の管理イベント以外は、各サービスでログ設定を別に作る必要がなく、既存の設定を変える必要もありません。共通のスキーマのテーブルを Athena の SQL で検索できるので、IP アドレスを軸にした突き合わせがしやすくなります。",
+    "optionNotes": [
+      "サービスごとにクエリを書いて手で突き合わせることになり、共通のスキーマという要件を満たさず、運用負荷も大きくなります。",
+      "動作はしますが、収集の仕組みとサービスごとのテーブルを自前で作るため、スキーマも統一されず運用負荷が大きくなります。",
+      "Security Lake はこれらのログをネイティブに収集して OCSF に正規化するため、Athena で横断して検索できます。",
+      "GuardDuty の検出結果は脅威と判定されたものだけで、すべての API 呼び出しや通信の記録を突き合わせる用途には使えません。"
+    ],
+    "services": ["Amazon Security Lake", "Amazon Athena", "AWS CloudTrail", "Amazon VPC"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Collecting data from AWS services in Security Lake", "url": "https://docs.aws.amazon.com/security-lake/latest/userguide/internal-sources.html" },
+      { "title": "Security Lake queries", "url": "https://docs.aws.amazon.com/security-lake/latest/userguide/subscriber-query-examples.html" }
+    ]
+  },
+  {
+    "id": "D2-013",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "ある企業は Amazon EKS で複数のクラスターを運用しています。Amazon GuardDuty は基本の脅威検出だけを有効にしています。最近、特権コンテナのデプロイとそのコンテナ内での暗号資産のマイニングが別々の調査で見つかりましたが、同じ攻撃の一部であると気づくまでに時間がかかりました。セキュリティチームは、GuardDuty Extended Threat Detection が EKS クラスターに対する攻撃の流れを、コントロールプレーンの操作とコンテナ内の挙動の両方から 1 つの攻撃シーケンスの検出結果として示せるようにしたいと考えています。最も適切な対応はどれですか。",
+    "options": [
+      "GuardDuty の Malware Protection for EC2 を有効にし、EKS のワーカーノードの EBS ボリュームをスキャンします。",
+      "GuardDuty の EKS Protection と、EKS アドオンを使う Runtime Monitoring の両方を有効にします。",
+      "EKS クラスターのコントロールプレーンのログを Amazon CloudWatch Logs に出力し、GuardDuty のデータソースとして追加します。",
+      "Amazon Detective を有効にし、EKS クラスターの行動グラフから攻撃シーケンスを生成させます。"
+    ],
+    "answer": [1],
+    "explanation": "要件は「コントロールプレーンの操作」と「コンテナ内の挙動」の両方を相関させた攻撃シーケンスの検出結果です。Extended Threat Detection で EKS の攻撃シーケンスを検出するには、EKS Protection か Runtime Monitoring (EKS アドオン) の少なくとも一方が必要です。EKS Protection は監査ログからコントロールプレーンの操作を、Runtime Monitoring はコンテナ内の挙動を見ます。GuardDuty は両方を有効にすることを勧めており、両方あれば特権コンテナのデプロイから永続化、マイニング、リバースシェルまでを AttackSequence:EKS/CompromisedCluster という重大度 Critical の 1 つの検出結果にまとめられます。Extended Threat Detection 自体は GuardDuty を有効にすると既定で有効です。",
+    "optionNotes": [
+      "Malware Protection for EC2 は EBS ボリュームのマルウェアを検出しますが、コントロールプレーンの操作や実行中の挙動との相関は行いません。",
+      "EKS Protection と Runtime Monitoring の両方を有効にすれば、コントロールプレーンとコンテナ内の両面を相関した攻撃シーケンスを検出できます。",
+      "GuardDuty は EKS の監査ログに直接アクセスするため、コントロールプレーンのログを有効にする必要はなく、CloudWatch Logs をデータソースとして追加する仕組みもありません。",
+      "Detective は検出結果の調査と関連付けを助けますが、GuardDuty の攻撃シーケンスの検出結果を生成するものではありません。"
+    ],
+    "services": ["Amazon GuardDuty", "Amazon EKS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "GuardDuty Extended Threat Detection", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/guardduty-extended-threat-detection.html" },
+      { "title": "GuardDuty attack sequence finding types", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/guardduty-attack-sequence-finding-types.html" }
+    ]
+  },
+  {
+    "id": "D2-014",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "ある企業の VPC は、インターネット向けの通信を AWS Site-to-Site VPN 経由でオンプレミスのゲートウェイから出す構成になっています。Amazon GuardDuty が UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS の検出結果を多数出しており、API の呼び出し元 IP アドレスはすべてオンプレミスのゲートウェイのアドレスでした。調査の結果、これは想定どおりの通信であることを確認しました。今後もこの経路以外からの認証情報の悪用は見逃さないようにしたいと考えています。最も適切な対応はどれですか。",
+    "options": [
+      "該当する EC2 インスタンスのインスタンスプロファイルを削除し、アプリケーションには IAM ユーザーのアクセスキーを使わせます。",
+      "GuardDuty の信頼できる IP リストにオンプレミスのゲートウェイのアドレスを追加し、すべての検出結果の種類で除外します。",
+      "GuardDuty の検出結果を Amazon EventBridge で受け、この検出結果の種類をすべて自動でアーカイブする AWS Lambda 関数を作成します。",
+      "検出結果の種類が UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration で、API 呼び出し元の IPv4 アドレスがオンプレミスのゲートウェイのアドレスまたは CIDR である検出結果だけを対象にする抑制ルールを作成します。"
+    ],
+    "answer": [3],
+    "explanation": "この検出結果は、EC2 インスタンス用に作られた一時認証情報が AWS の外の IP アドレスから使われたときに出ます。GuardDuty のドキュメントには、AWS Outposts や VPN 接続のように、インターネット向けの通信が VPC のインターネットゲートウェイではなくオンプレミスのゲートウェイから出る構成でもこの検出結果が出ると書かれています。想定どおりの通信なら、検出結果の種類と API 呼び出し元の IPv4 アドレス (オンプレミスのゲートウェイの IP アドレスか CIDR) の 2 つの条件で抑制ルールを作るよう勧めています。条件を絞るので、他の IP アドレスからの悪用は引き続き検出され、検出の範囲と影響の評価を正しく保てます。",
+    "optionNotes": [
+      "長期のアクセスキーに切り替えるとセキュリティが下がり、誤検知の扱いという問題の解決にもなりません。",
+      "信頼できる IP リストは対象 IP からの通信をすべての種類で検出対象から外すため、範囲が広すぎて別の脅威まで見逃すおそれがあります。",
+      "種類だけで全件アーカイブすると、他の IP アドレスからの本物の悪用まで見えなくなります。",
+      "検出結果の種類と呼び出し元 IP アドレスの 2 条件の抑制ルールは GuardDuty が推奨する方法で、他の経路からの悪用は検出され続けます。"
+    ],
+    "services": ["Amazon GuardDuty", "AWS Site-to-Site VPN"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS", "url": "https://docs.aws.amazon.com/help-panel/guardduty/latest/console/finding-type-unauthorizedaccess-iam-instancecredentialexfiltrationoutsideaws.html" }
+    ]
+  },
+  {
+    "id": "D2-015",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "セキュリティエンジニアは、侵害された EC2 インスタンスを封じ込めるため、インバウンドとアウトバウンドのルールを持たない隔離用のセキュリティグループに付け替えました。インスタンスのセキュリティグループには、特定の管理用 CIDR からの SSH を許可する狭いインバウンドルールがありました。しかし付け替えたあとも、攻撃者がその CIDR 内から確立していた SSH セッションが切れていないことが VPC フローログで確認されました。この既存の通信を直ちに遮断する方法として最も適切なものはどれですか。",
+    "options": [
+      "インスタンスがあるサブネットのネットワーク ACL に、攻撃者の通信を拒否するルールを追加します。必要に応じて、インスタンスを隔離用のネットワーク ACL を関連付けた専用サブネットで扱います。",
+      "隔離用のセキュリティグループに、攻撃者の IP アドレスからの通信を拒否するルールを追加します。",
+      "インスタンスのアイドル接続追跡のタイムアウトを最大値に変更し、接続が切れるのを待ちます。",
+      "インスタンスに付いている IAM ロールを外し、インスタンスプロファイルを削除します。"
+    ],
+    "answer": [0],
+    "explanation": "セキュリティグループはステートフルで、追跡されている接続はルールを変更してもすぐには切れず、タイムアウトするまで通り続けます。狭いインバウンドルールで許可されていた SSH は追跡対象の接続なので、隔離用のセキュリティグループに付け替えても既存のセッションは残ります。EC2 のドキュメントでは、通信を直ちに遮断したいときはサブネットのネットワーク ACL を使うよう書かれています。ネットワーク ACL はステートレスで応答の通信を自動では許可しないため、いずれかの方向を拒否するルールを追加すると既存の接続も切れます。なお、0.0.0.0/0 のような全開放のルールで許可された追跡されない通信は、ルールを外すと即座に切れます。",
+    "optionNotes": [
+      "ネットワーク ACL はステートレスで、拒否ルールを加えると追跡済みの既存の接続も直ちに遮断できます。",
+      "セキュリティグループには拒否ルールがなく、許可ルールしか書けません。",
+      "タイムアウトを伸ばすと接続が残る時間がかえって長くなり、直ちに遮断する要件と逆です。",
+      "IAM ロールを外しても AWS API の権限がなくなるだけで、既存の SSH セッションは切れません。"
+    ],
+    "services": ["Amazon EC2", "Amazon VPC"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Amazon EC2 security group connection tracking", "url": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-connection-tracking.html" }
+    ]
+  },
+  {
+    "id": "D2-016",
+    "domain": 2,
+    "task": "2.2",
+    "type": "multi",
+    "question": "Amazon GuardDuty が、ある EC2 インスタンスのインスタンスプロファイルの一時認証情報が外部の IP アドレスから使われていることを検出しました。調査の結果、インスタンス上の Web アプリケーションの脆弱性を突かれ、認証情報が盗まれたと判断しました。同じ IAM ロールは Auto Scaling グループ内の他のインスタンスでも使われています。攻撃者が持っている認証情報を無効にし、侵害されたインスタンスからの被害の拡大を止めるために行うべき対応はどれですか。（2 つ選択）",
+    "options": [
+      "IAM コンソールでそのロールのアクティブなセッションを取り消し、取り消し時点より前に発行された一時認証情報による操作をすべて拒否させます。",
+      "そのロールに紐づくアクセスキーを IAM コンソールで無効化し、新しいアクセスキーを発行します。",
+      "侵害されたインスタンスを Auto Scaling グループからデタッチしてロードバランサーから外し、証拠を保全したうえで隔離用のセキュリティグループに移します。",
+      "IAM ロールを削除して同じ名前で作り直し、攻撃者の認証情報を無効にします。",
+      "アカウントのすべての KMS キーを直ちにローテーションし、盗まれた認証情報で暗号化データを読めないようにします。"
+    ],
+    "answer": [0, 2],
+    "explanation": "IAM ロールの一時認証情報は、有効期限まで使える点が問題です。IAM コンソールでアクティブなセッションを取り消すと、IAM はそのロールに、取り消し時点より前にロールを引き受けた場合だけすべての操作を拒否する条件付きのインラインポリシーを付けます。盗まれた認証情報は無効になり、取り消し後に新しく発行された認証情報は影響を受けないため、他のインスタンスは新しい認証情報を取得すれば動き続けます。侵害されたインスタンス自体は、Auto Scaling グループからデタッチしてロードバランサーから外し、証拠を保全してから隔離すれば、再侵害や認証情報の再取得を防げます。",
+    "optionNotes": [
+      "セッションの取り消しで、取り消し前に発行された一時認証情報を無効にできます。",
+      "IAM ロールには長期のアクセスキーがないため、この操作はできません。",
+      "侵害されたインスタンスを切り離して隔離すれば、攻撃者が認証情報を再取得したり被害を広げたりするのを止められます。",
+      "ロールを削除すると同じロールを使う他のインスタンスも止まり、影響が大きくなります。証拠も失われやすくなります。",
+      "KMS キーのローテーションは古いキーの素材を残すため、盗まれた認証情報に KMS の権限があれば引き続き復号できます。認証情報の無効化にはなりません。"
+    ],
+    "services": ["AWS Identity and Access Management", "Amazon EC2", "Amazon GuardDuty", "Amazon EC2 Auto Scaling"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Revoke IAM role temporary security credentials", "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_revoke-sessions.html" },
+      { "title": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS", "url": "https://docs.aws.amazon.com/help-panel/guardduty/latest/console/finding-type-unauthorizedaccess-iam-instancecredentialexfiltrationoutsideaws.html" }
+    ]
+  },
+  {
+    "id": "D2-017",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "ある企業で、Amazon GuardDuty が同じ日に複数の検出結果を出しました。EC2 インスタンスからの不審な DNS 問い合わせ、ある IAM ロールのセッションによる普段と異なる API 呼び出し、同じ外部 IP アドレスからのアクセスが含まれます。セキュリティチームは、これらが 1 つの攻撃の一部かどうかを判断し、関係するエンティティと MITRE ATT&CK の戦術を把握して根本原因を突き止めたいと考えています。ログを個別に検索するクエリを書かずに進めたい場合、最も適切な方法はどれですか。",
+    "options": [
+      "AWS Security Hub CSPM のインサイトを作成し、リソースごとに検出結果の件数を集計します。",
+      "AWS CloudTrail のイベント履歴で、IAM ロールのセッション名を条件にイベントを検索し、時系列に並べます。",
+      "Amazon Detective の検出結果グループを開き、関連付けられた検出結果と関係するエンティティ、観測された戦術を可視化パネルで確認し、各エンティティのプロファイルページで振る舞いを掘り下げます。",
+      "Amazon Inspector の検出結果を確認し、EC2 インスタンスの脆弱性から侵入経路を推定します。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「1 つの攻撃の一部かを判断」「関係するエンティティと戦術の把握」「クエリを書かない」です。Amazon Detective の検出結果グループは、行動グラフのグラフ分析で検出結果とエンティティの関係を推定し、関連する検出結果をまとめます。まとめる基準には、時間的な近さ、同じ IAM ロールのセッションや IP アドレスなどの共通のエンティティ、振る舞いのパターン、MITRE ATT&CK の戦術、技術、手順が含まれます。検出結果グループは既定で有効で、可視化パネルで検出結果とエンティティのつながりを確認でき、関係するエンティティのプロファイルページへ移って振る舞いを詳しく調べられます。Detective は根本原因分析の手段として試験ガイドでも例示されています。",
+    "optionNotes": [
+      "インサイトは件数の集計で、検出結果どうしの関係やエンティティのつながりは分かりません。",
+      "CloudTrail のイベント検索はクエリや条件を自分で組む作業で、DNS 問い合わせとの関連付けもできません。",
+      "Detective の検出結果グループで関連する検出結果、エンティティ、戦術をまとめて確認し、根本原因を調べられます。",
+      "脆弱性の情報は侵入経路の手がかりになりますが、複数の検出結果を関連付けて攻撃の全体像を示すものではありません。"
+    ],
+    "services": ["Amazon Detective", "Amazon GuardDuty"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Analyzing finding groups", "url": "https://docs.aws.amazon.com/detective/latest/userguide/groups-about.html" },
+      { "title": "What is Amazon Detective?", "url": "https://docs.aws.amazon.com/detective/latest/userguide/what-is-detective.html" }
+    ]
+  }
+]

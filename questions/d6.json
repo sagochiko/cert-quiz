@@ -1,0 +1,472 @@
+[
+  {
+    "id": "D6-001",
+    "domain": 6,
+    "task": "6.1",
+    "type": "single",
+    "question": "ある金融機関は AWS Organizations ですべての機能を有効にした組織で 120 の AWS アカウントを運用しています。法務部門から、AWS の AI サービス(Amazon Comprehend、Amazon Lex など)に送ったコンテンツがサービス改善のために保存、利用されないようにすること、今後組織に追加されるアカウントにも同じ設定を自動で適用すること、メンバーアカウントの管理者がこの設定を変更できないことが求められました。AI サービス自体の利用は止めません。これらの要件を最小の運用負荷で満たすソリューションはどれですか。",
+    "options": [
+      "組織のルートに SCP をアタッチし、comprehend:* や lex:* などの AI サービスのアクションを拒否する。",
+      "AI サービスのオプトアウトポリシーを作成し、default サービスに optOut を割り当て、@@operators_allowed_for_child_policies を @@none にして組織のルートにアタッチする。",
+      "各アカウントから AWS サポートにオプトアウトを依頼するケースを作成し、新しいアカウントの作成手順にもこの依頼を追加する。",
+      "組織のルートに RCP をアタッチし、AI サービスのサービスプリンシパルが S3 バケットのデータにアクセスすることを拒否する。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「サービス改善への利用を止める」「AI サービス自体は使い続ける」「将来のアカウントにも自動適用」「メンバー側で変更させない」の 4 点です。AWS Organizations の AI サービスのオプトアウトポリシーは、AI サービスがコンテンツをサービス改善に使うことからのオプトアウトを組織単位で設定する専用のポリシーです。default は対象のすべての AI サービスを表すプレースホルダーで、ここに optOut を割り当てると全サービスがオプトアウトになります。ルートにアタッチすれば既存と今後のアカウントの両方が継承し、@@operators_allowed_for_child_policies に @@none を指定すると、子ポリシーで optIn に戻すことを防げます。SCP や RCP はアクセスを拒否する認可ポリシーなので、サービス改善への利用という論点には効かず、サービスの利用そのものを止めてしまう恐れがあります。",
+    "optionNotes": [
+      "SCP は API の呼び出しを拒否するだけなので、AI サービスが使えなくなります。サービスを使い続ける要件に反し、データの改善利用の設定も変わりません。",
+      "正解です。オプトアウトポリシーをルートにアタッチすると、既存と今後のアカウントが継承し、継承演算子 @@none で子ポリシーによる上書きを防げます。",
+      "アカウントごとに依頼が必要で運用負荷が高く、メンバーアカウント側での変更を組織として防ぐ仕組みにもなりません。",
+      "RCP はリソースへのアクセスを制限する認可ポリシーで、AI サービスがコンテンツをサービス改善に使うかどうかの設定は制御できません。"
+    ],
+    "services": ["AWS Organizations"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AI services opt-out policies", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_ai-opt-out.html" },
+      { "title": "AI services opt-out policy syntax and examples", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_ai-opt-out_syntax.html" }
+    ]
+  },
+  {
+    "id": "D6-002",
+    "domain": 6,
+    "task": "6.1",
+    "type": "single",
+    "question": "ある企業は既存の AWS Organizations の組織に AWS Control Tower のランディングゾーンを設定しました。Control Tower の導入前から存在する Workloads OU には、Control Tower に登録されていない 40 のアカウントがあります。セキュリティエンジニアは、これらのアカウントを Control Tower のガバナンス下に置き、さらに AWS CloudFormation でデプロイされるリソースのうち、暗号化されていない Amazon EBS ボリュームなどの要件違反のリソースを作成される前にブロックしたいと考えています。これらの要件を最小の運用負荷で満たす方法はどれですか。",
+    "options": [
+      "Account Factory で 40 のアカウントを 1 つずつ登録し、Workloads OU で検出コントロールを有効にする。",
+      "Workloads OU を Control Tower に登録し、要件違反のリソースを検出する検出コントロールを有効にする。",
+      "CloudFormation StackSets で各アカウントに AWS Config ルールをデプロイし、違反が見つかったら Amazon SNS で通知する。",
+      "Workloads OU を Control Tower に登録し、対象のリソースに対応するプロアクティブコントロールを OU で有効にする。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「既存の OU の多数のアカウントをまとめて取り込む」と「作成される前にブロックする」です。既存の OU を Control Tower に登録(Register OU)すると、その OU の未登録アカウントに AWSControlTowerExecution ロールが追加され、まとめて登録されます。1 アカウントずつの登録より運用負荷が低く、Control Tower も既存アカウントを取り込む効率的な方法として OU の登録を挙げています。プロアクティブコントロールは CloudFormation Hooks で実装されたオプションのコントロールで、CloudFormation がリソースをプロビジョニングする前にテンプレートの設定を評価し、要件に合わないリソースの作成を止めます。検出コントロールや AWS Config ルールは作成後に違反を見つける仕組みなので、作成前にブロックする要件を満たせません。",
+    "optionNotes": [
+      "1 アカウントずつの登録は OU の登録より手間がかかり、検出コントロールでは作成前のブロックができません。",
+      "OU の登録は適切ですが、検出コントロールはデプロイ後に違反を検出するだけで、作成を止められません。",
+      "Config ルールは作成後の評価で、ブロックはできません。Control Tower のガバナンスにも取り込まれません。",
+      "正解です。OU の登録で 40 のアカウントをまとめて取り込み、CloudFormation Hooks によるプロアクティブコントロールで作成前に違反リソースを止めます。"
+    ],
+    "services": ["AWS Control Tower", "AWS CloudFormation", "AWS Organizations"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Register an existing organizational unit with AWS Control Tower", "url": "https://docs.aws.amazon.com/controltower/latest/userguide/importing-existing.html" },
+      { "title": "Update your proactive control hooks", "url": "https://docs.aws.amazon.com/controltower/latest/controlreference/get-new-hooks.html" }
+    ]
+  },
+  {
+    "id": "D6-003",
+    "domain": 6,
+    "task": "6.1",
+    "type": "multi",
+    "question": "ある企業は AWS Organizations で数百のアカウントを管理しています。過去に、開発者がバケットポリシーを誤って設定し、組織外の AWS アカウントに Amazon S3 バケットへのアクセスを許してしまったことがありました。セキュリティチームは、各アカウントのバケットポリシーの内容にかかわらず、組織のメンバーアカウントにある S3 バケットには組織内の IAM プリンシパルと、組織のために動作する AWS のサービスだけがアクセスできるようにしたいと考えています。この要件を満たすために、セキュリティエンジニアが取るべき行動はどれですか。（2 つ選択）",
+    "options": [
+      "s3:* を対象に、aws:PrincipalOrgID が自組織の ID と一致しない場合に拒否し、aws:PrincipalIsAWSService が true のリクエストは除外する RCP を作成し、組織のルートにアタッチする。",
+      "aws:PrincipalOrgID が自組織の ID と一致しない場合に s3:* を拒否する SCP を作成し、組織のルートにアタッチする。",
+      "RCP は管理アカウントのリソースには効かないため、機密データを置く S3 バケットは管理アカウントに作らず、メンバーアカウントに置く運用にする。",
+      "IAM Access Analyzer の外部アクセス分析を全アカウントで有効にし、検出された外部共有のバケットポリシーを担当者が手動で修正する。",
+      "各アカウントのバケットポリシーに aws:PrincipalOrgID の条件があるかを AWS Config のカスタムルールで毎日評価し、違反を Amazon SNS で通知する。"
+    ],
+    "answer": [0, 2],
+    "explanation": "決め手は「バケットポリシーの内容にかかわらず」という予防的な要件と、組織外のプリンシパルを対象にしている点です。RCP(リソースコントロールポリシー)はリソースに対して許可される最大の権限を組織全体で設定するポリシーで、誰がリクエストしたかに関係なくリソースへのアクセス時に評価されます。aws:PrincipalOrgID で組織外のプリンシパルを拒否し、aws:PrincipalIsAWSService で AWS のサービスプリンシパルを除外すると、CloudTrail のログ配信のような正当なサービスの書き込みを止めずにアイデンティティ境界を作れます。RCP は管理アカウントのリソースには効かないため、保護したいデータを管理アカウントに置かない設計とあわせて考えます。SCP は組織内の IAM ユーザーとロールの権限を制限するもので、組織外のアカウントのプリンシパルには影響しません。",
+    "optionNotes": [
+      "正解です。RCP はリソース側の最大権限を設定するので、バケットポリシーで外部に許可していても組織外からのアクセスを拒否できます。",
+      "SCP は組織内のプリンシパルにしか適用されず、組織外のアカウントからのアクセスは制限できません。",
+      "正解です。RCP は管理アカウントのリソースに影響しないため、機密データを管理アカウントに置かないことで RCP の保護範囲に入れます。",
+      "検出と手動修正の仕組みで、誤設定から修正までの間は外部アクセスが可能です。予防的な要件を満たしません。",
+      "検出の仕組みであり、評価から修正までの間は外部アクセスを防げません。カスタムルールの開発と運用の負荷もかかります。"
+    ],
+    "services": ["AWS Organizations", "Amazon S3", "AWS IAM Access Analyzer"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Resource control policies (RCPs)", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_rcps.html" },
+      { "title": "Perimeter implementation", "url": "https://docs.aws.amazon.com/whitepapers/latest/building-a-data-perimeter-on-aws/perimeter-implementation.html" },
+      { "title": "Service control policies (SCPs)", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html" }
+    ]
+  },
+  {
+    "id": "D6-004",
+    "domain": 6,
+    "task": "6.1",
+    "type": "single",
+    "question": "あるメディア企業は AWS Organizations で 80 のアカウントを運用しています。セキュリティ標準では、すべてのアカウントとリージョンで Amazon EBS スナップショットのパブリック共有をブロックし、VPC のインターネットゲートウェイ経由の通信を VPC Block Public Access で遮断することを求めています。将来 Amazon EC2 に新しい API が追加されても設定が維持されること、サービスにリンクされたロールでも回避できないこと、違反した操作をした利用者に社内ポータルへ案内するエラーメッセージを表示することも求められています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon EC2 の宣言型ポリシーを作成し、スナップショットのパブリックアクセスブロックと VPC Block Public Access の属性、カスタムエラーメッセージを設定して、組織のルートにアタッチする。",
+      "ec2:ModifySnapshotAttribute などパブリック化につながる API を拒否する SCP を作成し、組織のルートにアタッチする。",
+      "AWS Config のルールでスナップショットのパブリック共有と VPC の設定を評価し、AWS Systems Manager Automation で自動修復する。",
+      "CloudFormation StackSets で各アカウントと各リージョンにアカウントレベルのブロック設定を行うカスタムリソースをデプロイする。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「新しい API が追加されても維持」「サービスにリンクされたロールでも回避できない」「カスタムエラーメッセージ」の 3 つです。AWS Organizations の宣言型ポリシーは、サービスの望ましい設定を組織全体で宣言して強制するポリシーで、Amazon EC2 向けにはスナップショットのパブリックアクセスブロックや VPC Block Public Access、シリアルコンソールのアクセスなどを設定できます。設定はサービス側で維持されるので、サービスに新機能や新しい API が追加されても、新しいアカウントが組織に加わっても保たれます。宣言型ポリシーで管理されている間は、アカウント内でその設定を直接変更できません。exception_message でカスタムエラーメッセージを返せる点も要件に合います。SCP は API 単位の制御なので新しい API に追随できず、サービスにリンクされたロールにも効きません。",
+    "optionNotes": [
+      "正解です。宣言型ポリシーはサービスレベルで設定を強制し、新しい API や新規アカウントにも自動で適用され、カスタムエラーメッセージも設定できます。",
+      "SCP は列挙した API しか拒否できず、将来の API に追随できません。サービスにリンクされたロールにも影響しません。",
+      "違反を作成後に検出して修復する仕組みで、違反の操作自体を防げず、利用者へのエラーメッセージも出せません。",
+      "アカウント内の管理者が後から設定を変更でき、新しい API や新しいアカウントへの追随も自動では行われません。"
+    ],
+    "services": ["AWS Organizations", "Amazon EC2", "Amazon EBS", "Amazon VPC"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Declarative policies in AWS Organizations", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_declarative_policies.html" },
+      { "title": "Configure block public access for Amazon EBS snapshots", "url": "https://docs.aws.amazon.com/ebs/latest/userguide/block-public-access-snapshots-enable.html" }
+    ]
+  },
+  {
+    "id": "D6-005",
+    "domain": 6,
+    "task": "6.1",
+    "type": "single",
+    "question": "ある企業は AWS Organizations で 200 のアカウントを運用し、東京とバージニア北部の 2 つのリージョンを使っています。セキュリティチームは、管理アカウントとは別のセキュリティツール専用アカウントで Amazon GuardDuty の検出結果を一元的に確認し、既存のすべてのメンバーアカウントと今後追加されるアカウントで GuardDuty が自動的に有効になるようにしたいと考えています。これらの要件を最小の運用負荷で満たす方法はどれですか。",
+    "options": [
+      "管理アカウントを GuardDuty の管理者アカウントとして使い、各リージョンで自動有効化を ALL に設定する。",
+      "CloudFormation StackSets で各アカウントの各リージョンに GuardDuty ディテクターを作成し、検出結果をセキュリティツール用アカウントの S3 バケットにエクスポートする。",
+      "両方のリージョンで、管理アカウントからセキュリティツール用アカウントを GuardDuty の委任管理者に指定し、各リージョンで組織の自動有効化を ALL に設定する。",
+      "東京リージョンだけでセキュリティツール用アカウントを GuardDuty の委任管理者に指定し、自動有効化を NEW に設定する。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「管理アカウントとは別のアカウントで一元管理」「既存と今後の両方のアカウント」「2 つのリージョン」です。GuardDuty は AWS Organizations と統合でき、管理アカウントが組織内の任意のアカウントを委任管理者に指定します。委任管理者の指定と自動有効化の設定はリージョンごとに行うもので、指定したリージョンでしか効きません。自動有効化には ALL(すべてのメンバー)、NEW(新しく加わったメンバーのみ)、NONE があり、既存アカウントも対象にするには ALL を選びます。委任管理者アカウントでは、自分と組織のメンバーの検出結果をまとめて確認できます。管理アカウントで日常のセキュリティ運用をしないのがベストプラクティスなので、セキュリティツール用アカウントを委任管理者にします。",
+    "optionNotes": [
+      "管理アカウントで日常的なセキュリティ運用をすることになり、別アカウントで管理する要件に反します。",
+      "アカウントごとにディテクターを作るだけでは組織としての管理者とメンバーの関係ができず、検出結果の一元管理や新規アカウントへの自動適用に追加の仕組みが要ります。",
+      "正解です。委任管理者と自動有効化はリージョン単位なので両リージョンで設定し、ALL で既存と新規の両方を対象にします。",
+      "バージニア北部リージョンが対象外になり、NEW では既存のメンバーアカウントで GuardDuty が有効になりません。"
+    ],
+    "services": ["Amazon GuardDuty", "AWS Organizations"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Managing GuardDuty accounts with AWS Organizations", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_organizations.html" },
+      { "title": "Continually managing your member accounts within GuardDuty", "url": "https://docs.aws.amazon.com/guardduty/latest/ug/maintaining-guardduty-organization-delegated-admin.html" }
+    ]
+  },
+  {
+    "id": "D6-006",
+    "domain": 6,
+    "task": "6.1",
+    "type": "single",
+    "question": "ある企業は AWS Organizations で 300 のメンバーアカウントを管理しており、各アカウントのルートユーザーのパスワードと MFA デバイスの管理が負担になっています。監査では、メンバーアカウントのルートユーザーの長期的な認証情報をなくすことを求められました。一方で、あるメンバーアカウントでは、誤ったバケットポリシーによりすべてのプリンシパルが拒否され、管理者も Amazon S3 バケットにアクセスできなくなっています。これらの課題を最小の運用負荷で解決する方法はどれですか。",
+    "options": [
+      "各メンバーアカウントのルートユーザーのパスワードを AWS Secrets Manager に保存し、ハードウェア MFA デバイスを金庫で保管するブレークグラス手順を作る。S3 バケットはルートユーザーでサインインしてポリシーを削除する。",
+      "IAM で一元化されたルートアクセスを有効にしてメンバーアカウントのルートユーザーの認証情報を削除する。S3 バケットは、管理アカウントから sts:AssumeRoot を S3UnlockBucketPolicy のタスクポリシーで呼び出してバケットポリシーを削除する。",
+      "メンバーアカウントのルートユーザーのすべての操作を拒否する SCP を組織のルートにアタッチする。S3 バケットは AdministratorAccess を持つ IAM ロールでバケットポリシーを削除する。",
+      "IAM Identity Center で AdministratorAccess の許可セットを対象アカウントに割り当て、そのセッションからバケットポリシーを削除する。ルートユーザーの認証情報はそのまま残す。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「長期的な認証情報をなくす」と「すべてのプリンシパルを拒否するバケットポリシーの解除」です。IAM の一元化されたルートアクセスには、メンバーアカウントのルート認証情報(パスワード、アクセスキー、署名証明書、MFA)を一元的に削除する機能と、ルートユーザーが必要だった特権タスクを管理アカウントまたは IAM の委任管理者から実行する機能があります。特権タスクは sts:AssumeRoot で開始する短期のセッションで、S3UnlockBucketPolicy などのタスクポリシーでできる操作が限定されます。これにより、ルートでしか直せなかった S3 バケットポリシーのロックアウトを、ルートの認証情報なしで解除できます。sts:AssumeRoot は IAM ユーザーまたはロールに明示的に許可する必要があり、ルートユーザーの認証情報では呼び出せません。",
+    "optionNotes": [
+      "ルートの長期的な認証情報が残り続け、300 アカウント分のパスワードと MFA デバイスの管理負荷もなくなりません。",
+      "正解です。ルート認証情報を一元的に削除し、S3 のバケットポリシーの解除はタスク単位に限定した短期のルートセッションで行えます。",
+      "全プリンシパルを拒否するバケットポリシーは AdministratorAccess を持つロールも拒否するため、削除できません。SCP では認証情報自体もなくなりません。",
+      "Identity Center のセッションもバケットポリシーで拒否されるため削除できず、ルート認証情報も残ります。"
+    ],
+    "services": ["AWS IAM", "AWS Organizations", "Amazon S3", "AWS STS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AWS account root user", "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user.html" },
+      { "title": "Perform a privileged task on an AWS Organizations member account", "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user-privileged-task.html" }
+    ]
+  },
+  {
+    "id": "D6-007",
+    "domain": 6,
+    "task": "6.2",
+    "type": "single",
+    "question": "ある企業は AWS Organizations ですべての機能を有効にしています。セキュリティチームは、セキュリティ監査用の IAM ロールと Amazon EventBridge のルールを、Production OU 配下のすべてのアカウントに同じ構成でデプロイしたいと考えています。今後 Production OU に追加されるアカウントにも自動でデプロイし、アカウントが OU から外れたらスタックを削除する必要があります。各アカウントに事前に IAM ロールを作る作業は避けたいと考えています。これらの要件を最小の運用負荷で満たす方法はどれですか。",
+    "options": [
+      "セルフマネージド型のアクセス許可で StackSet を作成し、各アカウントに AWSCloudFormationStackSetExecutionRole を作成してから Production OU のアカウント ID を指定してデプロイする。",
+      "CI/CD パイプラインから各アカウントのロールを引き受けて CloudFormation スタックを作成し、新しいアカウントが作られたらパイプラインに追加する。",
+      "サービスマネージド型のアクセス許可で StackSet を作成し、Production OU をターゲットにして自動デプロイを有効にし、アカウント削除時にスタックを保持しない設定にする。",
+      "AWS Service Catalog のポートフォリオを Production OU に共有し、各アカウントの管理者に製品を起動するよう依頼する。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「OU に追加されるアカウントへの自動デプロイ」「OU から外れたら削除」「各アカウントに事前にロールを作らない」です。サービスマネージド型のアクセス許可の StackSet は、AWS Organizations との信頼されたアクセスを使い、必要な IAM ロールを StackSets が作成します。組織全体または OU をターゲットにでき、自動デプロイを有効にすると、ターゲットの OU に追加されたアカウントへ自動でスタックをデプロイします。RetainStacksOnAccountRemoval を false にすれば、アカウントが OU から外れたときにスタックが削除されます。なお、サービスマネージド型の StackSet は管理アカウントにはスタックをデプロイしません。セルフマネージド型は実行ロールを各アカウントに用意する必要があり、自動デプロイもありません。",
+    "optionNotes": [
+      "セルフマネージド型は各アカウントに実行ロールを事前作成する必要があり、新しいアカウントへの自動デプロイもできません。",
+      "パイプラインへのアカウント追加やロールの用意を手作業で続ける必要があり、運用負荷が高くなります。",
+      "正解です。サービスマネージド型で OU をターゲットにし、自動デプロイを有効にすると、追加と削除の両方に自動で追随します。",
+      "各アカウントの管理者の操作に依存し、自動デプロイにも OU から外れたときの削除にもなりません。"
+    ],
+    "services": ["AWS CloudFormation", "AWS Organizations"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Create CloudFormation StackSets with service-managed permissions", "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-orgs-associate-stackset-with-org.html" }
+    ]
+  },
+  {
+    "id": "D6-008",
+    "domain": 6,
+    "task": "6.2",
+    "type": "single",
+    "question": "ある企業では、アプリケーションチームが AWS CloudFormation テンプレートを Git リポジトリで管理し、CI/CD パイプラインでデプロイしています。セキュリティチームは、Amazon S3 バケットにデフォルト暗号化とパブリックアクセスブロックが設定されていること、セキュリティグループで 0.0.0.0/0 からの SSH を許可していないことなど、社内のセキュリティルールに違反するテンプレートをデプロイ前のビルド段階で失敗させたいと考えています。ルールはセキュリティチームがコードとして管理し、複数のチームで再利用します。この要件を満たす方法はどれですか。",
+    "options": [
+      "社内ルールを AWS CloudFormation Guard のルールファイルとして記述し、パイプラインのビルドステップで cfn-guard validate を実行して違反があればビルドを失敗させる。",
+      "パイプラインのビルドステップで cfn-lint をデフォルトのルールで実行し、エラーがあればビルドを失敗させる。",
+      "デプロイ後に AWS Config のマネージドルールで S3 バケットとセキュリティグループを評価し、違反があれば Amazon SNS でチームに通知する。",
+      "デプロイしたスタックに対して CloudFormation のドリフト検出を定期的に実行し、ドリフトが見つかったらパイプラインを停止する。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「社内のセキュリティルール」「デプロイ前のビルド段階」「ルールをコードとして管理して再利用」です。AWS CloudFormation Guard(cfn-guard)はポリシーをコードとして書く仕組みで、組織のポリシーやセキュリティのベストプラクティスに沿っているかを CloudFormation テンプレートに対して検証できます。ビルドステップで cfn-guard validate を実行し、その終了コードでビルドを失敗させると、違反したテンプレートはデプロイされません。ルールファイルはバージョン管理して複数のチームで共有できます。cfn-lint はテンプレートが CloudFormation の仕様に沿っているかを確かめる道具で、社内独自のセキュリティルールの判定には向きません。Config ルールはデプロイ後の検出です。",
+    "optionNotes": [
+      "正解です。Guard のルールで社内ポリシーをコード化し、ビルドで検証して違反時にビルドを失敗させます。",
+      "cfn-lint のデフォルトのルールはテンプレートの構文や仕様の誤りを見るもので、社内のセキュリティルールは判定できません。",
+      "デプロイ後の検出で、違反リソースが一度作られてしまいます。ビルド段階で止める要件を満たしません。",
+      "ドリフト検出はテンプレートと実際の構成の差を見るもので、テンプレート自体がセキュリティルールに沿っているかは評価しません。"
+    ],
+    "services": ["AWS CloudFormation"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Validate templates with Guard", "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cloudformation-guard.html" },
+      { "title": "CloudFormation best practices", "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html" }
+    ]
+  },
+  {
+    "id": "D6-009",
+    "domain": 6,
+    "task": "6.2",
+    "type": "multi",
+    "question": "ある企業は AWS Organizations で部門ごとに OU を分けています。財務部門は、すべての Amazon EC2 インスタンスに CostCenter タグを付け、値は承認済みの値(CC-100、CC-200 など)のいずれかで、大文字と小文字の表記も統一することを求めています。CostCenter タグがない EC2 インスタンスは作成できないようにし、承認されていない値を付ける操作も拒否する必要があります。この要件を満たすために必要な組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "タグポリシーを作成するだけで、CostCenter タグのない EC2 インスタンスの作成も拒否されるようにする。",
+      "CostCenter タグキーの表記と許可する値を定義し、ec2:instance を強制の対象にしたタグポリシーを作成して組織にアタッチする。",
+      "AWS Resource Groups で CostCenter タグに基づくリソースグループを作成し、グループに入らない EC2 インスタンスを停止する。",
+      "aws:RequestTag/CostCenter が存在しない(Null 条件が true)場合に ec2:RunInstances を拒否する SCP を作成し、対象の OU にアタッチする。",
+      "AWS Config の required-tags ルールで CostCenter タグの有無を評価し、自動修復で既定の値のタグを付ける。"
+    ],
+    "answer": [1, 3],
+    "explanation": "決め手は「承認済みの値と表記の統一」と「タグがないインスタンスは作成できない」という 2 つの異なる要件です。タグポリシーはタグキーの表記や許可する値を定義し、強制を指定したリソースタイプでは準拠しないタグ付け操作を拒否できます。ただし、タグポリシーはタグが付けられたときの値を評価するもので、タグの存在自体は強制しません。タグのないリソースは評価対象外で、準拠していないとも報告されません。そこで、aws:RequestTag/CostCenter の Null 条件で作成リクエストにタグがない場合の ec2:RunInstances を拒否する SCP を組み合わせます。AWS のドキュメントも、リソース作成時のガードレールとして SCP を併用することを推奨しています。",
+    "optionNotes": [
+      "タグポリシーは値と表記を評価するだけで、タグのないリソースの作成は防げません。",
+      "正解です。タグポリシーで許可する値と表記を定義し、ec2:instance を強制の対象にすると、準拠しない値でのタグ付けを拒否できます。",
+      "Resource Groups はリソースを整理して表示する仕組みで、作成を防ぐことはできません。停止も事後の対応です。",
+      "正解です。作成リクエストに CostCenter タグがない場合に RunInstances を拒否し、タグの存在を作成時に強制できます。",
+      "作成後の検出と修復で、タグなしの作成を防げません。既定の値を自動で付けても、正しいコストセンターかどうかは分かりません。"
+    ],
+    "services": ["AWS Organizations", "Amazon EC2", "AWS Resource Groups"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Tag policies", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_tag-policies.html" },
+      { "title": "Best practices for using tag policies", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_tag-policies-best-practices.html" }
+    ]
+  },
+  {
+    "id": "D6-010",
+    "domain": 6,
+    "task": "6.2",
+    "type": "single",
+    "question": "ある EC サイト運営企業は AWS Organizations で 60 のアカウントを運用しており、各アカウントのチームがインターネット向けの Application Load Balancer(ALB)を作成しています。セキュリティチームは、すべての ALB に AWS マネージドルールのコアルールセットを含む AWS WAF のウェブ ACL を関連付けることを義務付けたいと考えています。新しいアカウントや新しく作成された ALB にも自動で適用し、各チームは追加のルールを自分で足せるようにします。これらの要件を最小の運用負荷で満たす方法はどれですか。",
+    "options": [
+      "CloudFormation StackSets で各アカウントにウェブ ACL をデプロイし、各チームに ALB の作成時にウェブ ACL を関連付けるよう周知する。",
+      "AWS Shield Advanced を組織の全アカウントで有効にし、ALB を保護対象リソースとして登録する。",
+      "AWS Config の alb-waf-enabled ルールで各アカウントの ALB を評価し、違反時に AWS Lambda でウェブ ACL を関連付けるカスタム修復を作る。",
+      "AWS Firewall Manager の管理者アカウントを指定し、コアルールセットを含む AWS WAF ポリシーを ALB を対象に作成して、自動修復を有効にして組織に適用する。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「中央から義務付け」「新しいアカウントと新しい ALB に自動適用」「各チームが追加のルールを足せる」です。AWS Firewall Manager の AWS WAF ポリシーでは、ポリシーの範囲内のすべてのリソースを守るルールグループを指定し、Firewall Manager が対象リソースのウェブ ACL を作成、管理します。自動修復を有効にすると、範囲内の ALB にウェブ ACL が自動で関連付けられます。Firewall Manager が管理するウェブ ACL でも、各アカウントは自分のルールやルールグループをポリシーで定義したルールグループに加えて管理できます。前提として、Organizations のすべての機能、Firewall Manager 管理者アカウントの指定、新しいリソースを検出するための全アカウントでの AWS Config の有効化が必要です。",
+    "optionNotes": [
+      "ウェブ ACL の関連付けが各チームの手作業に依存し、新しい ALB への適用を保証できません。",
+      "Shield Advanced は DDoS 対策のサービスで、WAF のコアルールセットを含むウェブ ACL を全 ALB に強制する要件を直接満たしません。",
+      "実現はできますが、カスタム修復の開発と全アカウントへの展開、保守が必要で運用負荷が高くなります。",
+      "正解です。Firewall Manager の WAF ポリシーで範囲内の ALB にウェブ ACL を自動適用し、各アカウントは独自のルールも追加できます。"
+    ],
+    "services": ["AWS Firewall Manager", "AWS WAF", "Elastic Load Balancing", "AWS Config"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using AWS WAF policies with Firewall Manager", "url": "https://docs.aws.amazon.com/waf/latest/developerguide/waf-policies.html" },
+      { "title": "Web ACL management for AWS WAF policies", "url": "https://docs.aws.amazon.com/waf/latest/developerguide/how-fms-manages-web-acls.html" }
+    ]
+  },
+  {
+    "id": "D6-011",
+    "domain": 6,
+    "task": "6.2",
+    "type": "single",
+    "question": "ある企業のネットワークチームは、ネットワーク専用アカウントで VPC を一元管理し、ワークロード用のアカウントにサブネットを共有する VPC 共有の構成に移行します。共有先は AWS Organizations の Workloads OU のアカウントです。セキュリティチームは、どのアカウントでも組織外のアカウントにリソースを共有するリソース共有を作れないようにしたいと考えています。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "AWS RAM のリソース共有でワークロードアカウントの ID を 1 つずつ指定し、外部プリンシパルの許可を有効にしたまま共有する。",
+      "管理アカウントで AWS RAM の AWS Organizations との共有を有効にし、サブネットを Workloads OU に共有する。さらに ram:RequestedAllowsExternalPrincipals が true の ram:CreateResourceShare と ram:UpdateResourceShare を拒否する SCP を組織のルートにアタッチする。",
+      "ワークロードアカウントごとにネットワーク専用アカウントの VPC と VPC ピアリングを作成し、ピアリングの承認をネットワークチームが行う。",
+      "AWS RAM を対象にした RCP を作成し、組織外のプリンシパルが RAM のリソース共有を受け入れることを拒否する。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「OU のアカウントへのサブネット共有」と「組織外への共有を作らせない」です。VPC 共有は AWS RAM でサブネットを共有する仕組みです。管理アカウントで AWS Organizations との共有を有効にすると、OU や組織全体を共有先に指定でき、新しく OU に入ったアカウントにも共有されます。組織外への共有の防止には、AWS RAM のドキュメントにある SCP の例のとおり、ram:RequestedAllowsExternalPrincipals が true の CreateResourceShare と UpdateResourceShare を拒否します。RCP がサポートするのは Amazon S3、AWS STS、AWS KMS、Amazon SQS、AWS Secrets Manager などのリソースで、RAM のリソース共有を制御するものではありません。",
+    "optionNotes": [
+      "アカウント ID を個別に管理する手間がかかり、外部プリンシパルの許可を有効にしたままでは組織外への共有を防げません。",
+      "正解です。Organizations との共有で OU に共有し、SCP で外部プリンシパルを許可するリソース共有の作成と更新を拒否します。",
+      "VPC 共有ではなくピアリングになり、アカウントが増えるたびに接続が増えます。組織外への共有の防止にもなりません。",
+      "RCP は RAM のリソース共有の作成を制御する仕組みではありません。組織外への共有の防止は SCP や IAM ポリシーで行います。"
+    ],
+    "services": ["AWS RAM", "Amazon VPC", "AWS Organizations"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Example service control policies for AWS Organizations and AWS RAM", "url": "https://docs.aws.amazon.com/ram/latest/userguide/security-scp.html" },
+      { "title": "Resource control policies (RCPs)", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_rcps.html" }
+    ]
+  },
+  {
+    "id": "D6-012",
+    "domain": 6,
+    "task": "6.2",
+    "type": "multi",
+    "question": "ある企業のプラットフォームチームは、保管時の暗号化と自動バックアップを必ず有効にした Amazon RDS for PostgreSQL の CloudFormation テンプレートを用意しました。AWS Organizations の Dev OU にある 30 のアカウントの開発者が、このテンプレートでデータベースを作れるようにしたいと考えています。開発者には Amazon RDS や AWS CloudFormation を直接操作する権限を与えず、承認済みの構成以外のデータベースを作らせないことが条件です。この要件を満たすために必要な組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "開発者に AdministratorAccess を付与し、暗号化されていない RDS の作成を拒否する SCP を Dev OU にアタッチする。",
+      "各メンバーアカウントで開発者が S3 に置いたテンプレートから直接 CloudFormation スタックを作成し、作成後に AWS Config で暗号化の有無を評価する。",
+      "テンプレートを AWS Service Catalog の製品として登録し、ポートフォリオを AWS Organizations との連携で Dev OU に共有する。",
+      "Service Catalog のテンプレート制約だけを設定し、開発者自身の IAM 権限で RDS と CloudFormation を操作して製品を起動させる。",
+      "製品に起動制約を設定し、RDS と CloudFormation の操作権限を持つ起動ロールを指定する。開発者には Service Catalog のエンドユーザーの権限だけを付与する。"
+    ],
+    "answer": [2, 4],
+    "explanation": "決め手は「承認済みのテンプレートを複数アカウントで使わせる」と「RDS や CloudFormation の直接の権限を与えない」です。AWS Service Catalog では、承認済みのテンプレートを製品としてポートフォリオにまとめ、AWS Organizations と連携して組織、OU、アカウントに共有できます。OU への共有は管理アカウントか委任管理者から行います。起動制約は、エンドユーザーが製品を起動、更新、終了するときに Service Catalog が引き受ける IAM ロールを指定するものです。起動制約がないと、エンドユーザーは CloudFormation や製品が使うサービスの権限を自分で持つ必要があります。起動ロールを使えば、開発者の権限を Service Catalog の利用に必要な最小限に絞れます。",
+    "optionNotes": [
+      "AdministratorAccess は最小権限に反し、RDS や CloudFormation を直接操作できてしまいます。",
+      "開発者に CloudFormation と RDS の権限が必要になり、Config による評価も作成後の検出にとどまります。",
+      "正解です。承認済みテンプレートを製品化し、ポートフォリオを Dev OU に共有すると、各アカウントで同じ製品を使えます。",
+      "テンプレート制約はパラメーターの値を制限しますが、起動に開発者自身の RDS と CloudFormation の権限が必要になり、条件に反します。",
+      "正解です。起動制約の起動ロールが実際のリソース作成を行うため、開発者には Service Catalog の権限だけを与えれば済みます。"
+    ],
+    "services": ["AWS Service Catalog", "AWS CloudFormation", "Amazon RDS", "AWS Organizations"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AWS Service Catalog Launch Constraints", "url": "https://docs.aws.amazon.com/servicecatalog/latest/adminguide/constraints-launch.html" },
+      { "title": "CreatePortfolioShare", "url": "https://docs.aws.amazon.com/servicecatalog/latest/APIReference/API_CreatePortfolioShare.html" }
+    ]
+  },
+  {
+    "id": "D6-013",
+    "domain": 6,
+    "task": "6.3",
+    "type": "single",
+    "question": "ある製薬会社は AWS Organizations で 150 のアカウントを運用し、全アカウントで AWS Config の記録が有効になっています。コンプライアンスチームは、社内基準に対応する一連の AWS Config ルールを全メンバーアカウントにまとめてデプロイし、全アカウント、全リージョンの準拠状況を管理アカウントではない監査用アカウントの 1 か所で確認したいと考えています。これらの要件を最小の運用負荷で満たす方法はどれですか。",
+    "options": [
+      "監査用アカウントを AWS Config の委任管理者に登録し、そこから組織のコンフォーマンスパックをデプロイする。さらに監査用アカウントに組織全体のアグリゲーターを作成する。",
+      "監査用アカウントに組織全体のアグリゲーターを作成し、アグリゲーターから各アカウントに Config ルールをデプロイする。",
+      "各アカウントの管理者に Config ルールを手動で作成してもらい、違反を各アカウントから Amazon SNS で監査用アカウントのメールに通知する。",
+      "管理アカウントで組織のコンフォーマンスパックをデプロイし、監査担当者に管理アカウントの読み取り権限を付与して各アカウントの準拠状況を確認させる。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「一連のルールを全メンバーアカウントにまとめてデプロイ」と「管理アカウント以外の 1 か所で全アカウント、全リージョンを確認」です。コンフォーマンスパックは Config ルールと修復アクションを 1 つにまとめたもので、PutOrganizationConformancePack で組織のメンバーアカウントに一括デプロイできます。この API は管理アカウントのほか、config-multiaccountsetup.amazonaws.com の委任管理者からも呼び出せます。アグリゲーターは複数のアカウントとリージョンの設定と準拠データを 1 つのアカウントに集約するもので、委任管理者のアカウントにも組織全体のアグリゲーターを作れます。アグリゲーターは読み取り専用のビューで、ルールのデプロイはできません。",
+    "optionNotes": [
+      "正解です。委任管理者から組織のコンフォーマンスパックを一括デプロイし、組織全体のアグリゲーターで準拠状況を 1 か所に集約します。",
+      "アグリゲーターは読み取り専用で、アグリゲーターを通じてルールをデプロイすることはできません。",
+      "150 アカウントでの手作業は運用負荷が高く、ルールの内容がアカウントごとにばらつく恐れがあります。",
+      "監査担当者に管理アカウントへのアクセスを与えることになり、管理アカウントの利用を最小限にするベストプラクティスに反します。全体を 1 か所で見る仕組みもありません。"
+    ],
+    "services": ["AWS Config", "AWS Organizations"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AWS Config terminology and concepts", "url": "https://docs.aws.amazon.com/config/latest/developerguide/config-concepts.html" },
+      { "title": "put-organization-conformance-pack", "url": "https://docs.aws.amazon.com/cli/latest/reference/configservice/put-organization-conformance-pack.html" }
+    ]
+  },
+  {
+    "id": "D6-014",
+    "domain": 6,
+    "task": "6.3",
+    "type": "single",
+    "question": "あるゲーム会社では、開発者が検証のためにセキュリティグループで 0.0.0.0/0 から SSH(22 番ポート)を許可したまま放置することが繰り返し起きています。セキュリティチームは、そのような設定を検出したら人手を介さずにインバウンドルールを取り除き、修復が失敗した場合には再試行させたいと考えています。コードの開発と保守はできるだけ避けたいと考えています。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "AWS CloudTrail の AuthorizeSecurityGroupIngress イベントを Amazon EventBridge で検知し、ルールを削除する AWS Lambda 関数を作成して呼び出す。",
+      "AWS Config のマネージドルール restricted-ssh を有効にし、手動修復として AWS-DisablePublicAccessForSecurityGroup を関連付けて、違反時に担当者が実行する。",
+      "AWS Config のマネージドルール restricted-ssh を有効にし、自動修復として AWS Systems Manager Automation のランブック AWS-DisablePublicAccessForSecurityGroup を関連付けて、再試行の回数と時間を設定する。",
+      "AWS Trusted Advisor のセキュリティグループのチェック結果を毎週確認し、該当するルールを担当者が削除する。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「人手を介さず取り除く」「失敗時に再試行」「コードの開発と保守を避ける」です。AWS Config ではルールに修復アクションを関連付け、手動か自動かを選べます。自動修復を選ぶと、違反と評価されたリソースに対して AWS Systems Manager Automation のランブックが自動で実行されます。修復後も違反のままなら、指定した時間内の再試行回数を設定できます。AWS-DisablePublicAccessForSecurityGroup は、すべての IP アドレスに開かれた既定の SSH と RDP のポートを無効にする AWS 提供のランブックです。マネージドルールと AWS 提供のランブックの組み合わせなので、独自のコードを書く必要がありません。",
+    "optionNotes": [
+      "自動で削除できますが、Lambda 関数のコードを開発、保守する必要があり、再試行の仕組みも自分で作ることになります。",
+      "手動修復では担当者の操作が必要で、人手を介さない要件を満たしません。",
+      "正解です。マネージドルールと AWS 提供のランブックによる自動修復で、コードを書かずに修復と再試行を実現できます。",
+      "週次の確認と手作業による削除で、自動化されておらず、放置される時間も長くなります。"
+    ],
+    "services": ["AWS Config", "AWS Systems Manager", "Amazon EC2"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Setting Up Auto Remediation for AWS Config", "url": "https://docs.aws.amazon.com/config/latest/developerguide/setup-autoremediation.html" },
+      { "title": "AWS-DisablePublicAccessForSecurityGroup", "url": "https://docs.aws.amazon.com/systems-manager-automation-runbooks/latest/userguide/automation-aws-disablepublicaccessforsecuritygroup.html" }
+    ]
+  },
+  {
+    "id": "D6-015",
+    "domain": 6,
+    "task": "6.3",
+    "type": "multi",
+    "question": "ある企業は AWS Organizations で 90 のアカウントを運用し、4 つのリージョンを使っています。セキュリティチームは、AWS Security Hub CSPM で AWS Foundational Security Best Practices 標準を全アカウント、全リージョンで有効にし、その設定を中央から一貫して管理したいと考えています。重大度が CRITICAL または HIGH の検出結果が出たら、セキュリティチームのメーリングリストに通知する必要があります。これらの要件を最小の運用負荷で満たすために必要な組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "管理アカウントからセキュリティツール用アカウントを Security Hub CSPM の委任管理者に指定し、中央設定を有効にしてホームリージョンと 3 つのリンクされたリージョンを設定する。標準を有効にする設定ポリシーを組織のルートに関連付ける。",
+      "ローカル設定のまま、各リージョンで新しいアカウントの Security Hub CSPM とデフォルトの標準を自動で有効にする設定を行う。",
+      "中央設定で管理アカウント自身を Security Hub CSPM の委任管理者に指定し、設定ポリシーを組織に関連付ける。",
+      "委任管理者アカウントの集約リージョンで、Security Hub Findings - Imported イベントのうち重大度ラベルが CRITICAL または HIGH のものに一致する Amazon EventBridge ルールを作成し、Amazon SNS トピックに送る。",
+      "各メンバーアカウントの各リージョンに EventBridge ルールと SNS トピックを作成し、重大度の高い検出結果を通知する。"
+    ],
+    "answer": [0, 3],
+    "explanation": "決め手は「全アカウント、全リージョンで中央から一貫して管理」と「重大度の高い検出結果だけを通知」です。Security Hub CSPM の中央設定では、委任管理者がホームリージョンで設定ポリシーを作り、アカウントや OU、組織全体に関連付けます。ポリシーはホームリージョンとリンクされたリージョンで有効になります。中央設定では管理アカウントを委任管理者にできません。ローカル設定では、委任管理者が決められるのは新しいアカウントでの有効化とデフォルトの標準だけで、それも現在のリージョンに限られます。Security Hub CSPM は新しい検出結果と更新を Security Hub Findings - Imported イベントとして EventBridge に送ります。集約リージョンの管理者アカウントのイベントにはメンバーとリンクされたリージョンの検出結果も含まれるので、ルールは 1 つで済みます。",
+    "optionNotes": [
+      "正解です。中央設定の設定ポリシーで、全アカウントと全リージョンの標準の有効化を中央から管理できます。",
+      "ローカル設定の自動有効化は新しいアカウントと現在のリージョンが対象で、既存アカウントの標準の管理は各アカウントと各リージョンで行う必要があります。",
+      "中央設定では、Organizations の管理アカウントを委任管理者に指定できません。",
+      "正解です。集約リージョンの委任管理者アカウントの 1 つのルールで、全アカウント、全リージョンの重大度の高い検出結果を通知できます。",
+      "90 アカウントと 4 リージョン分のルールとトピックが必要になり、運用負荷が高くなります。"
+    ],
+    "services": ["AWS Security Hub", "Amazon EventBridge", "Amazon SNS", "AWS Organizations"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Enabling central configuration in Security Hub CSPM", "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/start-central-configuration.html" },
+      { "title": "Security Hub CSPM event types in EventBridge", "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-cwe-integration-types.html" }
+    ]
+  },
+  {
+    "id": "D6-016",
+    "domain": 6,
+    "task": "6.3",
+    "type": "multi",
+    "question": "ある決済代行企業は PCI DSS の監査を控えています。外部監査人から 2 つの依頼がありました。1 つは、AWS が提供するインフラストラクチャ側の統制が有効であることを示す第三者の監査報告書です。もう 1 つは、自社の複数の AWS アカウントのリソース設定やユーザーの操作が PCI DSS の要件に沿っていることを示す証跡を、監査期間を通じて継続的に集め、統制ごとに整理したレポートです。これらの依頼に最小の運用負荷で応える方法の組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "AWS Audit Manager で AWS の SOC 2 レポートと PCI DSS の準拠証明書をダウンロードし、監査人に提出する。",
+      "AWS Artifact を使って、自社アカウントのリソース設定の証跡を PCI DSS の統制ごとに自動収集する。",
+      "AWS Artifact で AWS の PCI DSS の準拠証明書や SOC レポートをダウンロードし、監査人に提出する。",
+      "各アカウントの AWS CloudTrail ログと AWS Config のスナップショットを S3 からエクスポートし、統制ごとに表計算ソフトで整理する。",
+      "AWS Audit Manager を AWS Organizations と統合して委任管理者を設定し、PCI DSS の標準フレームワークで対象アカウントを含む評価を作成する。期間の終わりに評価レポートを生成する。"
+    ],
+    "answer": [2, 4],
+    "explanation": "決め手は「AWS 側の統制を示す第三者の報告書」と「自社リソースの証跡を継続的に集めて統制ごとに整理」という 2 種類の依頼を区別することです。AWS Artifact は、ISO 認証、PCI、SOC などの AWS のセキュリティとコンプライアンスに関する文書をオンデマンドでダウンロードできるサービスで、監査人や規制当局に提出できます。AWS Audit Manager は、フレームワークに基づく評価を作成すると、対象アカウントのリソースを評価して証跡を自動収集し、統制に紐付けます。PCI DSS などの標準フレームワークがあり、Organizations との統合で複数アカウントの証跡を委任管理者に集約でき、評価レポートで監査人向けにまとめられます。両者の役割を取り違えた選択肢は誤りです。",
+    "optionNotes": [
+      "AWS 自身の監査報告書を入手するのは AWS Artifact の役割で、Audit Manager は自社環境の証跡を集めるサービスです。",
+      "AWS Artifact は AWS のコンプライアンス文書と契約を扱うサービスで、自社リソースの証跡を集める機能はありません。",
+      "正解です。AWS 側の統制を示す PCI DSS の準拠証明書や SOC レポートは AWS Artifact から入手できます。",
+      "手作業の収集と整理になり、監査期間を通じた継続的な収集の運用負荷が高くなります。",
+      "正解です。Audit Manager の PCI DSS フレームワークで複数アカウントの証跡を継続的に集め、統制ごとの評価レポートを生成できます。"
+    ],
+    "services": ["AWS Audit Manager", "AWS Artifact", "AWS Organizations"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "What is AWS Audit Manager?", "url": "https://docs.aws.amazon.com/audit-manager/latest/userguide/what-is.html" },
+      { "title": "Understanding AWS Audit Manager concepts and terminology", "url": "https://docs.aws.amazon.com/audit-manager/latest/userguide/concepts.html" },
+      { "title": "AWS Artifact and AWS Organizations", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/services-that-can-integrate-artifact.html" }
+    ]
+  },
+  {
+    "id": "D6-017",
+    "domain": 6,
+    "task": "6.3",
+    "type": "single",
+    "question": "ある保険会社のクラウド推進チームは、新しいワークロードを本番リリースする前に、AWS のセキュリティのベストプラクティスと社内独自のセキュリティ要件(データ分類に応じた暗号化方式、承認済みの認証基盤の利用など)に沿った設計かをレビューする仕組みを作りたいと考えています。レビューは AWS Organizations の Workloads OU にある各アカウントのチームが自分たちで実施し、リスクの高い項目と改善計画をマイルストーンとして記録し、レポートとして残します。この要件を最小の運用負荷で満たす方法はどれですか。",
+    "options": [
+      "AWS Trusted Advisor のセキュリティカテゴリのチェック結果を各チームに確認させ、結果のスクリーンショットをリリース判定の資料にする。",
+      "AWS Config のカスタムルールで社内要件をコード化し、各アカウントでデプロイ後の準拠状況を確認させる。",
+      "社内要件を表計算ソフトのチェックリストにまとめて共有フォルダに置き、各チームに記入させてリリース前に提出させる。",
+      "社内のセキュリティ要件を質問とベストプラクティスにした AWS Well-Architected Tool のカスタムレンズを作成し、Workloads OU に共有する。各チームはワークロードに AWS Well-Architected Framework のレンズとカスタムレンズを適用してレビューし、マイルストーンとレポートを残す。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「設計段階のレビュー」「AWS のベストプラクティスと社内独自の要件の両方」「OU 内のチームが自分で実施」「マイルストーンとレポート」です。AWS Well-Architected Tool では、AWS Well-Architected Framework のレンズでセキュリティの柱を含む設計レビューを行えます。カスタムレンズを作ると、独自の柱、質問、ベストプラクティス、改善計画を定義でき、AWS 提供のレンズと同じようにワークロードに適用できます。マイルストーンで進捗を記録し、レポートを生成できる点も同じです。カスタムレンズは AWS アカウントやユーザーのほか、Organizations へのアクセスを有効にしたうえで組織や OU にも共有できます。Trusted Advisor や Config ルールはデプロイ済みリソースのチェックで、リリース前の設計レビューにはなりません。",
+    "optionNotes": [
+      "Trusted Advisor はデプロイ済みのリソースを AWS 定義のチェックで評価するもので、社内独自の要件による設計レビューや改善計画の記録には向きません。",
+      "Config ルールはデプロイ後のリソース設定の評価で、リリース前の設計レビューにはなりません。ルールの開発と保守の負荷もかかります。",
+      "チェックリストの配布、回収、版管理が手作業になり、リスクの高い項目や改善計画の追跡も仕組み化されません。",
+      "正解です。カスタムレンズで社内要件をレビュー項目にし、OU に共有すると、各チームが Well-Architected のレンズと合わせてレビューし、マイルストーンとレポートを残せます。"
+    ],
+    "services": ["AWS Well-Architected Tool", "AWS Organizations"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Custom lenses for workloads in AWS WA Tool", "url": "https://docs.aws.amazon.com/wellarchitected/latest/userguide/lenses-custom.html" },
+      { "title": "Sharing a custom lens in AWS WA Tool", "url": "https://docs.aws.amazon.com/wellarchitected/latest/userguide/lenses-sharing.html" }
+    ]
+  }
+]

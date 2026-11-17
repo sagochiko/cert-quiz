@@ -1,0 +1,876 @@
+[
+  {
+    "id": "D3-001",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業は、Amazon S3 バケットに置いた静的 Web サイトを Amazon CloudFront で配信しています。セキュリティ監査で、バケットのオブジェクトに CloudFront を経由せず直接アクセスできることが指摘されました。また、問い合わせフォームに対する SQL インジェクションやクロスサイトスクリプティングの試行がログに残っています。セキュリティエンジニアは、S3 バケットをこの CloudFront ディストリビューションからしかアクセスできない状態にし、OWASP Top 10 に含まれる一般的な攻撃をエッジで防ぐ必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "オリジンアクセスアイデンティティ (OAI) を作成し、バケットポリシーで OAI のプリンシパルに s3:GetObject を許可します。AWS WAF のリージョナルスコープの Web ACL を作成し、S3 バケットに関連付けます。",
+      "オリジンアクセスコントロール (OAC) を設定し、バケットポリシーで cloudfront.amazonaws.com のサービスプリンシパルに s3:GetObject を許可して AWS:SourceArn 条件にディストリビューションの ARN を指定します。S3 ブロックパブリックアクセスを有効にし、CloudFront スコープの AWS WAF Web ACL に AWSManagedRulesCommonRuleSet と AWSManagedRulesSQLiRuleSet を追加してディストリビューションに関連付けます。",
+      "オリジンを S3 の静的ウェブサイトエンドポイントに変更し、CloudFront のカスタムヘッダーで秘密の Referer 値を送ります。バケットポリシーで aws:Referer 条件を満たすリクエストだけを許可し、AWS Shield Standard で攻撃を防ぎます。",
+      "バケットポリシーで aws:SourceIp 条件に CloudFront のエッジの IP アドレス範囲を列挙して許可します。CloudFront のオリジンリクエストポリシーで不正な文字を含むクエリ文字列を除外します。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "決め手は「この CloudFront ディストリビューションからしかアクセスできない」と「OWASP Top 10 の一般的な攻撃をエッジで防ぐ」の 2 点です。OAC を使うと、CloudFront は SigV4 で署名したリクエストを S3 に送ります。バケットポリシーでサービスプリンシパル cloudfront.amazonaws.com を許可し、AWS:SourceArn にディストリビューションの ARN を指定すると、ほかのディストリビューションや直接のアクセスは拒否されます。そのうえでブロックパブリックアクセスを有効にできます。攻撃への対策は、CloudFront に関連付けた AWS WAF の Web ACL で行います。AWS マネージドルールのコアルールセットと SQL データベースルールセットが、XSS や SQL インジェクションのような OWASP Top 10 の代表的な攻撃パターンを検査します。",
+    "optionNotes": [
+      "OAI は従来の方式で、新規には OAC が推奨されています。また AWS WAF の Web ACL は S3 バケットに直接関連付けられないため、攻撃をエッジで防ぐ要件を満たしません。",
+      "正解です。OAC と AWS:SourceArn 条件付きのバケットポリシーで特定のディストリビューションに限定し、CloudFront に関連付けた AWS WAF のマネージドルールで SQL インジェクションや XSS を防ぎます。",
+      "ウェブサイトエンドポイントはパブリックアクセスが前提で、Referer は推測や偽装が可能なため確実な制限になりません。Shield Standard は DDoS 対策で、SQL インジェクションや XSS は防ぎません。",
+      "CloudFront の IP 範囲は全ディストリビューションで共有されるため、ほかの利用者のディストリビューション経由のアクセスを防げません。クエリ文字列の除外はアプリケーション層の攻撃検査の代わりになりません。"
+    ],
+    "services": [
+      "Amazon CloudFront",
+      "Amazon S3",
+      "AWS WAF"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Amazon S3 origins with CloudFront",
+        "url": "https://docs.aws.amazon.com/whitepapers/latest/secure-content-delivery-amazon-cloudfront/s3-origin-with-cloudfront.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-002",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業は、Amazon CloudFront と Application Load Balancer (ALB) の背後で公開 API を運用しています。API の利用者は、リクエストごとに x-api-key ヘッダーで発行済みの API キーを送ります。一部の利用者が多数の IP アドレスに分散してリクエストを送り、バックエンドに負荷をかけています。セキュリティエンジニアは、/api/ で始まるパスに対して、送信元 IP アドレスに関係なく API キーごとに 1 分あたり 100 リクエストまでに制限する必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "CloudFront に関連付けた AWS WAF の Web ACL に、送信元 IP アドレスで集約するレートベースルールを追加し、評価ウィンドウを 300 秒、レート制限を 500 に設定します。",
+      "CloudFront Functions のビューワーリクエスト関数で x-api-key ごとのリクエスト数を数え、100 を超えたら 429 を返します。",
+      "AWS WAF の Bot Control マネージドルールグループを共通保護レベルで追加し、/api/ に対するボットのリクエストをブロックします。",
+      "CloudFront に関連付けた AWS WAF の Web ACL に、カスタム集約キーとして x-api-key ヘッダーを指定したレートベースルールを追加します。評価ウィンドウを 60 秒、レート制限を 100 に設定し、URI パスが /api/ で始まるリクエストに限定するスコープダウンステートメントを付けます。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "「送信元 IP アドレスに関係なく API キーごとに」という要件が決め手です。AWS WAF のレートベースルールは、送信元 IP だけでなく、ヘッダーやクエリ引数などのカスタム集約キーでリクエストを数えられます。x-api-key ヘッダーを集約キーにすると、同じキーのリクエストは IP が分散していても 1 つのインスタンスとして数えられます。評価ウィンドウは 60、120、300、600 秒から選べるので、60 秒と 100 で 1 分あたりの制限を表せます。スコープダウンステートメントで /api/ に絞れば、ほかのパスは対象外になります。なお、集約キーのヘッダーを含まないリクエストはレートベースルールの評価から外れるため、キーのないリクエストを別のルールで扱う設計も必要です。",
+    "optionNotes": [
+      "IP アドレスで集約すると、多数の IP に分散した利用者を API キー単位で制限できません。ウィンドウとしきい値も 1 分あたり 100 の要件に合いません。",
+      "CloudFront Functions は実行ごとに状態を持てないため、エッジロケーションをまたいだキーごとのリクエスト数を数えられません。",
+      "Bot Control の共通保護レベルはボットの種類を識別するもので、正規の API キーを持つ利用者ごとのリクエスト数の制限はできません。",
+      "正解です。x-api-key をカスタム集約キーにしたレートベースルールで、IP に関係なくキーごとに 60 秒あたり 100 リクエストに制限し、スコープダウンで /api/ に絞ります。"
+    ],
+    "services": [
+      "AWS WAF",
+      "Amazon CloudFront",
+      "Elastic Load Balancing"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Using rate-based rule statements in AWS WAF",
+        "url": "https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statement-type-rate-based.html"
+      },
+      {
+        "title": "RateBasedStatementCustomKey",
+        "url": "https://docs.aws.amazon.com/waf/latest/APIReference/API_RateBasedStatementCustomKey.html"
+      },
+      {
+        "title": "Why isn't my AWS WAF custom aggregation key rate-based rule blocking or enforcing the rate limit?",
+        "url": "https://repost.aws/knowledge-center/waf-rate-based-custom-key-not-blocking"
+      }
+    ]
+  },
+  {
+    "id": "D3-003",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業は、Amazon CloudFront で配信する会員サイトを日本と米国の利用者だけに提供しています。現在は CloudFront の地理的制限 (geo restriction) の許可リストで JP と US を指定し、ディストリビューションには AWS WAF の Web ACL も関連付けています。今回、シンガポールにある監視ベンダーが固定の IP アドレスから /health にアクセスできるようにする必要が出ました。あわせてセキュリティチームは、国による拒否も含めて、ブロックしたリクエストをすべて AWS WAF のログで分析したいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "CloudFront の地理的制限を無効にします。Web ACL に、監視ベンダーの IP セットに一致し、かつ URI パスが /health のリクエストを許可するルールを高い優先度で追加し、その後ろに、JP と US を指定した地理的一致ステートメントを NOT で否定したリクエストをブロックするルールを追加します。",
+      "CloudFront の地理的制限の許可リストは維持し、Web ACL に監視ベンダーの IP セットに一致するリクエストを許可するルールを最も高い優先度で追加します。",
+      "Web ACL の地理的一致ステートメントで ForwardedIPConfig を有効にして X-Forwarded-For ヘッダーの IP アドレスから国を判定し、JP と US 以外をブロックします。CloudFront の地理的制限はそのまま使います。",
+      "CloudFront の地理的制限を無効にし、Lambda@Edge のビューワーリクエスト関数で CloudFront-Viewer-Country ヘッダーと送信元 IP を確認して、条件に合わないリクエストに 403 を返します。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "ポイントは、CloudFront の地理的制限でブロックされたリクエストは AWS WAF に転送されないことです。地理的制限を残すと、シンガポールからの監視リクエストは AWS WAF に届く前に拒否され、拒否の記録も AWS WAF のログに残りません。地理と他の条件を組み合わせて判断したい場合は、地理的制限を使わず AWS WAF の地理的一致ステートメントを使うよう公式ドキュメントで案内されています。監視ベンダーの IP セットと /health のパスの組み合わせを許可するルールを先に評価させ、その後で JP と US 以外をブロックすれば、例外と国による拒否を 1 つの Web ACL で表現でき、ブロックしたリクエストはすべて AWS WAF のログに残ります。",
+    "optionNotes": [
+      "正解です。地理的制限をやめて AWS WAF に判断を集めることで、IP による例外と国によるブロックを両立し、拒否したリクエストを AWS WAF のログで分析できます。",
+      "地理的制限は AWS WAF より前に評価され、ブロックされたリクエストは AWS WAF に転送されません。シンガポールからのアクセスは許可ルールに届きません。",
+      "X-Forwarded-For は利用者が偽装できるヘッダーで、CloudFront の手前に別のプロキシがない構成では使う理由がありません。地理的制限も残るため、例外が通りません。",
+      "要件自体は実装できますが、独自コードの保守が必要になり、拒否したリクエストが AWS WAF のログに残らないため分析の要件を満たしません。"
+    ],
+    "services": [
+      "AWS WAF",
+      "Amazon CloudFront"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Geographic match rule statement",
+        "url": "https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statement-type-geo-match.html"
+      },
+      {
+        "title": "How to use granular geographic match rules with AWS WAF",
+        "url": "https://aws.amazon.com/blogs/security/how-to-use-granular-geographic-match-rules-with-aws-waf/"
+      }
+    ]
+  },
+  {
+    "id": "D3-004",
+    "domain": 3,
+    "task": "3.1",
+    "type": "multi",
+    "question": "ある企業は、Amazon CloudFront で配信している EC サイトに AWS WAF の Web ACL を関連付けています。過去にアプリケーション層の HTTP フラッドで可用性が落ちたため、セキュリティチームは、通常のトラフィックの基準を自動で学習し、攻撃を検出したら数秒で緩和を始める保護を Web ACL に追加したいと考えています。攻撃中もブラウザの利用者の操作を妨げないよう、緩和には画面に表示されないサイレントなチャレンジを使いたいとしています。一方、/api/ 配下はモバイルアプリから呼び出されており、チャレンジに応答できません。これらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "AWS Shield Advanced に加入し、CloudFront ディストリビューションの保護で自動アプリケーション層 DDoS 緩和を有効にして、アクションを Challenge に設定します。",
+      "AWS WAF の Anti-DDoS マネージドルールグループ (AWSManagedRulesAntiDDoSRuleSet) を Web ACL に追加してチャレンジを有効にし、Allow アクションのルールの直後、ほかのルールより前に評価される優先度に置きます。",
+      "Anti-DDoS マネージドルールグループに、URI パスが /api/ で始まるリクエストを評価対象から外すスコープダウンステートメントを付けます。",
+      "Anti-DDoS マネージドルールグループの「除外する URI の正規表現」に、/api/ 配下のパスに一致するパターンを指定します。",
+      "送信元 IP アドレスで集約するレートベースルールを追加し、アクションを CAPTCHA にしてすべてのパスに適用します。"
+    ],
+    "answer": [
+      1,
+      3
+    ],
+    "explanation": "決め手は「基準を自動で学習」「数秒で緩和」「サイレントなチャレンジ」「/api/ はチャレンジに応答できない」です。AWS WAF の Anti-DDoS マネージドルールグループは、保護対象ごとにトラフィックの基準を学習し、基準から大きく外れると DDoS イベントとして検出します。緩和には、チャレンジに対応できるリクエストへのサイレントなブラウザチャレンジと、ブロックの 2 種類があり、それぞれ感度を設定できます。チャレンジに応答できないパスは「除外する URI の正規表現」で指定します。除外したリクエストにはチャレンジが送られず、ルール DDoSRequests によるブロックだけが適用されます。できるだけ多くのトラフィックを観測させるため、Allow のルールの直後に置き、スコープダウンステートメントは使わないよう勧められています。",
+    "optionNotes": [
+      "Shield Advanced の自動アプリケーション層 DDoS 緩和で選べるアクションは Count と Block で、Challenge はありません。Route 53 ヘルスチェックも必要で、AWS は Anti-DDoS マネージドルールグループへの移行を勧めています。",
+      "正解です。Anti-DDoS マネージドルールグループが基準を学習して DDoS イベントを検出し、チャレンジに対応できるリクエストはサイレントなチャレンジで緩和します。",
+      "スコープダウンステートメントを付けるとルールグループが観測するリクエストが減り、基準が不正確になって検出が弱まります。このルールグループでは使わないよう勧められています。",
+      "正解です。除外した URI にはチャレンジが送られなくなり、攻撃に加わっていると判定されたリクエストだけがブロックで緩和されます。",
+      "CAPTCHA は利用者にパズルを解かせるため操作を妨げ、モバイルアプリの API 呼び出しも応答できません。IP ごとの固定のしきい値では基準の学習もできません。"
+    ],
+    "services": [
+      "AWS WAF",
+      "Amazon CloudFront",
+      "AWS Shield"
+    ],
+    "difficulty": 3,
+    "refs": [
+      {
+        "title": "Adding the Anti-DDoS managed rule group to your protection pack (web ACL)",
+        "url": "https://docs.aws.amazon.com/waf/latest/developerguide/waf-anti-ddos-rg-using.html"
+      },
+      {
+        "title": "AWS WAF Distributed Denial of Service (DDoS) prevention rule group",
+        "url": "https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-anti-ddos.html"
+      },
+      {
+        "title": "AWS Shield Advanced is embracing the AWS WAF Anti-DDoS managed rule group: What changes and how to prepare",
+        "url": "https://aws.amazon.com/blogs/security/aws-shield-advanced-is-embracing-the-aws-waf-anti-ddos-managed-rule-group-what-changes-and-how-to-prepare/"
+      }
+    ]
+  },
+  {
+    "id": "D3-005",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業の EC サイトは、Amazon CloudFront と AWS WAF で保護されています。最近、価格情報を大量に取得するスクレイピングが続いています。AWS WAF のログを分析すると、攻撃者は数千の住宅用 IP アドレスを入れ替えながら、User-Agent ヘッダーも毎回変えています。一方で、攻撃リクエストの TLS Client Hello から算出された JA4 フィンガープリントはすべて同じ値でした。正規の利用者への影響を抑えながら、このスクレイピングを最も効果的にブロックするソリューションはどれですか。",
+    "options": [
+      "Web ACL に AWS マネージドルールの Amazon IP 評価リスト (AWSManagedRulesAmazonIpReputationList) を追加します。",
+      "送信元 IP アドレスで集約するレートベースルールを追加し、レート制限を最小値に設定します。",
+      "ログに記録された JA4 フィンガープリントの値を、フィールド JA4Fingerprint と位置の制約 EXACTLY を指定した文字列一致ステートメントで照合し、一致したリクエストをブロックするルールを追加します。",
+      "ログに記録された User-Agent ヘッダーの値を正規表現パターンセットにまとめ、一致したリクエストをブロックするルールを追加します。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "攻撃者は IP アドレスと User-Agent を入れ替えていますが、TLS の構成から算出される JA4 フィンガープリントは同じです。AWS WAF は CloudFront ディストリビューションと Application Load Balancer で JA4 フィンガープリントを算出してログに記録し、文字列一致ステートメントの照合対象にできます。1 つの TLS 構成に一致させるには、ログで確認した値を文字列一致ステートメントで完全一致 (EXACTLY) として指定します。こうすれば、同じ TLS 構成のクライアントを IP や User-Agent に関係なくまとめてブロックできます。",
+    "optionNotes": [
+      "IP 評価リストは既知の悪性 IP に基づくもので、住宅用 IP を次々に入れ替える攻撃は一覧に載っていないことが多く、取りこぼします。",
+      "IP アドレスが数千に分散しているため、IP ごとのリクエスト数はしきい値に届きにくく、レート制限を下げると正規利用者まで巻き込みます。",
+      "正解です。IP や User-Agent を変えても変わらない TLS の構成を JA4 フィンガープリントで照合するため、攻撃だけを的確にブロックできます。",
+      "User-Agent は毎回変わっているため、記録済みの値を並べても新しい値には一致しません。正規のブラウザと同じ値を使われると誤検知も起きます。"
+    ],
+    "services": [
+      "AWS WAF",
+      "Amazon CloudFront"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Request components in AWS WAF",
+        "url": "https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statement-fields-list.html"
+      },
+      {
+        "title": "JA4Fingerprint (AWS WAF API Reference)",
+        "url": "https://docs.aws.amazon.com/waf/latest/APIReference/API_JA4Fingerprint.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-006",
+    "domain": 3,
+    "task": "3.1",
+    "type": "multi",
+    "question": "ある企業は、Amazon CloudFront に関連付けた AWS WAF の Web ACL で Web アプリケーションを保護しています。企業は、契約しているセキュリティベンダーが提供する WAF ルールセットを Web ACL で使いたいと考えています。また、組織ではすでに Amazon Security Lake を使っており、AWS WAF のログを Open Cybersecurity Schema Framework (OCSF) 形式でほかのセキュリティログと一緒に分析したいと考えています。最小の運用負荷でこれらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "AWS WAF のログを Amazon Data Firehose に送り、AWS Lambda で OCSF に変換してから Security Lake のカスタムソースとして S3 に書き込みます。",
+      "AWS WAF コンソールのアドオン保護から、ベンダーが AWS Marketplace で提供しているマネージドルールグループをサブスクライブし、Web ACL に追加します。",
+      "ベンダーのルールを Suricata 互換の形式でエクスポートし、AWS WAF のカスタムルールグループとしてインポートします。",
+      "AWS Security Hub CSPM で AWS WAF の統合を有効にし、Web ACL のログを検出結果として Security Lake に取り込みます。",
+      "Security Lake で AWS WAF をネイティブのログソースとして追加します。CloudFront のログを取り込むために米国東部 (バージニア北部) リージョンを含めます。"
+    ],
+    "answer": [
+      1,
+      4
+    ],
+    "explanation": "サードパーティのルールは、AWS Marketplace のマネージドルールグループとして提供されています。AWS WAF コンソールからサブスクライブすれば、AWS マネージドルールと同じように Web ACL に追加でき、ルールの更新はベンダーが行います。ログについては、Security Lake が AWS WAF をネイティブのソースとしてサポートしています。追加すると Security Lake は AWS WAF から独立した複製のストリームでログを受け取り、OCSF に正規化して保存します。既存の AWS WAF のログ設定を変える必要はありません。CloudFront に関連付けた Web ACL のログはグローバルなため、米国東部 (バージニア北部) を選ぶ必要があります。",
+    "optionNotes": [
+      "実現はできますが、変換処理の作成と保守が必要です。ネイティブソースで取り込めるため、最小の運用負荷にはなりません。",
+      "正解です。Marketplace のマネージドルールグループはサブスクライブするだけで Web ACL に追加でき、ルールの保守はベンダーが担います。",
+      "Suricata 互換のルールは AWS Network Firewall で使う形式で、AWS WAF のルールとしてはインポートできません。",
+      "Security Hub CSPM は WAF の Web ACL のリクエストログを検出結果として取り込む仕組みではありません。",
+      "正解です。Security Lake は AWS WAF をネイティブソースとして OCSF で取り込みます。CloudFront の場合は米国東部 (バージニア北部) の選択が必要です。"
+    ],
+    "services": [
+      "AWS WAF",
+      "Amazon Security Lake",
+      "AWS Marketplace",
+      "Amazon CloudFront"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "AWS WAF logs in Security Lake",
+        "url": "https://docs.aws.amazon.com/security-lake/latest/userguide/aws-waf.html"
+      },
+      {
+        "title": "AWS Marketplace rule groups",
+        "url": "https://docs.aws.amazon.com/waf/latest/developerguide/marketplace-rule-groups.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-007",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業は、数万台の産業用センサーを AWS IoT Core に接続しています。各デバイスは X.509 証明書で認証し、モノの名前と同じクライアント ID で MQTT 接続して、devices/<モノの名前>/telemetry トピックにデータを発行します。セキュリティレビューで、すべての証明書に devices/* への発行を許可するポリシーが付いており、1 台の証明書が漏えいするとほかのデバイスになりすましてデータを発行できることが分かりました。運用負荷を増やさずに、各デバイスが自分のトピックにしか発行できないようにするソリューションはどれですか。",
+    "options": [
+      "デバイスごとに、そのデバイスのトピック ARN だけを許可する AWS IoT ポリシーを作成し、それぞれの証明書に関連付けます。",
+      "IAM ポリシーで aws:PrincipalTag 条件を使い、デバイスのタグとトピック名が一致する場合だけ iot:Publish を許可します。",
+      "現在のポリシーはそのままにし、AWS IoT Device Defender の監査を有効にして、過度に許可されたポリシーを検出したら通知します。",
+      "iot:Connect のリソースにクライアント ID として ${iot:Connection.Thing.ThingName} を、iot:Publish のリソースに devices/${iot:Connection.Thing.ThingName}/telemetry を指定した 1 つの AWS IoT ポリシーを作成し、すべての証明書に関連付けます。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "AWS IoT Core のモノのポリシー変数 iot:Connection.Thing.ThingName は、デバイスが認証に使った証明書に関連付けられたモノの名前に評価時に置き換わります。この変数をトピックの ARN に埋め込んだポリシーを 1 つ作れば、すべての証明書に同じポリシーを付けたまま、各デバイスが発行できるトピックを自分の名前のものだけに絞れます。証明書が漏えいしても、そのモノの名前のトピック以外には発行できません。この変数は MQTT または MQTT over WebSocket で接続した場合に使え、非排他的なモノの関連付けではクライアント ID とモノの名前を一致させる必要があります。今回はクライアント ID とモノの名前が同じなので条件を満たします。",
+    "optionNotes": [
+      "最小権限にはなりますが、数万個のポリシーを作成して管理する必要があり、運用負荷を増やさない要件に反します。",
+      "X.509 証明書で接続するデバイスの MQTT の認可は AWS IoT ポリシーで行われ、IAM ポリシーの aws:PrincipalTag では制御できません。",
+      "Device Defender の監査は過度な許可を検出するだけで、なりすましによる発行を防ぎません。",
+      "正解です。モノのポリシー変数を使った 1 つのポリシーで、各デバイスを自分のトピックだけに制限できます。"
+    ],
+    "services": [
+      "AWS IoT Core",
+      "AWS IoT Device Defender"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Thing policy variables",
+        "url": "https://docs.aws.amazon.com/iot/latest/developerguide/thing-policy-variables.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-008",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業は、すべての Amazon EC2 インスタンスを社内のゴールデン AMI から起動する方針を定めました。AMI は CIS Benchmark に沿って強化し、重大度が Critical の既知の脆弱性を含む AMI は配布前に不合格にする必要があります。AMI をビルドするアカウントでは、Amazon Inspector をアカウント全体で有効にしないという制約があります。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "EC2 Image Builder のイメージレシピに AWS Marketplace でサブスクライブした CIS 強化コンポーネントを追加します。イメージパイプラインでオンデマンド AMI スキャン (ON_DEMAND_AMI_CVE) を使い、Critical の検出結果があればイメージを失敗させるスキャン結果の条件を設定します。",
+      "EC2 Image Builder のイメージレシピに CIS 強化コンポーネントを追加し、テストインスタンススキャン (TEST_INSTANCE_CVE) の検出結果を Image Builder コンソールで確認してから配布します。",
+      "HashiCorp Packer を実行する EC2 インスタンスで AMI を作成し、Amazon Inspector Classic の評価テンプレートで CIS ルールパッケージを実行します。",
+      "AWS Systems Manager Automation の AWS-UpdateLinuxAmi ランブックで AMI を更新し、AWS Security Hub CSPM の EC2 関連コントロールで AMI の準拠状況を確認します。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "制約は「Inspector をアカウント全体で有効にしない」ことと「Critical の脆弱性があれば配布前に不合格にする」ことです。EC2 Image Builder の Amazon Inspector 統合には 2 種類の AMI スキャンがあります。テストインスタンススキャンはそのリージョンで Inspector の有効化が必要ですが、オンデマンド AMI スキャンは有効化を必要とせず、出力された AMI そのものをスキャンします。さらに、許容する重大度を超える検出結果があればイメージを失敗させるスキャン結果の条件を設定できます。CIS 強化コンポーネントは AWS Marketplace でサブスクライブし、対応 OS のイメージレシピに追加します。パイプラインにまとめれば、強化、スキャン、合否判定が自動で回ります。",
+    "optionNotes": [
+      "正解です。CIS 強化コンポーネントで強化し、Inspector の有効化が不要なオンデマンド AMI スキャンの結果条件で Critical を含む AMI を自動で不合格にします。",
+      "テストインスタンススキャンは Inspector の有効化が前提なので制約に反します。検出結果を人が確認する手順も運用負荷が高く、自動の不合格になりません。",
+      "Amazon Inspector Classic は現行の Amazon Inspector に置き換えられており、新しい仕組みとして採用すべきではありません。Packer の運用も自前になります。",
+      "このランブックは AMI のパッケージ更新を行うだけで、CVE のスキャンや CIS の強化は行いません。Security Hub CSPM のコントロールも AMI 内の脆弱性は判定しません。"
+    ],
+    "services": [
+      "EC2 Image Builder",
+      "Amazon Inspector",
+      "AWS Marketplace"
+    ],
+    "difficulty": 3,
+    "refs": [
+      {
+        "title": "Amazon Inspector integration in Image Builder",
+        "url": "https://docs.aws.amazon.com/imagebuilder/latest/userguide/integ-inspector.html"
+      },
+      {
+        "title": "How EC2 Image Builder works",
+        "url": "https://docs.aws.amazon.com/imagebuilder/latest/userguide/how-image-builder-works.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-009",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "question": "ある企業は、AWS Fargate 上の Amazon ECS タスクでアプリケーションを動かしています。タスク定義では、プライベートな Amazon ECR リポジトリからイメージを取得し、AWS Secrets Manager のシークレット (カスタマーマネージドキーで暗号化) を secrets パラメータで環境変数として注入しています。アプリケーションは実行中に Amazon S3 バケットへレポートを書き込みます。セキュリティエンジニアは、最小権限の原則に従って IAM ロールを設計する必要があります。セキュリティエンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "タスク実行ロールに、ECR からのイメージ取得に必要な権限に加えて、対象シークレットへの secretsmanager:GetSecretValue と、そのキーへの kms:Decrypt を許可します。",
+      "タスク実行ロールに、対象バケットへの s3:PutObject を許可します。アプリケーションはタスク実行ロールの認証情報を使います。",
+      "タスクロールに、対象バケットへの s3:PutObject だけを許可し、タスク実行ロールには S3 の権限を付けません。",
+      "Fargate のタスクにインスタンスプロファイルを関連付け、S3 と Secrets Manager の権限をまとめて付けます。",
+      "Secrets Manager のリソースポリシーで ecs-tasks.amazonaws.com のサービスプリンシパルに secretsmanager:GetSecretValue を許可し、IAM ロールの権限は付けません。"
+    ],
+    "answer": [
+      0,
+      2
+    ],
+    "explanation": "Amazon ECS には役割の異なる 2 つのロールがあります。タスク実行ロールは、ECS エージェントや Fargate エージェントがタスクを起動するために使い、ECR からのイメージ取得、CloudWatch Logs への出力、secrets パラメータで指定したシークレットの取得に使われます。シークレットを注入するには、タスク実行ロールに secretsmanager:GetSecretValue と、カスタマーマネージドキーへの kms:Decrypt が必要です。一方、コンテナ内のアプリケーションが AWS のサービスを呼ぶときはタスクロールの認証情報が使われます。S3 への書き込みはタスクロールにだけ許可すれば、起動のための権限とアプリケーションの権限が分かれ、最小権限になります。",
+    "optionNotes": [
+      "正解です。secrets パラメータの値はタスク実行ロールで取得されるため、シークレットとキーへの権限をタスク実行ロールに付けます。",
+      "タスク実行ロールの権限はアプリケーションのコンテナには渡されません。アプリケーションの権限はタスクロールに付けます。",
+      "正解です。実行中のアプリケーションが使うのはタスクロールで、必要な S3 の権限だけを付けるのが最小権限です。",
+      "Fargate のタスクではインスタンスプロファイルを使えません。権限をまとめることも最小権限に反します。",
+      "シークレットの取得はタスク実行ロールとして行われるため、サービスプリンシパルへのリソースポリシーだけでは取得できず、どのタスクにも許可が広がるおそれがあります。"
+    ],
+    "services": [
+      "Amazon ECS",
+      "AWS Fargate",
+      "AWS Secrets Manager",
+      "AWS IAM",
+      "AWS KMS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Amazon ECS task IAM role",
+        "url": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html"
+      },
+      {
+        "title": "Amazon ECS task execution IAM role",
+        "url": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-010",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "question": "ある企業は、.zip パッケージでデプロイした AWS Lambda 関数と、Amazon EKS クラスターでワークロードを動かしています。セキュリティチームは次の 2 つを求めています。Lambda 関数の依存パッケージと自社で書いたコードに含まれる脆弱性を、デプロイ時と新しい CVE の公開時に自動で検出すること。EKS のコンテナ内で暗号通貨のマイニングプロセスが起動されたり、既知の悪性ホストと通信したりする実行時の脅威を検出すること。最小の運用負荷でこれらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "Amazon ECR の基本スキャンを有効にし、プッシュ時のスキャンで Lambda 関数の脆弱性を検出します。",
+      "Amazon Inspector で Lambda 標準スキャンと Lambda コードスキャンを有効にします。",
+      "Amazon GuardDuty Malware Protection for S3 を有効にし、Lambda のデプロイパッケージを置く S3 バケットをスキャンします。",
+      "Amazon GuardDuty の Runtime Monitoring を有効にし、Amazon EKS の自動エージェント設定を有効にします。",
+      "Amazon Macie を有効にし、EKS ノードの EBS ボリュームを定期的にスキャンします。"
+    ],
+    "answer": [
+      1,
+      3
+    ],
+    "explanation": "Lambda の脆弱性には Amazon Inspector を使います。Lambda 標準スキャンは関数とレイヤーの依存パッケージを、Lambda コードスキャンは自社で書いたコードを検査します。スキャンは関数の検出時、デプロイや更新時、関連する CVE が追加されたときに自動で行われ、エージェントは不要です。実行時の脅威には GuardDuty Runtime Monitoring を使います。軽量なセキュリティエージェントがプロセスの実行、ファイルアクセス、ネットワーク接続を観測し、権限昇格や悪性ホストとの通信などを検出結果にします。EKS では自動エージェント設定を有効にすると、GuardDuty がエージェントの展開と更新を管理するため、運用負荷を抑えられます。",
+    "optionNotes": [
+      "ECR のスキャンはコンテナイメージが対象で、.zip でデプロイした Lambda 関数は対象になりません。",
+      "正解です。Lambda 標準スキャンで依存パッケージを、Lambda コードスキャンで自社のコードを継続的に検査します。",
+      "Malware Protection for S3 はアップロードされたオブジェクトのマルウェアを検出するもので、依存パッケージやコードの CVE は検出しません。",
+      "正解です。Runtime Monitoring と自動エージェント設定で、EKS 上のマイニングや悪性ホストとの通信といった実行時の脅威を検出します。",
+      "Macie は S3 の機密データを検出するサービスで、EBS ボリュームや実行時の脅威は対象外です。"
+    ],
+    "services": [
+      "Amazon Inspector",
+      "Amazon GuardDuty",
+      "AWS Lambda",
+      "Amazon EKS"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Automate security assessments for Lambda with Amazon Inspector",
+        "url": "https://docs.aws.amazon.com/lambda/latest/dg/governance-code-scanning.html"
+      },
+      {
+        "title": "How Runtime Monitoring works",
+        "url": "https://docs.aws.amazon.com/guardduty/latest/ug/how-does-runtime-monitoring-work.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-011",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業は AWS Organizations で 40 のアカウントを管理し、4 つのリージョンで Amazon EC2 インスタンスとオンプレミスのハイブリッドマネージドノードを運用しています。すべてのノードは AWS Systems Manager のマネージドノードです。セキュリティポリシーでは、不足しているパッチを毎日スキャンしてコンプライアンスを把握し、パッチの適用は週に 1 回、決められた時間帯に行うことが求められています。OS ごとにカスタムのパッチベースラインを使います。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "AWS CloudFormation StackSets で、各アカウントと各リージョンにメンテナンスウィンドウと AWS-RunPatchBaseline のタスクを展開します。",
+      "Systems Manager Quick Setup で Patch Manager のパッチポリシーを作成し、組織全体または対象の OU とリージョンを指定します。スキャンは毎日、インストールは週 1 回のスケジュールにし、OS ごとにカスタムパッチベースラインを選びます。",
+      "Amazon Inspector の EC2 スキャンを有効にし、検出結果をもとに Inspector の自動修復でパッチを適用します。",
+      "Systems Manager Quick Setup のホスト管理設定を組織全体に展開し、毎日のパッチスキャンを有効にします。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "決め手は、複数アカウントと複数リージョンにまたがること、スキャンとインストールで別のスケジュールが要ることです。Quick Setup のパッチポリシーは Patch Manager を使った設定で、Organizations と組み合わせると、1 つのポリシーで全アカウントの全リージョン、または選んだ OU とリージョンのマネージドノードに適用できます。スキャンとインストールに別々のスケジュールを cron 式や rate 式で指定でき、OS ごとに AWS マネージドまたはカスタムのベースラインを 1 つの画面で選べます。メンテナンスウィンドウやステートマネージャーの関連付けは、アカウントとリージョンの組ごとに設定が必要です。適用後の確認には Amazon Inspector の検出結果を組み合わせると、継続的な検証になります。",
+    "optionNotes": [
+      "実現はできますが、160 の組み合わせのメンテナンスウィンドウを StackSets で維持する必要があり、パッチポリシーより運用負荷が高くなります。",
+      "正解です。パッチポリシーは組織、OU、リージョンを対象にでき、スキャンとインストールを別スケジュールで設定できます。",
+      "Amazon Inspector は脆弱性を検出しますが、パッチを適用する機能は持ちません。適用は Patch Manager などで行います。",
+      "ホスト管理設定の毎日のスキャンはコンプライアンス情報を集めるだけで、パッチのインストールは行いません。"
+    ],
+    "services": [
+      "AWS Systems Manager",
+      "AWS Organizations",
+      "Amazon Inspector"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Patch policy configurations in Quick Setup",
+        "url": "https://docs.aws.amazon.com/systems-manager/latest/userguide/patch-manager-policies.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-012",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業は、ベンダーが提供するネットワークアプライアンスの AMI から起動した Amazon EC2 インスタンスをプライベートサブネットで運用しています。このアプライアンスには SSM Agent をインストールできません。運用担当者は標準の SSH クライアントでこれらのインスタンスに接続する必要があります。セキュリティ要件は、インスタンスにパブリック IP アドレスを付けないこと、踏み台サーバーを置かないこと、接続できる人を IAM ポリシーで制御すること、接続の試行を AWS CloudTrail に記録することです。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "AWS Systems Manager Session Manager のポートフォワーディングで SSH の 22 番ポートに接続し、IAM ポリシーで ssm:StartSession を許可します。",
+      "パブリックサブネットに踏み台サーバーを置き、セキュリティグループで社内の IP アドレスからの 22 番ポートだけを許可します。",
+      "プライベートサブネットに EC2 Instance Connect Endpoint を作成し、インスタンスのセキュリティグループでエンドポイントのセキュリティグループからの 22 番ポートを許可します。運用担当者には IAM ポリシーで ec2-instance-connect:OpenTunnel を許可します。",
+      "AWS Client VPN エンドポイントを作成し、相互認証用のクライアント証明書を運用担当者に配布して、VPN 経由でプライベート IP アドレスに SSH 接続させます。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "SSM Agent を入れられないため、Session Manager は使えません。EC2 Instance Connect Endpoint を使うと、インスタンスにパブリック IP アドレスを付けず、VPC にインターネットゲートウェイ経由の接続がなくても、踏み台なしでインターネットからプライベートなインスタンスに接続できます。エンドポイントの作成や利用は IAM ポリシーで制御でき、成功と失敗を含むすべての接続の試行が CloudTrail に記録されます。トンネルを開くには ec2-instance-connect:OpenTunnel の権限が必要で、インスタンス側のセキュリティグループではエンドポイントからの SSH を許可します。追加料金はかからず、異なるアベイラビリティーゾーンへの接続でデータ転送料金が発生するだけです。",
+    "optionNotes": [
+      "Session Manager のポートフォワーディングもインスタンス側に SSM Agent が必要なため、この環境では使えません。",
+      "踏み台サーバーを置かないという要件に反し、接続の制御も IAM ではなく SSH 鍵とセキュリティグループに依存します。",
+      "正解です。パブリック IP も踏み台も不要で、IAM で接続者を制御し、接続の試行が CloudTrail に記録されます。",
+      "VPN で接続はできますが、接続の可否を IAM ポリシーで制御する要件を満たさず、証明書の配布と管理も必要になります。"
+    ],
+    "services": [
+      "Amazon EC2",
+      "AWS CloudTrail",
+      "AWS IAM"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Connect to your instances using a private IP address and EC2 Instance Connect Endpoint",
+        "url": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-with-ec2-instance-connect-endpoint.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-013",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "question": "ある企業は、インターネットへの経路を持たないプライベートサブネットで Amazon EC2 インスタンスを運用しています。インスタンスには SSM Agent が入っており、AmazonSSMManagedInstanceCore を含むインスタンスプロファイルと、セッションログの書き込みに必要な権限も付いています。セキュリティチームは SSH の 22 番ポートを閉じ、AWS Systems Manager Session Manager で管理アクセスを行う方針にしました。すべてのセッションの操作内容を、AWS KMS のカスタマーマネージドキーで暗号化した Amazon CloudWatch Logs のロググループに残す必要があります。インターネットへの経路は追加できません。セキュリティエンジニアが行うべき手順はどれですか。（2 つ選択）",
+    "options": [
+      "インスタンスのセキュリティグループで、VPC の CIDR からの 22 番ポートのインバウンドを許可します。",
+      "パブリックサブネットに NAT ゲートウェイを作成し、プライベートサブネットのルートテーブルにデフォルトルートを追加します。",
+      "VPC に ssm、ssmmessages、ec2messages のインターフェイス VPC エンドポイントを作成し、ログ出力と暗号化のために logs と kms のインターフェイス VPC エンドポイントも作成します。",
+      "インスタンスのセキュリティグループに、EC2 Instance Connect Endpoint からの 22 番ポートを許可するルールを追加します。",
+      "Session Manager の設定で CloudWatch Logs へのログ出力を有効にし、暗号化されたロググループのみを許可するオプションを選びます。セッションデータの暗号化にはカスタマーマネージドキーを指定します。"
+    ],
+    "answer": [
+      2,
+      4
+    ],
+    "explanation": "Session Manager では、SSM Agent が Systems Manager へ外向きに接続するため、インバウンドのポートは不要です。インターネットへの経路がない場合は AWS PrivateLink のインターフェイス VPC エンドポイントを使います。必要なのは ssm、ssmmessages、ec2messages で、ssmmessages は SSM Agent から Session Manager への通信に使われます。CloudWatch Logs へのログ出力や KMS による暗号化を使う場合は、logs と kms のエンドポイントへの HTTPS 通信も必要です。ログの設定は Session Manager の設定 (プリファレンス) で行い、CloudWatch Logs への出力を有効にして、暗号化されたロググループのみを許可し、kmsKeyId にカスタマーマネージドキーを指定します。",
+    "optionNotes": [
+      "Session Manager はインバウンドのポートを必要としません。22 番ポートを開けると、閉じるという方針にも反します。",
+      "インターネットへの経路を追加しないという要件に反します。VPC エンドポイントで同じ通信を実現できます。",
+      "正解です。Session Manager の通信と、ログ出力や暗号化の通信をインターネットを通さずに行えます。",
+      "EC2 Instance Connect Endpoint は SSH での接続方法で、Session Manager のセッションログ要件とは関係がなく、22 番ポートも開くことになります。",
+      "正解です。Session Manager の設定で、暗号化された CloudWatch Logs ロググループへの出力とカスタマーマネージドキーによる暗号化を指定します。"
+    ],
+    "services": [
+      "AWS Systems Manager",
+      "AWS PrivateLink",
+      "Amazon CloudWatch",
+      "AWS KMS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Step 6: (Optional) Use AWS PrivateLink to set up a VPC endpoint for Session Manager",
+        "url": "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-getting-started-privatelink.html"
+      },
+      {
+        "title": "Logging session data using Amazon CloudWatch Logs (console)",
+        "url": "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-logging-cloudwatch-logs.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-014",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業は、アプリケーションのソースコードと Terraform のコードを GitHub の組織で管理しています。セキュリティチームは、自社で書いたコードの静的解析 (SAST)、サードパーティの依存関係の解析 (SCA)、Infrastructure as Code の設定ミスの検出を、プルリクエストのたびに自動で行いたいと考えています。検出結果は開発者がプルリクエスト上で確認でき、セキュリティチームは組織全体の結果を AWS の 1 つのコンソールでまとめて見られる必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon CodeGuru Security の CI/CD 統合を GitHub Actions に追加し、プルリクエストごとにスキャンを実行します。",
+      "Amazon Inspector の Amazon ECR 拡張スキャンを有効にし、ビルドしたコンテナイメージをプッシュするたびにスキャンします。",
+      "AWS Security Hub CSPM で AWS CodeBuild に関するコントロールを有効にし、ビルドプロジェクトの設定を評価します。",
+      "Amazon Inspector のコードセキュリティを有効にし、GitHub と統合します。プルリクエストやメインブランチへのプッシュで実行される変更ベースのスキャン設定を、対象のリポジトリに適用します。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "Amazon Inspector のコードセキュリティは、GitHub や GitLab とネイティブに統合し、ソースコードの SAST、依存関係の SCA、IaC のスキャンを行います。スキャンはオンデマンド、変更ベース (メインブランチへのプッシュ、プルリクエストやマージリクエスト)、週次や月次のスケジュールから選べます。検出結果は Amazon Inspector のコンソールで組織全体を集約して確認でき、ソースコード管理側にも返されるため、開発者はプルリクエストで結果を見られます。",
+    "optionNotes": [
+      "Amazon CodeGuru Security は 2025年11月20日にサポートが終了しており、新しい仕組みとして採用できません。",
+      "ECR 拡張スキャンはビルド後のコンテナイメージが対象で、ソースコードの SAST や Terraform の設定ミスは検出しません。",
+      "Security Hub CSPM のコントロールは CodeBuild プロジェクトの設定を評価するもので、リポジトリのコードは解析しません。",
+      "正解です。GitHub と統合した Inspector のコードセキュリティが、プルリクエストごとに SAST、SCA、IaC をスキャンし、結果を Inspector とプルリクエストの両方に表示します。"
+    ],
+    "services": [
+      "Amazon Inspector",
+      "Amazon CodeGuru Security"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Amazon Inspector Code Security",
+        "url": "https://docs.aws.amazon.com/inspector/latest/user/code-security-assessments.html"
+      },
+      {
+        "title": "Shifting vulnerability detection left with Amazon Inspector code security capabilities",
+        "url": "https://aws.amazon.com/blogs/security/shifting-vulnerability-detection-left-with-amazon-inspector-code-security-capabilities/"
+      },
+      {
+        "title": "codeguru-security (AWS CLI Command Reference)",
+        "url": "https://docs.aws.amazon.com/cli/latest/reference/codeguru-security/index.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-015",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "question": "ある企業は、Amazon Bedrock の基盤モデルを使ったカスタマーサポート用のチャットボットを開発しています。チャットボットは社内のナレッジベースを検索して回答を作ります。リスク評価では、OWASP Top 10 for LLM Applications のプロンプトインジェクションと機密情報の漏えいが重要なリスクとして挙げられました。セキュリティエンジニアは、利用者の入力に含まれるジェイルブレイクや指示の上書きを検出してブロックし、モデルの応答に含まれる顧客の氏名やメールアドレスを伏せ字にして返す必要があります。これらの要件を満たす Amazon Bedrock Guardrails の設定はどれですか。（2 つ選択）",
+    "options": [
+      "コンテンツフィルターのプロンプト攻撃カテゴリを有効にし、入力に対するフィルターの強度を設定します。",
+      "拒否トピックに「プロンプトインジェクション」というトピックを定義し、入力と出力の両方に適用します。",
+      "コンテキストグラウンディングチェックを有効にし、ナレッジベースの内容に基づかない応答をブロックします。",
+      "機微情報フィルターで NAME と EMAIL の PII タイプを選び、応答に対するアクションをマスクにします。",
+      "Amazon API Gateway に AWS WAF の SQL データベースルールセットを関連付け、チャットの入力を検査します。"
+    ],
+    "answer": [
+      0,
+      3
+    ],
+    "explanation": "Amazon Bedrock Guardrails のコンテンツフィルターには、ヘイトや暴力などと並んでプロンプト攻撃のカテゴリがあります。ジェイルブレイク、プロンプトインジェクション、プロンプトの漏えい (Standard 階層) のように、モデレーションの回避や指示の上書きを狙った入力を検出してフィルターします。機微情報フィルターは、入力や応答に含まれる PII を文脈に基づいて検出し、ブロックまたはマスクします。マスクを選ぶと、検出した値は {NAME} や {EMAIL} のような PII タイプに置き換えられるため、応答を止めずに顧客の情報だけを伏せられます。これらは GenAI 向けの OWASP Top 10 に対する代表的な保護策です。",
+    "optionNotes": [
+      "正解です。プロンプト攻撃カテゴリは、ジェイルブレイクやプロンプトインジェクションを検出してブロックするための設定です。",
+      "拒否トピックは避けたい話題 (投資助言など) を定義するもので、プロンプト攻撃の検出にはプロンプト攻撃カテゴリを使います。",
+      "コンテキストグラウンディングチェックはハルシネーション対策で、PII の伏せ字やプロンプトインジェクションの検出は行いません。",
+      "正解です。機微情報フィルターのマスクで、応答内の氏名やメールアドレスを PII タイプの表記に置き換えます。",
+      "SQL インジェクションのパターン照合は、自然言語で書かれたプロンプトインジェクションを判定できません。"
+    ],
+    "services": [
+      "Amazon Bedrock"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Create your guardrail",
+        "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-components.html"
+      },
+      {
+        "title": "Remove PII from conversations by using sensitive information filters",
+        "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-sensitive-filters.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-016",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業は、パブリックサブネットの Amazon EC2 インスタンスで HTTPS の Web サーバーを公開しています。インスタンスのセキュリティグループは 0.0.0.0/0 からの TCP 443 のインバウンドを許可し、アウトバウンドはデフォルトのすべて許可のままです。サブネットにはカスタムのネットワーク ACL が関連付けられており、インバウンドは 0.0.0.0/0 からの TCP 443 を許可、アウトバウンドは 0.0.0.0/0 への TCP 443 だけを許可しています。インターネット上の利用者からの接続はすべてタイムアウトします。VPC フローログでは、インバウンドの 443 番ポートへのパケットは ACCEPT になっています。最小限の変更でこの問題を解決するにはどうすればよいですか。",
+    "options": [
+      "ネットワーク ACL に、0.0.0.0/0 への TCP 1024-65535 を許可するアウトバウンドルールを追加します。",
+      "セキュリティグループに、0.0.0.0/0 への TCP 1024-65535 を許可するアウトバウンドルールを追加します。",
+      "ネットワーク ACL に、0.0.0.0/0 からの TCP 1024-65535 を許可するインバウンドルールを追加します。",
+      "サブネットのルートテーブルで、0.0.0.0/0 の宛先をインターネットゲートウェイから NAT ゲートウェイに変更します。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "セキュリティグループはステートフルなので、許可したインバウンドの接続への応答は自動で許可されます。一方、ネットワーク ACL はステートレスで、応答のトラフィックも明示的に許可する必要があります。クライアントが接続するとき、送信元ポートにはエフェメラルポートが使われ、Web サーバーからの応答はそのポート宛てになります。現在のアウトバウンドルールは宛先ポート 443 だけを許可しているため、応答が拒否されてタイムアウトします。クライアントの OS によってエフェメラルポートの範囲は異なるため、インターネットのさまざまなクライアントに対応するには 1024-65535 への応答を許可します。悪性のポートを拒否したい場合は、その拒否ルールを許可ルールより小さい番号で置きます。",
+    "optionNotes": [
+      "正解です。ステートレスなネットワーク ACL で、クライアントのエフェメラルポートへの応答を許可します。",
+      "セキュリティグループはステートフルで、アウトバウンドもすでにすべて許可されているため、変更しても解決しません。",
+      "エフェメラルポートのインバウンド許可は、インスタンス側から開始した通信の応答に必要なものです。今回の問題は応答の送信側にあります。",
+      "パブリックな Web サーバーへのインバウンド接続には、インターネットゲートウェイへのルートが必要です。NAT ゲートウェイにすると外部から到達できなくなります。"
+    ],
+    "services": [
+      "Amazon VPC"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Custom network ACLs for your VPC",
+        "url": "https://docs.aws.amazon.com/vpc/latest/userguide/custom-network-acl.html"
+      },
+      {
+        "title": "Why can't I connect to a service when the security group and network ACL allow inbound traffic?",
+        "url": "https://repost.aws/knowledge-center/resolve-connection-sg-acl-inbound"
+      }
+    ]
+  },
+  {
+    "id": "D3-017",
+    "domain": 3,
+    "task": "3.3",
+    "type": "multi",
+    "question": "ある企業は、複数のスポーク VPC を AWS Transit Gateway でつなぎ、インターネットへの通信を集約用の検査 VPC に置いた AWS Network Firewall で検査しています。検査 VPC は企業が自分で作成し、各アベイラビリティーゾーンにファイアウォールエンドポイントを置いています。セキュリティチームは、スポーク VPC のワークロードからの HTTP と HTTPS の通信を、承認した数十のドメインへの接続だけに制限したいと考えています。また、通信が断続的に切れる問題があり、調査の結果、行きと戻りのトラフィックが異なるアベイラビリティーゾーンのファイアウォールエンドポイントを通っていることが分かりました。これらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "ステートレスルールグループに承認したドメイン名を登録し、一致しないパケットをドロップします。",
+      "ステートフルなドメインリストルールグループを作成し、アクションを Allow、対象タイプを TLS_SNI と HTTP_HOST にして承認したドメインを登録します。HOME_NET ルール変数にスポーク VPC の CIDR を含めます。",
+      "各スポーク VPC のセキュリティグループのアウトバウンドルールで、承認したドメインの FQDN を宛先に指定します。",
+      "検査 VPC の Transit Gateway VPC アタッチメントでアプライアンスモードを有効にします。",
+      "各スポーク VPC の Transit Gateway VPC アタッチメントでアプライアンスモードを有効にします。"
+    ],
+    "answer": [
+      1,
+      3
+    ],
+    "explanation": "ドメインによる制限には、Network Firewall のステートフルなドメインリストルールグループを使います。HTTP では Host ヘッダーを、HTTPS では TLS ハンドシェイクの SNI を検査し、Allow を指定すると、一致しないその種類の通信は拒否されます。注意点として、ドメインリストの検査は既定ではファイアウォールを置いた VPC からの通信だけが対象です。集約型の構成では HOME_NET にスポーク VPC の CIDR を含める必要があります。断続的な切断は非対称ルーティングが原因です。検査 VPC のアタッチメントでアプライアンスモードを有効にすると、Transit Gateway はフローの存続期間中、同じアベイラビリティーゾーンを使うため、ステートフルな検査が成り立ちます。",
+    "optionNotes": [
+      "ステートレスルールグループはパケット単位の 5 タプルで評価し、ドメイン名による照合はできません。",
+      "正解です。SNI と Host ヘッダーでドメインを照合し、HOME_NET を広げてスポーク VPC からの通信を検査対象にします。",
+      "セキュリティグループのルールには FQDN を指定できず、IP アドレスやプレフィックスリスト、セキュリティグループで指定します。",
+      "正解です。アプライアンスモードで、行きと戻りのトラフィックが同じアベイラビリティーゾーンのファイアウォールエンドポイントを通るようになります。",
+      "アプライアンスモードは、ステートフルなアプライアンスがある VPC のアタッチメント、この構成では検査 VPC 側で有効にするよう案内されています。スポーク側だけで有効にしても、検査 VPC のファイアウォールエンドポイントを行きと戻りで同じアベイラビリティーゾーンに揃えることにはなりません。"
+    ],
+    "services": [
+      "AWS Network Firewall",
+      "AWS Transit Gateway",
+      "Amazon VPC"
+    ],
+    "difficulty": 3,
+    "refs": [
+      {
+        "title": "Stateful domain list rule groups in AWS Network Firewall",
+        "url": "https://docs.aws.amazon.com/network-firewall/latest/developerguide/stateful-rule-groups-domain-names.html"
+      },
+      {
+        "title": "RulesSourceList",
+        "url": "https://docs.aws.amazon.com/network-firewall/latest/APIReference/API_RulesSourceList.html"
+      },
+      {
+        "title": "Amazon VPC attachments in AWS Transit Gateway",
+        "url": "https://docs.aws.amazon.com/vpc/latest/tgw/tgw-vpc-attachments.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-018",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある金融機関は、パートナー経由の 1 Gbps のホスト型接続で AWS Direct Connect を使っています。規制上の要件により、オンプレミスのデータセンターと AWS の間の通信をレイヤー 2 で暗号化し、100 Gbps の回線速度を確保する必要があります。オンプレミスのルーターは MACsec に対応しています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "既存の 1 Gbps のホスト型接続で MACsec を有効にし、CKN と CAK のペアを関連付けます。",
+      "パブリック仮想インターフェイス上で AWS Site-to-Site VPN を確立し、IPsec で通信を暗号化します。",
+      "MACsec に対応したロケーションで 100 Gbps の専用接続を注文し、CKN と CAK のペアを接続に関連付けて、オンプレミスのルーターで GCM-AES-XPN-256 の暗号スイートを設定します。",
+      "Direct Connect の通信はプライベートな回線なので暗号化は行わず、アプリケーション層で TLS 1.3 を必須にします。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "決め手は「レイヤー 2 での暗号化」と「100 Gbps」です。Direct Connect の MACsec は、選ばれた接続拠点の 10 Gbps、100 Gbps、400 Gbps の専用接続でサポートされており、1 Gbps の専用接続やホスト型接続では使えません。そのため、MACsec に対応したロケーションで 100 Gbps の専用接続を用意します。100 Gbps と 400 Gbps では、パケット番号の枯渇を避けるため拡張パケット番号 (XPN) が必須で、暗号スイートは GCM-AES-XPN-256 です。鍵は 256 ビットのみで、事前に CKN と CAK のペアを作成して接続に関連付けます。",
+    "optionNotes": [
+      "MACsec はホスト型接続ではサポートされておらず、1 Gbps でも使えません。",
+      "IPsec はレイヤー 3 の暗号化で、レイヤー 2 での暗号化という要件を満たしません。",
+      "正解です。MACsec 対応ロケーションの 100 Gbps 専用接続で、XPN を使う GCM-AES-XPN-256 によりレイヤー 2 で暗号化します。",
+      "TLS はアプリケーション層の暗号化で、回線上のレイヤー 2 の暗号化という規制要件を満たしません。"
+    ],
+    "services": [
+      "AWS Direct Connect",
+      "AWS Site-to-Site VPN"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "MAC Security in Direct Connect",
+        "url": "https://docs.aws.amazon.com/directconnect/latest/UserGuide/MACsec.html"
+      },
+      {
+        "title": "AWS Direct Connect FAQs",
+        "url": "https://aws.amazon.com/directconnect/faqs/"
+      }
+    ]
+  },
+  {
+    "id": "D3-019",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業は、プライベートサブネットの内部 Application Load Balancer の背後で人事システムの Web アプリケーションを動かしています。現在、在宅勤務の従業員はリモートアクセス VPN でアクセスしていますが、VPN に接続すると社内の多くのアプリケーションに到達できてしまうことが問題になっています。企業は VPN を廃止し、AWS IAM Identity Center で人事グループに所属する従業員が、会社が管理し健全性を満たしたデバイスから接続したときだけ、このアプリケーションへのアクセスを許可したいと考えています。アクセスはリクエストごとに評価する必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "AWS Client VPN エンドポイントを作成し、IAM Identity Center と SAML で連携して、人事グループにだけアプリケーションのサブネットへの認可ルールを設定します。",
+      "AWS Verified Access を設定し、IAM Identity Center をユーザーの信頼プロバイダー、デバイス管理サービスをデバイスの信頼プロバイダーとして追加します。内部 ALB を対象とするエンドポイントを作成し、グループのポリシーを Cedar で書いて、人事グループの所属とデバイスの健全性を条件にします。",
+      "ALB をインターネット向けに変更し、リスナールールで Amazon Cognito の認証アクションを設定して、人事グループのユーザーだけを許可します。",
+      "Amazon API Gateway のプライベート API でアプリケーションを公開し、IAM 認可で人事グループのロールにだけ execute-api:Invoke を許可します。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "求められているのは、VPN を使わず、ユーザーとデバイスの両方の信頼情報でリクエストごとにアクセスを判断する仕組みで、AWS Verified Access がこれにあたります。Verified Access はゼロトラストの考え方に基づき、アプリケーションへのリクエストを毎回評価するため、1 つのアプリケーションから別のアプリケーションへ移動しにくくなります。IAM Identity Center をユーザーの信頼プロバイダーにすると、グループの所属などが Cedar のポリシーのコンテキストで使えます。デバイス管理サービスをデバイスの信頼プロバイダーに加えると、デバイスのリスクや準拠状況も条件にできます。すべてのアクセスの試行がログに残るため、監査にも対応できます。",
+    "optionNotes": [
+      "VPN を廃止するという要件に反し、デバイスの健全性による判断もできません。",
+      "正解です。Verified Access でユーザーとデバイスの信頼データを Cedar のポリシーで評価し、VPN なしでリクエストごとにアクセスを判断します。",
+      "Cognito の認証でユーザーは確認できますが、デバイスの健全性を条件にできず、内部向けのアプリケーションをインターネットに公開することになります。",
+      "プライベート API には VPC 内からしか到達できず、在宅の従業員の VPN 廃止という要件を満たしません。デバイスの健全性も評価できません。"
+    ],
+    "services": [
+      "AWS Verified Access",
+      "AWS IAM Identity Center",
+      "Elastic Load Balancing"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "What is AWS Verified Access?",
+        "url": "https://docs.aws.amazon.com/verified-access/latest/ug/what-is-verified-access.html"
+      },
+      {
+        "title": "AWS IAM Identity Center context for Verified Access trust data",
+        "url": "https://docs.aws.amazon.com/verified-access/latest/ug/trust-data-iam.html"
+      }
+    ]
+  },
+  {
+    "id": "D3-020",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業は、機微なデータを処理するバッチジョブを、インターネットゲートウェイや NAT デバイスへのルートを持たない隔離されたサブネットの Amazon EC2 インスタンスで実行しています。ジョブは同じリージョンにある特定の Amazon S3 バケット 1 つだけを読み書きします。セキュリティ要件は、サブネットの隔離を保つこと、インスタンスからはこのバケット以外の S3 バケットにアクセスできないこと、バケットはこの VPC からのアクセス以外を拒否することです。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "S3 のゲートウェイ VPC エンドポイントを作成して隔離サブネットのルートテーブルに関連付け、エンドポイントポリシーで対象バケットへのアクセスだけを許可します。バケットポリシーでは、aws:SourceVpce がこのエンドポイントと一致しないリクエストを拒否します。",
+      "NAT ゲートウェイを作成して隔離サブネットからのルートを追加し、バケットポリシーで aws:SourceIp に NAT ゲートウェイの Elastic IP アドレスを指定して、それ以外を拒否します。",
+      "S3 のインターフェイス VPC エンドポイントを作成し、バケットポリシーで aws:SourceIp に隔離サブネットのプライベート IP アドレス範囲を指定して、それ以外を拒否します。",
+      "共有サービス VPC に NAT ゲートウェイを置き、VPC ピアリングで隔離サブネットからインターネットへの通信をその NAT ゲートウェイ経由にします。インスタンスの IAM ロールで対象バケットだけを許可します。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "S3 のゲートウェイ VPC エンドポイントは、ルートテーブルにプレフィックスリストのルートを追加するだけで、インターネットへの経路を作らずに S3 と通信できます。エンドポイントポリシーで対象バケットだけを許可すれば、インスタンスがほかのバケットにデータを持ち出す経路を閉じられます。バケット側では aws:SourceVpce 条件で、このエンドポイント以外から来たリクエストを拒否します。エンドポイントはバケットと同じリージョンにある必要がありますが、今回は同じリージョンです。データの持ち出し対策 (エンドポイントポリシー) と、外部からのアクセス対策 (バケットポリシー) の両方向を押さえるのがポイントです。",
+    "optionNotes": [
+      "正解です。隔離を保ったまま S3 に到達し、エンドポイントポリシーとバケットポリシーで両方向のアクセスを絞ります。",
+      "NAT ゲートウェイへのルートを追加するとサブネットの隔離が失われます。",
+      "aws:SourceIp は VPC エンドポイント経由のリクエストには含まれず、パブリック IP アドレスの判定にしか使えません。エンドポイントからのアクセスの判定には aws:SourceVpce や aws:SourceVpc を使います。",
+      "VPC ピアリングは推移的なルーティングをサポートしないため、ピア先の NAT ゲートウェイ経由でインターネットに出ることはできず、隔離の要件にも反します。"
+    ],
+    "services": [
+      "Amazon VPC",
+      "Amazon S3",
+      "AWS PrivateLink"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "How do I allow only specific VPC endpoints or IP addresses to access my Amazon S3 bucket?",
+        "url": "https://repost.aws/knowledge-center/block-s3-traffic-vpc-ip"
+      },
+      {
+        "title": "How do I restrict access to AWS resources based on the AWS Region, source IP address, or Amazon VPC?",
+        "url": "https://repost.aws/knowledge-center/iam-restrict-access-policy"
+      }
+    ]
+  },
+  {
+    "id": "D3-021",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業は、数十の VPC を AWS Transit Gateway でつないでいます。PCI DSS の監査に向けて、カード会員データを扱う VPC (タグ env=pci) が開発用の VPC (タグ env=dev) から到達できないこと、データベースのサブネットにインターネットゲートウェイからの経路がないことを示す必要があります。セキュリティグループ、ネットワーク ACL、ルートテーブル、Transit Gateway の設定を組み合わせた経路全体で評価し、構成変更のたびに同じ条件で再評価できるようにしたいと考えています。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "VPC Reachability Analyzer で、開発用 VPC の各インスタンスと PCI VPC の各インスタンスの組み合わせごとにパスを作成して分析します。",
+      "すべての VPC で VPC フローログを有効にし、Amazon Athena で開発用 VPC から PCI VPC への通信が記録されていないことを確認します。",
+      "AWS Config のマネージドルール restricted-ssh と vpc-sg-open-only-to-authorized-ports を有効にし、準拠状況をレポートとして提出します。",
+      "Network Access Analyzer で、送信元に env=dev のタグ、宛先に env=pci のタグを指定したネットワークアクセススコープと、インターネットゲートウェイからデータベースのサブネットへの経路を対象にしたスコープを作成し、分析を実行します。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "Network Access Analyzer は、意図しないネットワークアクセスを見つけるための機能です。ネットワークアクセススコープで、許されない経路の条件をリソース ID、リソースの種類、タグ、IP 範囲やポートで定義すると、自動推論で条件に合う潜在的な経路を検出結果として示します。セキュリティグループ、ネットワーク ACL、ルートテーブル、Transit Gateway などを個別にではなく組み合わせて評価するため、本番と開発の分離 (イースト・ウエスト) やインターネットからの到達 (ノース・サウス) の確認に向いています。スコープは保存できるので、構成変更のたびに同じ条件で分析を再実行でき、検出結果がないことをコンプライアンスの証跡にできます。",
+    "optionNotes": [
+      "Reachability Analyzer は送信元と宛先を 1 組ずつ指定して調べる機能で、数十の VPC の組み合わせを網羅するには運用負荷が高すぎます。",
+      "フローログは実際に流れた通信の記録で、まだ使われていない潜在的な経路があるかどうかは分かりません。",
+      "これらのルールはセキュリティグループ単体の設定を評価するだけで、ルートテーブルや Transit Gateway を含む経路全体は評価しません。",
+      "正解です。タグで定義したスコープにより、経路全体で意図しない到達可能性を検出し、同じ条件で繰り返し分析できます。"
+    ],
+    "services": [
+      "Amazon VPC",
+      "AWS Transit Gateway"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "What is Network Access Analyzer?",
+        "url": "https://docs.aws.amazon.com/vpc/latest/network-access-analyzer/what-is-network-access-analyzer.html"
+      },
+      {
+        "title": "Identifying publicly accessible resources with Amazon VPC Network Access Analyzer",
+        "url": "https://aws.amazon.com/blogs/security/identifying-publicly-accessible-resources-with-amazon-vpc-network-access-analyzer/"
+      }
+    ]
+  },
+  {
+    "id": "D3-022",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業のセキュリティチームは、多数のアカウントで動く Amazon EC2 インスタンスのうち、RDP や SSH、データベースのポートがインターネットや VPN、VPC ピアリングから到達可能になっているものを継続的に見つけたいと考えています。判定は、セキュリティグループ単体ではなく、ネットワーク ACL、ルートテーブル、インターネットゲートウェイ、ロードバランサーを含めた経路全体で行い、ポートの種類に応じた重大度を付けて Amazon EventBridge に通知する必要があります。スクリプトの作成や定期実行の仕組みは用意したくありません。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Network Access Analyzer のスコープを作成し、AWS Lambda 関数を Amazon EventBridge Scheduler で毎日起動して分析を実行し、結果を通知します。",
+      "Amazon Inspector で Amazon EC2 スキャンを有効にし、ネットワーク到達可能性の検出結果を EventBridge のルールで通知先に送ります。",
+      "Amazon GuardDuty を有効にし、Recon:EC2/PortProbeUnprotectedPort の検出結果を EventBridge のルールで通知先に送ります。",
+      "AWS Trusted Advisor のセキュリティグループのチェックで、制限されていないポートを持つセキュリティグループを通知します。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "Amazon Inspector のネットワーク到達可能性の検出結果は、EC2 インスタンスの TCP や UDP のポートが、インターネットゲートウェイ (Application Load Balancer や Classic Load Balancer の背後を含む)、VPC ピアリング、仮想プライベートゲートウェイ経由の VPN といった VPC の境界から到達可能なときに作られます。評価にはセキュリティグループだけでなく、ネットワーク ACL、ルートテーブル、サブネット、VPC エンドポイントなども含まれます。Inspector を有効にすると 12 時間ごとに自動でスキャンされ、公開されているサービスと経路の種類から重大度が決まります。検出結果は EventBridge に送られるため、定期実行の仕組みを自分で作る必要はありません。",
+    "optionNotes": [
+      "経路全体の評価はできますが、Lambda と定期実行の仕組みを用意する必要があり、要件に反します。",
+      "正解です。Inspector のネットワーク到達可能性の検出結果は、経路全体を自動で評価し、重大度を付けて EventBridge に送ります。",
+      "この検出結果は、保護されていないポートを既知の悪性ホストが実際に探索したときに作られるもので、到達可能な構成を網羅的に見つけるものではありません。",
+      "セキュリティグループ単体のルールを確認するだけで、ルートテーブルやネットワーク ACL を含む経路全体は評価しません。"
+    ],
+    "services": [
+      "Amazon Inspector",
+      "Amazon EC2",
+      "Amazon EventBridge"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Amazon Inspector finding types",
+        "url": "https://docs.aws.amazon.com/inspector/latest/user/findings-types.html"
+      },
+      {
+        "title": "Understanding severity levels for your Amazon Inspector findings",
+        "url": "https://docs.aws.amazon.com/inspector/latest/user/findings-understanding-severity.html"
+      }
+    ]
+  }
+]

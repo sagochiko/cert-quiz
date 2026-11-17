@@ -1,0 +1,856 @@
+[
+  {
+    "id": "D5-001",
+    "domain": 5,
+    "task": "5.1",
+    "type": "multi",
+    "question": "ある企業は、Application Load Balancer (ALB) の背後で顧客向け Web アプリケーションを公開しています。コンプライアンス監査で、TLS 1.0 と TLS 1.1 による接続を受け付けていること、HTTP で平文のまま閲覧できることが指摘されました。セキュリティエンジニアは、TLS 1.2 以上だけを受け付け、HTTP でアクセスした利用者は HTTPS に誘導されるようにする必要があります。これらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "HTTPS リスナーのセキュリティポリシーを ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09 に変更する。",
+      "ALB にカスタムセキュリティポリシーを作成し、TLS 1.0 と TLS 1.1 のプロトコルと CBC モードの暗号スイートを無効にする。",
+      "HTTP:80 リスナーのデフォルトアクションを、HTTPS:443 へのリダイレクトアクションに変更する。",
+      "ALB のセキュリティグループからポート 80 のインバウンドルールを削除し、HTTP の接続を遮断する。",
+      "HTTPS リスナーに追加の ACM 証明書を登録し、SNI で TLS 1.2 以上に対応したクライアントにだけ証明書を返すようにする。"
+    ],
+    "answer": [
+      0,
+      2
+    ],
+    "explanation": "決め手は「TLS 1.2 以上だけを受け付ける」と「HTTP の利用者を HTTPS に誘導する」の 2 点です。ALB が受け付ける TLS のバージョンと暗号スイートは、HTTPS リスナーに設定する事前定義済みのセキュリティポリシーで決まります。ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09 は TLS 1.3 と TLS 1.2 だけをサポートし、GCM モードの ECDHE 暗号に絞った制限の強いポリシーで、現在の既定です。ALB はカスタムのセキュリティポリシーをサポートしないため、事前定義済みポリシーから選びます。HTTP 側は、ポート 80 のリスナーのアクションを HTTPS へのリダイレクトにすれば、平文の閲覧を防ぎつつ利用者を HTTPS に導けます。ポート 80 を閉じるだけでは接続がタイムアウトし、誘導の要件を満たしません。",
+    "optionNotes": [
+      "正解です。TLS 1.3 と TLS 1.2 だけを許可する事前定義済みポリシーで、古いプロトコルを拒否できます。",
+      "ALB はカスタムセキュリティポリシーをサポートしていません。カスタムポリシーを作れるのは Classic Load Balancer です。",
+      "正解です。HTTP の要求を HTTPS にリダイレクトし、平文の閲覧をなくしつつ利用者を誘導できます。",
+      "HTTP の接続はタイムアウトになるだけで、利用者は HTTPS に誘導されません。",
+      "SNI は証明書を選ぶ仕組みで、受け付ける TLS のバージョンを制限するものではありません。"
+    ],
+    "services": [
+      "Elastic Load Balancing",
+      "AWS Certificate Manager"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Security policies for your Application Load Balancer",
+        "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html"
+      },
+      {
+        "title": "How do I resolve SSL/TLS cipher vulnerabilities on my Application Load Balancer?",
+        "url": "https://repost.aws/knowledge-center/alb-fix-weak-ssl-tls-ciphers"
+      }
+    ]
+  },
+  {
+    "id": "D5-002",
+    "domain": 5,
+    "task": "5.1",
+    "type": "single",
+    "question": "ある企業は、機密性の高いレポートを Amazon S3 バケットに保存しています。セキュリティチームは、このバケットに対する要求がすべて暗号化された接続で行われることを保証したいと考えています。HTTP での要求は、どの IAM プリンシパルからであっても拒否する必要があります。この要件を最小の運用負荷で満たすソリューションはどれですか。",
+    "options": [
+      "バケットのデフォルト暗号化を SSE-KMS に設定し、カスタマーマネージドキーで暗号化する。",
+      "バケットポリシーに、aws:SecureTransport が false の場合にすべてのプリンシパルの s3:* を拒否するステートメントを追加する。",
+      "バケットの S3 ブロックパブリックアクセスをすべて有効にする。",
+      "バケットポリシーに、s3:x-amz-server-side-encryption ヘッダーが無い PutObject 要求を拒否するステートメントを追加する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "要件は「転送中」の暗号化の強制です。S3 では、グローバル条件キー aws:SecureTransport を使うと要求が HTTPS で送られたかどうかを判定できます。値が false なら HTTP の要求です。バケットポリシーで Principal を * とし、aws:SecureTransport が false のときに s3:* を明示的に拒否すると、IAM ポリシーでどれだけ許可されていても HTTP の要求は拒否されます。明示的な拒否は許可より優先されるためです。デフォルト暗号化や暗号化ヘッダーの強制は保管中のデータの保護であり、通信経路の暗号化は保証しません。より高い TLS バージョンを求める場合は s3:TlsVersion 条件キーを組み合わせます。",
+    "optionNotes": [
+      "保管中のデータを暗号化する設定で、HTTP での要求は防げません。",
+      "正解です。HTTP の要求を明示的に拒否するため、IAM 側の許可に関係なく暗号化された接続だけが通ります。",
+      "パブリックアクセスを防ぐ設定で、認証された HTTP 要求は拒否されません。",
+      "アップロード時の保管中の暗号化を強制する条件で、通信の暗号化とは関係ありません。"
+    ],
+    "services": [
+      "Amazon S3"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Examples of Amazon S3 bucket policies",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-bucket-policies.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-003",
+    "domain": 5,
+    "task": "5.1",
+    "type": "multi",
+    "question": "ある企業は、インターネットへの経路が無いプライベートサブネットの Amazon EC2 インスタンスから、自社の Amazon S3 バケットにデータを書き込んでいます。セキュリティエンジニアは、次の 2 点を実現する必要があります。S3 への通信が AWS のネットワークの外に出ないこと。そして、インスタンスが侵害されても自社以外のバケットへデータを持ち出せず、自社のバケットはこの VPC の経路以外から書き込めないことです。これらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "NAT ゲートウェイを作成し、バケットポリシーで NAT ゲートウェイの Elastic IP アドレスからの要求だけを aws:SourceIp で許可する。",
+      "S3 のゲートウェイ VPC エンドポイントを作成し、エンドポイントポリシーの Resource を自社のバケットの ARN に限定する。",
+      "バケットポリシーで、aws:SourceIp が VPC のプライベート CIDR に一致しない要求を拒否する。",
+      "バケットポリシーで、aws:SourceVpce が作成したエンドポイントの ID に一致しない要求を拒否する。",
+      "バケットで S3 Transfer Acceleration を有効にし、高速化されたエンドポイント経由でだけ書き込む。"
+    ],
+    "answer": [
+      1,
+      3
+    ],
+    "explanation": "要件は 3 つに分かれます。通信を AWS のネットワーク内に閉じること、エンドポイントからの持ち出し先を自社バケットに限ること、自社バケットへの書き込みをこの経路に限ることです。S3 のゲートウェイ VPC エンドポイントを使えば、インターネットゲートウェイや NAT を通らずに S3 に到達できます。エンドポイントポリシーで Resource を自社のバケットに限定すると、侵害されたインスタンスが他人のバケットへ書き込むことを防げます。反対方向の制御はバケットポリシーで行い、aws:SourceVpce がエンドポイント ID と一致しない要求を Deny します。VPC エンドポイント経由の要求では aws:SourceIp が使えないため、プライベート CIDR による制限は機能しません。",
+    "optionNotes": [
+      "インターネットへの経路を新たに作ることになり、侵害されたインスタンスから自社以外のバケットへの書き込みも防げません。",
+      "正解です。エンドポイントポリシーで行き先のバケットを絞ると、エンドポイント経由の持ち出しを防げます。",
+      "VPC エンドポイント経由の要求では aws:SourceIp が使えないため、この条件は意図どおりに機能しません。",
+      "正解です。指定したエンドポイント以外からの要求を明示的に拒否し、書き込み経路をこの VPC に限定できます。",
+      "Transfer Acceleration はエッジロケーション経由で転送を高速化する機能で、経路の閉域化やアクセス制限にはなりません。"
+    ],
+    "services": [
+      "Amazon VPC",
+      "AWS PrivateLink",
+      "Amazon S3"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Gateway endpoints for Amazon S3",
+        "url": "https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html"
+      },
+      {
+        "title": "AWS global condition context keys",
+        "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-004",
+    "domain": 5,
+    "task": "5.1",
+    "type": "single",
+    "question": "ある企業は、VPC 内のプライベートサブネットで社内向けの Web アプリケーションを運用しています。外部の委託先の担当者にもこのアプリケーションを使わせる必要がありますが、VPN クライアントの配布と管理は避けたいと考えています。アクセスは要求ごとに、AWS IAM Identity Center のユーザー属性と端末のセキュリティ状態の両方で評価する必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "AWS Client VPN エンドポイントを作成し、相互認証とクライアント証明書で委託先の担当者を認証する。",
+      "インターネット向けの Application Load Balancer を作成し、Amazon Cognito ユーザープールによる認証アクションを設定する。",
+      "アプリケーションを AWS PrivateLink のエンドポイントサービスとして公開し、委託先の AWS アカウントからインターフェイスエンドポイントで接続させる。",
+      "AWS Verified Access を設定し、IAM Identity Center のユーザー ID 信頼プロバイダーとデバイス信頼プロバイダーを関連付け、両方の情報を使うアクセスポリシーを作成する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "決め手は「VPN を使わない」「要求ごとに評価する」「ユーザー属性と端末の状態の両方を使う」の 3 点です。AWS Verified Access はゼロトラストの考え方に基づくサービスで、VPN を使わずに社内アプリケーションへのアクセスを提供します。ユーザー ID 信頼プロバイダーとして IAM Identity Center または OIDC 互換のプロバイダーを、デバイス信頼プロバイダーとして端末管理製品を関連付けると、要求のたびにユーザー ID と端末の状態をポリシーで評価し、許可された要求だけを VPC 内のアプリケーションへ中継します。Client VPN は VPN クライアントが必要で、ALB と Cognito の組み合わせでは端末の状態を評価できません。",
+    "optionNotes": [
+      "VPN クライアントの配布と管理が必要になり、要件に反します。端末の状態を要求ごとに評価する仕組みもありません。",
+      "ユーザー認証はできますが、端末のセキュリティ状態を評価できず、Identity Center とも直接連携しません。",
+      "委託先が AWS アカウントと VPC を用意する必要があり、ユーザーや端末単位の評価もできません。",
+      "正解です。Verified Access はユーザー ID と端末の状態を要求ごとにポリシーで評価し、VPN なしでアクセスさせます。"
+    ],
+    "services": [
+      "AWS Verified Access",
+      "AWS IAM Identity Center"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "User-identity trust providers for Verified Access",
+        "url": "https://docs.aws.amazon.com/verified-access/latest/ug/user-trust.html"
+      },
+      {
+        "title": "With IAM Identity Center and Device Trust Provider - Initial Request",
+        "url": "https://docs.aws.amazon.com/reference-architecture-diagrams/latest/verified-access/verified-access-device-initial.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-005",
+    "domain": 5,
+    "task": "5.1",
+    "type": "single",
+    "question": "ある金融機関は、Amazon EMR on EC2 で Apache Spark のジョブを実行しています。新しい社内規程により、クラスターのノード間でやり取りされるデータ（シャッフルデータなど）を TLS で暗号化する必要があります。セキュリティエンジニアは、各アプリケーションの設定ファイルを個別に書き換える作業を避けたいと考えています。最小の運用負荷でこの要件を満たすソリューションはどれですか。",
+    "options": [
+      "EMR のセキュリティ設定で転送中の暗号化を有効にし、TLS 証明書の提供方法を指定したうえで、そのセキュリティ設定を使ってクラスターを作成する。",
+      "ブートストラップアクションで各ノードに証明書を配置し、Spark、Hadoop、Presto などの設定ファイルに TLS の設定を書き込むスクリプトを実行する。",
+      "EMR のセキュリティ設定でローカルディスクの暗号化を有効にし、AWS KMS のカスタマーマネージドキーを指定する。",
+      "クラスターをプライベートサブネットに配置し、セキュリティグループでノード間の通信だけを許可する。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "EMR では、セキュリティ設定（security configuration）で転送中の暗号化を有効にすると、クラスター内のオープンソースアプリケーションのエンドポイントのうち、転送中の暗号化に対応するものに対して EMR が自動で TLS の設定を行います。証明書は、PEM 証明書を zip にして S3 に置く方法、Java のカスタム証明書プロバイダーを使う方法があり、7.11.0 以降は EMR に証明書の作成と管理を任せることもできます。EMR が証明書を各ノードに配布するので、アプリケーションごとの設定を書き換える必要はありません。ローカルディスクの暗号化は保管中のデータの保護であり、ネットワークの分離は暗号化の代わりになりません。",
+    "optionNotes": [
+      "正解です。セキュリティ設定で転送中の暗号化を有効にすると、対応するアプリケーションの TLS 設定を EMR が自動で行います。",
+      "暗号化は実現できますが、アプリケーションやリリースごとに設定を保守する必要があり、運用負荷が大きくなります。",
+      "保管中のデータの暗号化であり、ノード間の通信は暗号化されません。",
+      "通信相手を制限するだけで、ノード間のデータは暗号化されません。"
+    ],
+    "services": [
+      "Amazon EMR"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Encryption options for Amazon EMR",
+        "url": "https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-data-encryption-options.html"
+      },
+      {
+        "title": "Create keys and certificates for data encryption with Amazon EMR",
+        "url": "https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-encryption-enable.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-006",
+    "domain": 5,
+    "task": "5.1",
+    "type": "single",
+    "question": "ある医療系企業は、同じ VPC 内の多数の Amazon EC2 インスタンス間で患者データをやり取りしています。規制対応のため、VPC 内のインスタンス間の通信をすべて暗号化する必要があります。アプリケーションの変更は避けたく、暗号化に対応しないリソースが VPC に追加されることも防ぎたいと考えています。これらの要件を最小の運用負荷で満たすソリューションはどれですか。",
+    "options": [
+      "各インスタンスに IPsec のソフトウェアを導入し、インスタンス間でトンネルを構成する。",
+      "インスタンス間の通信を AWS Transit Gateway 経由にルーティングし、Transit Gateway で暗号化させる。",
+      "転送中の暗号化に対応した Nitro ベースのインスタンスタイプを使い、VPC Encryption Controls を強制モードで有効にする。",
+      "AWS Network Firewall を導入し、TLS インスペクションの設定でインスタンス間の通信を暗号化する。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "Nitro System のオフロード機能を持つ対応インスタンスタイプどうしの通信は、Nitro カードによりハードウェアレベルで自動的に暗号化されます。256 ビットの AEAD アルゴリズムを使い、OS より下の層で動くため、アプリケーションの変更は不要でネットワーク性能への影響もありません。条件は、対応インスタンスタイプで、同じリージョンの同じ VPC かピアリングした VPC 内にあることです。Transit Gateway やロードバランサーのような中間ホップを挟むと、この暗号化は適用されません。VPC Encryption Controls を強制モードにすると、暗号化に対応しないインスタンスタイプへの ENI のアタッチなど、平文の通信を生むリソースの作成をブロックできます。",
+    "optionNotes": [
+      "暗号化はできますが、全インスタンスで鍵とトンネルを管理する必要があり、運用負荷が大きくなります。",
+      "Transit Gateway のような中間ホップを経由する通信は、インスタンス間の Nitro による自動暗号化の対象外になります。経路を変えるだけでは暗号化の要件を満たせません。",
+      "正解です。Nitro の自動暗号化でアプリケーションを変えずに暗号化でき、強制モードで非対応リソースの追加を防げます。",
+      "Network Firewall の TLS インスペクションは暗号化された通信を復号して検査する機能で、平文の通信を暗号化するものではありません。"
+    ],
+    "services": [
+      "Amazon EC2",
+      "Amazon VPC"
+    ],
+    "difficulty": 3,
+    "refs": [
+      {
+        "title": "Implementing encryption in transit across connectivity patterns with VPC Encryption Controls",
+        "url": "https://aws.amazon.com/blogs/networking-and-content-delivery/implementing-encryption-in-transit-across-connectivity-patterns-with-vpc-encryption-controls/"
+      },
+      {
+        "title": "Amazon EKS Best Practices: Network security",
+        "url": "https://docs.aws.amazon.com/eks/latest/best-practices/network-security.html"
+      },
+      {
+        "title": "Enforce VPC encryption in transit",
+        "url": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-encryption-controls.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-007",
+    "domain": 5,
+    "task": "5.2",
+    "type": "single",
+    "question": "ある証券会社は、取引記録を Amazon S3 に保存しています。規制により、各記録は作成から 7 年間、AWS アカウントのルートユーザーを含めて誰も上書きや削除ができないようにする必要があります。保持期間を後から短縮できてもいけません。この要件を満たすソリューションはどれですか。",
+    "options": [
+      "S3 Object Lock をガバナンスモードで有効にし、SCP で s3:BypassGovernanceRetention を全アカウントで拒否する。",
+      "S3 バージョニングと MFA Delete を有効にし、MFA デバイスをセキュリティ責任者だけが管理する。",
+      "S3 Object Lock を有効にし、バケットのデフォルト保持設定をコンプライアンスモード、保持期間 7 年にする。",
+      "S3 Object Lock を有効にし、取引記録の各オブジェクトにリーガルホールドを設定する。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "決め手は「ルートユーザーを含めて誰も」「保持期間を短縮できない」という語句です。S3 Object Lock のコンプライアンスモードでは、保護されたオブジェクトバージョンをルートユーザーを含むどのユーザーも上書き・削除できず、保持モードの変更や保持期間の短縮もできません。期限前に削除する方法は AWS アカウントの削除だけです。バケットのデフォルト保持設定にしておけば、新しく書き込まれる記録すべてに自動で 7 年の保持期間が付きます。ガバナンスモードは特別な権限があれば解除でき、SCP は管理アカウントには効かず、ポリシー自体も変更できるため要件を満たしません。リーガルホールドには期限がなく、権限があれば外せます。",
+    "optionNotes": [
+      "ガバナンスモードは権限があれば解除でき、SCP は管理アカウントに適用されずポリシー自体も変更できるため、誰も削除できないとは言えません。",
+      "MFA Delete はバージョンの削除に MFA を求めるだけで、MFA を持つルートユーザーは削除できます。保持期間の概念もありません。",
+      "正解です。コンプライアンスモードはルートユーザーでも解除や短縮ができず、デフォルト保持で全オブジェクトに 7 年の保持を適用できます。",
+      "リーガルホールドには保持期間がなく、s3:PutObjectLegalHold の権限があれば解除できます。"
+    ],
+    "services": [
+      "Amazon S3"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Locking objects with Object Lock",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-008",
+    "domain": 5,
+    "task": "5.2",
+    "type": "multi",
+    "question": "ある企業は、S3 Object Lock を有効にしたバケットで、デフォルト保持をガバナンスモード 1 年に設定しています。新たに 2 つの要件が出ました。法務部門は、訴訟の対象となった特定のオブジェクトを、保持期間が過ぎた後も、法務部門が解除するまで削除できないようにしたいと考えています。運用チームは、誤ってアップロードしたテストデータを、保持期間の満了前に削除できるようにしたいと考えています。これらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "バケットのデフォルト保持をコンプライアンスモードに変更する。",
+      "テストデータのプレフィックスに S3 ライフサイクルの有効期限ルールを設定し、保持期間の満了前に削除させる。",
+      "訴訟の対象となったオブジェクトバージョンにリーガルホールドを設定し、s3:PutObjectLegalHold の権限を法務部門のロールだけに付与する。",
+      "訴訟の対象となったオブジェクトの保持期限を毎週延長する AWS Lambda 関数を、Amazon EventBridge のスケジュールで実行する。",
+      "運用チームのロールに s3:BypassGovernanceRetention を付与し、x-amz-bypass-governance-retention:true ヘッダーを付けて削除させる。"
+    ],
+    "answer": [
+      2,
+      4
+    ],
+    "explanation": "リーガルホールドは保持期間とは独立した保護で、期限を持たず、解除されるまでオブジェクトバージョンの上書きと削除を防ぎます。s3:PutObjectLegalHold を法務部門に限定すれば、「法務部門が解除するまで」という要件に合います。ガバナンスモードで保護されたオブジェクトは、s3:BypassGovernanceRetention の権限を持ち、要求に x-amz-bypass-governance-retention:true ヘッダーを明示した場合に限り、保持期間中でも削除できます。ガバナンスモードを回避しても、リーガルホールドが設定されたバージョンは削除できない点も押さえておきます。ライフサイクルルールはガバナンスモードの保持を回避できません。",
+    "optionNotes": [
+      "コンプライアンスモードにすると誰も保持期間中に削除できなくなり、テストデータを削除する要件と矛盾します。",
+      "S3 ライフサイクルはガバナンスモードの保持を回避できないため、保持期間中のオブジェクトは削除されません。",
+      "正解です。リーガルホールドは期限を持たず、解除されるまで削除を防ぎます。",
+      "延長自体は可能ですが、解除までの期間が不明なため延長し続ける仕組みの保守が必要で、リーガルホールドより運用負荷が大きく確実性も低くなります。",
+      "正解です。バイパスの権限とヘッダーを明示した要求であれば、ガバナンスモードの保持期間中でも削除できます。"
+    ],
+    "services": [
+      "Amazon S3"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Object Lock considerations",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock-managing.html"
+      },
+      {
+        "title": "Applying Amazon S3 Object Lock at scale for petabytes of existing data",
+        "url": "https://aws.amazon.com/blogs/storage/applying-amazon-s3-object-lock-at-scale-for-petabytes-of-existing-data/"
+      }
+    ]
+  },
+  {
+    "id": "D5-009",
+    "domain": 5,
+    "task": "5.2",
+    "type": "single",
+    "question": "ある企業は、AWS Backup で Amazon EBS、Amazon RDS、Amazon DynamoDB のバックアップを取得しています。ランサムウェア対策として、攻撃者が管理者権限やルートユーザーの認証情報を奪っても、保持期間内の復旧ポイントを削除できないようにする必要があります。設定を誤った場合に備えて、確定前に数日間は設定を見直せるようにしたいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "バックアップボールトに AWS Backup Vault Lock をコンプライアンスモードで設定し、72 時間以上のグレースタイムを指定する。",
+      "バックアップボールトに AWS Backup Vault Lock をガバナンスモードで設定し、変更できる IAM ロールを限定する。",
+      "バックアップボールトの保存先 S3 バケットで S3 Object Lock をコンプライアンスモードで有効にする。",
+      "バックアップボールトのアクセスポリシーで、すべてのプリンシパルの backup:DeleteRecoveryPoint を拒否する。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "AWS Backup Vault Lock には、ガバナンスモードとコンプライアンスモードがあります。ガバナンスモードは十分な IAM 権限を持つユーザーが変更できるため、管理者の認証情報を奪われた場合には守れません。コンプライアンスモードでは、作成から少なくとも 72 時間（3 日）のグレースタイムがあり、その間はロックを変更・削除できます。グレースタイムが終わると、ボールトとロックはどのユーザーからも AWS からも変更や削除ができなくなります。この猶予が「確定前に数日間見直す」要件に、確定後の不変性が「管理者やルートユーザーでも削除できない」要件に対応します。アクセスポリシーによる拒否は、権限を持つ者がポリシーを書き換えれば外せます。",
+    "optionNotes": [
+      "正解です。グレースタイム中は見直しができ、確定後はルートユーザーや AWS でも変更・削除できません。",
+      "ガバナンスモードは十分な権限を持つユーザーが変更できるため、管理者の認証情報が奪われると守れません。",
+      "AWS Backup のボールトは利用者の S3 バケットではないため、S3 Object Lock は設定できません。",
+      "管理者権限があればアクセスポリシーを変更・削除できるため、認証情報が奪われた場合には守れません。"
+    ],
+    "services": [
+      "AWS Backup"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "AWS Backup Vault Lock",
+        "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/vault-lock.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-010",
+    "domain": 5,
+    "task": "5.2",
+    "type": "single",
+    "question": "ある企業は、数十億件の小さなオブジェクトを SSE-KMS（カスタマーマネージドキー）で暗号化して Amazon S3 に保存しています。AWS KMS の請求額が大きく、ピーク時にはスロットリングも発生しています。監査要件により、カスタマーマネージドキーによる暗号化は続ける必要があります。キーポリシーには、kms:EncryptionContext:aws:s3:arn がオブジェクトの ARN（arn:aws:s3:::bucket-name/*）に一致する場合だけ許可する条件があります。KMS のコストを下げる最も適切な方法はどれですか。",
+    "options": [
+      "バケットのデフォルト暗号化を SSE-S3 に変更する。",
+      "AWS KMS の暗号化オペレーションのリクエストクォータの引き上げを申請する。",
+      "バケットのデフォルト暗号化を DSSE-KMS に変更する。",
+      "バケットで S3 バケットキーを有効にし、キーポリシーの暗号化コンテキストの条件をバケットの ARN に合わせて修正する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "S3 バケットキーを有効にすると、AWS KMS が生成したバケットレベルのキーを使って S3 側でオブジェクトごとのデータキーを作るため、S3 から KMS へのリクエストが大幅に減り、KMS のリクエストコストを最大 99% 削減できます。カスタマーマネージドキーはそのまま使えるので監査要件も満たします。注意点は暗号化コンテキストで、バケットキーを使わない場合はオブジェクトの ARN、使う場合はバケットの ARN が aws:s3:arn の値になります。キーポリシーや IAM ポリシーがオブジェクトの ARN を条件にしていると、バケットキー有効化後に要求が拒否されるため、条件を合わせて修正します。DSSE-KMS はバケットキーに対応していません。",
+    "optionNotes": [
+      "カスタマーマネージドキーによる暗号化を続ける監査要件を満たしません。",
+      "スロットリングは緩和できても、リクエスト数は減らないのでコストは下がりません。",
+      "DSSE-KMS は 2 層の暗号化でバケットキーにも対応しておらず、コストは下がりません。",
+      "正解です。KMS へのリクエストを大幅に減らせます。暗号化コンテキストがバケットの ARN に変わるため、ポリシーの条件も修正します。"
+    ],
+    "services": [
+      "Amazon S3",
+      "AWS KMS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Reducing the cost of SSE-KMS with Amazon S3 Bucket Keys",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-key.html"
+      },
+      {
+        "title": "Using server-side encryption with AWS KMS keys (SSE-KMS)",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-011",
+    "domain": 5,
+    "task": "5.2",
+    "type": "single",
+    "question": "ある企業のセキュリティポリシーでは、暗号化キーのマテリアルを、自社が単独で管理するシングルテナントの HSM 内で生成・保管することが求められています。一方で、Amazon S3 や Amazon EBS など AWS サービスのサーバー側暗号化と統合し、アプリケーションの変更は最小限にしたいと考えています。キーマテリアルを AWS の外に置く要件はありません。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "外部で生成したキーマテリアルを、AWS KMS の標準のキーストアにある KMS キーへインポートする。",
+      "AWS CloudHSM クラスターを異なるアベイラビリティーゾーンの 2 台以上の HSM で構成し、それを使う AWS KMS のカスタムキーストアを作成して KMS キーを作る。",
+      "AWS CloudHSM クラスターを作成し、アプリケーションに CloudHSM クライアント SDK を組み込んで暗号化してから、SSE-C で S3 にアップロードする。",
+      "AWS KMS の外部キーストアを作成し、オンプレミスの HSM に XKS プロキシ経由で接続する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "決め手は「自社が単独で管理するシングルテナントの HSM」と「AWS サービスと統合しアプリケーションの変更を最小限にする」の 2 点です。AWS KMS の CloudHSM キーストア（カスタムキーストア）を使うと、自社アカウントの CloudHSM クラスター内でキーマテリアルを生成し、暗号化オペレーションもそのクラスター内で実行されます。それでいて利用者からは通常の KMS キーとして扱えるため、KMS と統合された AWS サービスでそのまま使えます。KMS との統合には、異なるアベイラビリティーゾーンに少なくとも 2 台の HSM が必要です。キーのインポートでは、キーマテリアルは AWS KMS が管理する HSM に置かれます。外部キーストアは AWS の外にキーを置く要件がある場合の選択肢です。",
+    "optionNotes": [
+      "キーマテリアルは AWS KMS が管理する HSM に保管されるため、自社が単独で管理する HSM という要件を満たしません。",
+      "正解です。キーマテリアルは自社の CloudHSM クラスター内にとどまり、KMS 統合サービスでそのまま使えます。",
+      "シングルテナントの要件は満たしますが、アプリケーションに暗号化処理を組み込む必要があり、AWS サービスとの統合もできません。",
+      "外部キーストアは AWS の外にキーを置く要件向けで、レイテンシーと可用性の負担が大きく、この要件には過剰です。"
+    ],
+    "services": [
+      "AWS CloudHSM",
+      "AWS KMS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Key stores",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/key-store-overview.html"
+      },
+      {
+        "title": "Demystifying AWS KMS key operations, bring your own key (BYOK), custom key store, and ciphertext portability",
+        "url": "https://aws.amazon.com/blogs/security/demystifying-kms-keys-operations-bring-your-own-key-byok-custom-key-store-and-ciphertext-portability/"
+      }
+    ]
+  },
+  {
+    "id": "D5-012",
+    "domain": 5,
+    "task": "5.2",
+    "type": "multi",
+    "question": "ある企業の監査で、東京リージョンと大阪リージョンに暗号化されていない Amazon EBS ボリュームが残っていることが分かりました。セキュリティエンジニアは、既存の暗号化されていないボリュームを暗号化されたボリュームに置き換えることと、今後両リージョンで作成されるボリュームが必ず暗号化されることを実現する必要があります。これらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "既存のボリュームに対して ModifyVolume を実行し、暗号化を有効にする。",
+      "東京リージョンと大阪リージョンのそれぞれで、EBS のデフォルト暗号化を有効にする。",
+      "us-east-1 リージョンで EBS のデフォルト暗号化を有効にし、すべてのリージョンに設定を反映させる。",
+      "Amazon Data Lifecycle Manager のポリシーでスナップショットを取得し、元のボリュームを暗号化させる。",
+      "既存のボリュームのスナップショットを取得し、暗号化を指定してスナップショットをコピーし、そこから作成したボリュームに置き換える。"
+    ],
+    "answer": [
+      1,
+      4
+    ],
+    "explanation": "既存の暗号化されていない EBS ボリュームを、その場で暗号化することはできません。スナップショットを取得し、暗号化を指定してコピーし、暗号化されたスナップショットから新しいボリュームを作って付け替えます。今後作成されるボリュームについては、EBS のデフォルト暗号化を有効にします。デフォルト暗号化はリージョンごとの設定なので、東京と大阪の両方で有効にする必要があります。有効にすると、そのリージョンで新しく作るボリュームや、暗号化されていないスナップショットからのコピーが暗号化されます。ただし既存のボリュームやスナップショットには影響しないため、2 つの手順を組み合わせます。",
+    "optionNotes": [
+      "既存の暗号化されていないボリュームをその場で暗号化することはできません。",
+      "正解です。デフォルト暗号化はリージョン単位の設定なので、両リージョンで有効にします。",
+      "デフォルト暗号化はリージョンごとの設定で、1 つのリージョンで有効にしても他のリージョンには反映されません。",
+      "Data Lifecycle Manager はスナップショットの作成や保持を自動化するもので、元のボリュームを暗号化しません。",
+      "正解です。暗号化を指定したスナップショットのコピーから作ったボリュームに置き換えるのが、既存ボリュームを暗号化する方法です。"
+    ],
+    "services": [
+      "Amazon EBS",
+      "AWS KMS"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Enable Amazon EBS encryption by default",
+        "url": "https://docs.aws.amazon.com/ebs/latest/userguide/encryption-by-default.html"
+      },
+      {
+        "title": "How do I encrypt an existing unencrypted Amazon EBS volume, or change the encryption key that my volume uses?",
+        "url": "https://repost.aws/knowledge-center/ebs-change-encryption-key"
+      }
+    ]
+  },
+  {
+    "id": "D5-013",
+    "domain": 5,
+    "task": "5.2",
+    "type": "single",
+    "question": "ある企業は、AWS Lambda 関数のデプロイパッケージが改ざんされていないことを保証したいと考えています。承認されたビルドパイプラインで署名されたコードだけをデプロイでき、署名されていないコードや署名が無効なコードのデプロイは拒否される必要があります。この要件を満たすソリューションはどれですか。",
+    "options": [
+      "AWS Signer で署名プロファイルを作成し、そのプロファイルを許可された発行者に指定したコード署名設定を作って UntrustedArtifactOnDeployment を Enforce にし、Lambda 関数に関連付ける。",
+      "AWS Signer で署名プロファイルを作成し、コード署名設定の UntrustedArtifactOnDeployment を Warn にして Lambda 関数に関連付ける。",
+      "デプロイパッケージを置く S3 バケットで S3 Object Lock をコンプライアンスモードで有効にする。",
+      "AWS CloudTrail のログファイルの整合性検証を有効にし、Lambda の UpdateFunctionCode の呼び出しを監査する。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "Lambda のコード署名は AWS Signer と連携し、デプロイ時にコードの署名を検証します。コード署名設定には、許可された発行者（署名プロファイルのバージョン ARN）と、検証に失敗したときの動作を定める UntrustedArtifactOnDeployment を指定します。Enforce にすると、署名の検証に失敗したデプロイ要求を Lambda がブロックします。既定値の Warn ではデプロイは許可され、CloudWatch のメトリクス SignatureValidationErrors と CloudTrail に警告が残るだけです。「拒否される必要がある」という要件があるので Enforce を選びます。Object Lock は保存したファイルの削除を防ぐもので、コードの出どころは検証しません。",
+    "optionNotes": [
+      "正解です。Enforce にすると、署名の検証に失敗したデプロイを Lambda がブロックします。",
+      "Warn では検証に失敗してもデプロイが許可されるため、拒否の要件を満たしません。",
+      "保存したパッケージの削除や上書きを防ぐだけで、誰が作ったコードかは検証しません。",
+      "CloudTrail ログの改ざん検知であり、デプロイされるコードの検証やデプロイの拒否はできません。"
+    ],
+    "services": [
+      "AWS Lambda",
+      "AWS Signer"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "CodeSigningPolicies",
+        "url": "https://docs.aws.amazon.com/lambda/latest/api/API_CodeSigningPolicies.html"
+      },
+      {
+        "title": "Ensure Code Integrity for AWS Lambda Functions with Automated Code Signing Using Terraform",
+        "url": "https://aws.amazon.com/blogs/devops/ensure-code-integrity-for-aws-lambda-functions-with-automated-code-signing-using-terraform/"
+      }
+    ]
+  },
+  {
+    "id": "D5-014",
+    "domain": 5,
+    "task": "5.3",
+    "type": "single",
+    "question": "ある企業のアプリケーションは、Amazon RDS for MySQL に接続するためのデータベースユーザーの認証情報を AWS Secrets Manager から取得し、一定時間キャッシュしています。セキュリティ部門は、この認証情報を 30 日ごとに自動でローテーションするよう求めています。ローテーション中にアプリケーションの接続が失敗してはいけません。アプリケーションが使うユーザーには最小権限を保つ必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "シングルユーザーのローテーション戦略で、30 日ごとのローテーションスケジュールを設定する。",
+      "RDS のマネージドローテーションでマスターユーザーのパスワードを管理させ、アプリケーションもマスターユーザーで接続させる。",
+      "Amazon EventBridge のスケジュールで AWS Lambda 関数を起動し、データベースのパスワードを変更して AWS Systems Manager Parameter Store に保存させる。",
+      "管理者の認証情報を別のシークレットに保存し、交代ユーザー（alternating users）のローテーション戦略で 30 日ごとのスケジュールを設定する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "決め手は「ローテーション中に接続が失敗してはいけない」と「アプリケーションのユーザーは最小権限」です。交代ユーザー戦略では、最初のローテーションで Secrets Manager がユーザーを複製して _clone の付いたユーザーを作り、以後はローテーションのたびにパスワードを更新するユーザーを交互に切り替えます。片方のユーザーの認証情報は有効なまま残るため、キャッシュした古い認証情報でも接続でき、可用性の高い方式です。ユーザーの複製とパスワード変更には、別のシークレットに保存した管理者の認証情報を使います。シングルユーザー戦略はパスワードを更新した直後に古い認証情報が無効になるため、キャッシュを使うアプリケーションで接続が失敗する可能性があります。",
+    "optionNotes": [
+      "パスワード変更の直後は古い認証情報が無効になるため、キャッシュを使うアプリケーションで接続が失敗する可能性があります。",
+      "アプリケーションにマスターユーザーの強い権限を与えることになり、最小権限の要件に反します。",
+      "独自の仕組みの保守が必要で、ローテーション中の接続の失敗も防げません。",
+      "正解です。片方のユーザーが常に有効なままなので、ローテーション中も接続が失敗しにくい方式です。"
+    ],
+    "services": [
+      "AWS Secrets Manager",
+      "Amazon RDS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Set up alternating users rotation for AWS Secrets Manager",
+        "url": "https://docs.aws.amazon.com/secretsmanager/latest/userguide/tutorials_rotation-alternating.html"
+      },
+      {
+        "title": "Rotation strategy",
+        "url": "https://docs.aws.amazon.com/help-panel/secretsmanager/latest/console/rotation-separate-creds-rds-pane.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-015",
+    "domain": 5,
+    "task": "5.3",
+    "type": "multi",
+    "question": "アカウント A の AWS Secrets Manager に、AWS マネージドキー aws/secretsmanager で暗号化されたシークレットがあります。アカウント B の AWS Lambda 関数の実行ロールが、このシークレットの値を取得する必要があります。実行ロールの IAM ポリシーには、すでに secretsmanager:GetSecretValue と kms:Decrypt が許可されています。セキュリティエンジニアがアカウント A で追加すべき設定はどれですか。（2 つ選択）",
+    "options": [
+      "カスタマーマネージドキーを作成してシークレットをそのキーで暗号化し直し、キーポリシーでアカウント B の実行ロールに kms:Decrypt を許可する。",
+      "aws/secretsmanager のキーポリシーを編集し、アカウント B の実行ロールに kms:Decrypt を許可する。",
+      "ReplicateSecretToRegions でシークレットをアカウント B に複製する。",
+      "シークレットにリソースベースのポリシーを付け、アカウント B の実行ロールに secretsmanager:GetSecretValue を許可する。",
+      "アカウント A に Secrets Manager のインターフェイス VPC エンドポイントを作成し、エンドポイントポリシーでアカウント B の実行ロールを許可する。"
+    ],
+    "answer": [
+      0,
+      3
+    ],
+    "explanation": "クロスアカウントでシークレットにアクセスさせるには、呼び出し側の ID ベースのポリシーに加え、シークレット側のリソースベースのポリシーでも許可する必要があります。さらに、シークレットを暗号化している KMS キーの使用も許可しなければなりません。AWS マネージドキー aws/secretsmanager はクロスアカウントのアクセスに使えず、キーポリシーも利用者が編集できません。そのため、カスタマーマネージドキーを作ってシークレットを暗号化し直し、キーポリシーでアカウント B のロールに kms:Decrypt を許可します。kms:ViaService で Secrets Manager 経由に限定すると、より安全です。",
+    "optionNotes": [
+      "正解です。AWS マネージドキーはクロスアカウントで使えないため、カスタマーマネージドキーに切り替え、キーポリシーで許可します。",
+      "AWS マネージドキーのキーポリシーは利用者が変更できず、クロスアカウントのアクセスにも使えません。",
+      "ReplicateSecretToRegions は同じアカウント内の別リージョンへ複製する機能で、別のアカウントには複製できません。",
+      "正解です。クロスアカウントのアクセスには、シークレットのリソースベースのポリシーでの許可が必要です。",
+      "エンドポイントポリシーは通信経路の制限であり、それだけでは他アカウントへのアクセス許可になりません。"
+    ],
+    "services": [
+      "AWS Secrets Manager",
+      "AWS KMS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Access AWS Secrets Manager secrets from a different account",
+        "url": "https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access_examples_cross.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-016",
+    "domain": 5,
+    "task": "5.3",
+    "type": "multi",
+    "question": "ある企業は、オンプレミスの HSM で生成したキーマテリアルを、AWS KMS の対称暗号化 KMS キーにインポートしています。セキュリティ部門から次の要件が出ました。1 年ごとにキーマテリアルをローテーションするが、アプリケーションが参照するキー ID は変えないこと。緊急時には、待機期間なしで直ちにそのキーを使えなくできること。これらの要件を満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "新しいキーマテリアルを同じ KMS キーにインポートし、RotateKeyOnDemand でオンデマンドローテーションを実行する。",
+      "EnableKeyRotation で自動キーローテーションを有効にし、ローテーション期間を 365 日に設定する。",
+      "緊急時には DeleteImportedKeyMaterial でキーマテリアルを削除し、復旧時には同じキーマテリアルを再インポートする。",
+      "緊急時には ScheduleKeyDeletion を待機期間 0 日で実行する。",
+      "毎年新しい KMS キーを作成してキーマテリアルをインポートし、エイリアスの指す先を新しいキーに切り替える。"
+    ],
+    "answer": [
+      0,
+      2
+    ],
+    "explanation": "インポートしたキーマテリアル（オリジンが EXTERNAL）を持つ対称暗号化キーでは、自動ローテーションは使えませんが、オンデマンドローテーションは使えます。新しいキーマテリアルを先にインポートして PENDING_ROTATION の状態にしてから RotateKeyOnDemand を実行すると、キー ID を変えずに現在のキーマテリアルを切り替えられます。古いキーマテリアルは復号にだけ使われます。インポートしたキーマテリアルは DeleteImportedKeyMaterial で直ちに削除でき、削除するとキーはすぐに使えなくなります。同じキーマテリアルを再インポートすれば元に戻せます。AWS KMS が生成したキーは削除に 7〜30 日の待機期間が必要なので、この即時性はインポートしたキーならではの特徴です。",
+    "optionNotes": [
+      "正解です。インポートしたキーマテリアルでもオンデマンドローテーションに対応しており、キー ID は変わりません。",
+      "自動キーローテーションは、AWS KMS が生成したキーマテリアルを持つキーだけが対象です。",
+      "正解です。キーマテリアルを削除すると直ちにキーが使えなくなり、同じマテリアルの再インポートで元に戻せます。",
+      "キーの削除には 7〜30 日の待機期間が必要で、0 日は指定できません。",
+      "エイリアスは切り替えられますが、キー ID は変わるため要件を満たしません。手動ローテーションにあたる方法です。"
+    ],
+    "services": [
+      "AWS KMS"
+    ],
+    "difficulty": 3,
+    "refs": [
+      {
+        "title": "Rotate AWS KMS keys",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html"
+      },
+      {
+        "title": "Special considerations for imported key material",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/importing-keys-considerations.html"
+      },
+      {
+        "title": "RotateKeyOnDemand",
+        "url": "https://docs.aws.amazon.com/kms/latest/APIReference/API_RotateKeyOnDemand.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-017",
+    "domain": 5,
+    "task": "5.3",
+    "type": "single",
+    "question": "ある欧州の企業は、データ主権に関する規制により、Amazon EBS ボリュームと Amazon RDS データベースの暗号化に使うキーマテリアルを AWS の外にある自社の HSM で生成・保管・使用する必要があります。自社の判断でいつでも AWS からキーを使えなくできることも求められています。ワークロードの暗号化リクエストの頻度は低いです。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "自社の HSM で生成したキーマテリアルを AWS KMS の KMS キーにインポートし、必要に応じて有効期限を設定する。",
+      "AWS KMS の外部キーストアを作成し、自社の HSM の前段に XKS プロキシを配置して接続し、外部キーストアの KMS キーで EBS と RDS を暗号化する。",
+      "AWS CloudHSM のクラスターを作成し、AWS KMS のカスタムキーストアとして接続する。",
+      "自社のシステムでデータをクライアント側暗号化してから、EBS と RDS に書き込む。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "決め手は「キーマテリアルを AWS の外で生成・保管・使用する」という要件です。AWS KMS の外部キーストア（XKS）を使うと、キーマテリアルは AWS の外にある鍵管理システムで生成・保管され、暗号化と復号もそこで実行されます。AWS KMS への要求は、利用者のネットワークに置いた XKS プロキシを経由して外部の鍵管理システムに転送されます。プロキシや HSM 側で接続を止めれば、AWS からキーを使えなくできます。外部キーストアは TPS が最も低く、レイテンシーが最も高いため、EBS や RDS の暗号化のような低頻度のワークロードに限って使うことが推奨されています。インポートしたキーマテリアルは、コピーが AWS KMS 内に置かれます。",
+    "optionNotes": [
+      "インポートしたキーマテリアルのコピーは AWS KMS の HSM に置かれ、暗号化オペレーションも AWS 内で行われます。",
+      "正解です。キーマテリアルは AWS の外にとどまり、XKS プロキシ経由で暗号化オペレーションが外部で実行されます。",
+      "CloudHSM は AWS のデータセンター内にあるため、AWS の外で保管・使用する要件を満たしません。",
+      "EBS や RDS のサーバー側暗号化と統合できず、ブロックストレージやデータベースの暗号化を自前で行うのは現実的ではありません。"
+    ],
+    "services": [
+      "AWS KMS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "External key stores",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/keystore-external.html"
+      },
+      {
+        "title": "Key stores",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/key-store-overview.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-018",
+    "domain": 5,
+    "task": "5.3",
+    "type": "single",
+    "question": "あるマルチテナントの SaaS 企業は、テナントごとのデータを 1 つの KMS キーで、テナント ID を暗号化コンテキストに含めて暗号化しています。夜間のバッチジョブは、起動のたびに特定のテナントのデータだけを復号する一時的な権限を必要とします。権限はジョブの開始時にプログラムから付与し、終了時に取り消す必要があります。キーポリシーはジョブのたびに変更したくありません。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "ジョブの開始時にキーポリシーへバッチジョブのロールを許可するステートメントを追加し、終了時に削除する。",
+      "ジョブの開始時に、有効期限を指定したグラントを CreateGrant で作成し、期限が来たら自動で失効させる。",
+      "ジョブの開始時に、Decrypt を許可し EncryptionContextSubset 制約で対象テナントの ID を指定したグラントを CreateGrant で作成し、ジョブの終了時に RetireGrant で廃棄する。",
+      "テナントごとに KMS キーを作成し直し、ジョブごとにそのキーのキーポリシーを書き換える。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "KMS のグラントは、キーポリシーを変更せずに、特定のプリンシパルに特定のオペレーションの権限を動的に与える仕組みです。CreateGrant で Decrypt だけを許可し、EncryptionContextSubset 制約にテナント ID を入れると、そのテナントの暗号化コンテキストを伴う要求だけが許可されます。グラントは自動では失効しないため、ジョブの終了時に RetireGrant か RevokeGrant で明示的に廃棄します。作成直後のグラントは結果整合性のため反映に時間がかかることがありますが、CreateGrant が返すグラントトークンを使えば、すぐに権限を使えます。キーポリシーを頻繁に書き換える方法は、誤設定とポリシーのサイズ上限のリスクがあり、要件にも反します。",
+    "optionNotes": [
+      "キーポリシーをジョブのたびに変更しないという要件に反し、誤設定のリスクもあります。",
+      "グラントには有効期限の設定が無く、自動では失効しません。不要になったら廃棄する必要があります。",
+      "正解です。暗号化コンテキストの制約で対象テナントに絞った一時的な権限を付与し、終了時に廃棄できます。",
+      "キーの数と管理の手間が増え、キーポリシーを書き換えない要件も満たしません。"
+    ],
+    "services": [
+      "AWS KMS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Managing permissions with grants in AWS Key Management Service",
+        "url": "https://aws.amazon.com/blogs/security/managing-permissions-with-grants-in-aws-key-management-service/"
+      },
+      {
+        "title": "AWS KMS condition keys",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/conditions-kms.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-019",
+    "domain": 5,
+    "task": "5.3",
+    "type": "single",
+    "question": "ある企業は、us-east-1 のアプリケーションで AWS KMS を使ってデータをクライアント側暗号化し、暗号文を eu-west-1 にも複製しています。災害時には eu-west-1 のアプリケーションが、リージョンをまたぐ KMS の呼び出しをせずにその暗号文を復号できる必要があります。キーへのアクセス許可は、リージョンごとに異なるキーポリシーで管理したいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "us-east-1 でマルチリージョンのプライマリキーを作成し、ReplicateKey で eu-west-1 にレプリカキーを作成して、レプリカに eu-west-1 用のキーポリシーを設定する。",
+      "両リージョンにそれぞれ単一リージョンの KMS キーを作成し、同じエイリアスを付ける。",
+      "us-east-1 で使っている既存の単一リージョンキーをマルチリージョンキーに変換し、eu-west-1 に複製する。",
+      "外部で生成した同じキーマテリアルを、両リージョンの単一リージョンの KMS キーにそれぞれインポートする。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "マルチリージョンキーは、プライマリキーとレプリカキーがキー ID とキーマテリアルを共有するため、一方のリージョンで暗号化したデータを、もう一方のリージョンでそのまま復号できます。リージョンをまたぐ呼び出しは不要です。キーポリシー、エイリアス、グラントなどは共有されないプロパティなので、レプリカキーには eu-west-1 用のキーポリシーを個別に設定できます。既存の単一リージョンキーはマルチリージョンキーに変換できません。また、KMS は暗号文にキー ID を結び付けるため、同じキーマテリアルをインポートした別々の KMS キーどうしでは暗号文を相互に復号できません。",
+    "optionNotes": [
+      "正解です。レプリカキーはキー ID とキーマテリアルを共有するので現地で復号でき、キーポリシーは個別に設定できます。",
+      "キーマテリアルが異なるため、us-east-1 で暗号化したデータを eu-west-1 のキーで復号できません。エイリアスは名前を揃えるだけです。",
+      "既存の単一リージョンキーはマルチリージョンキーに変換できません。",
+      "暗号文はキー ID に結び付けられるため、同じキーマテリアルでも別の KMS キーでは復号できません。"
+    ],
+    "services": [
+      "AWS KMS"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Multi-Region keys in AWS KMS",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html"
+      },
+      {
+        "title": "Encrypt global data client-side with AWS KMS multi-Region keys",
+        "url": "https://aws.amazon.com/blogs/security/encrypt-global-data-client-side-with-aws-kms-multi-region-keys/"
+      },
+      {
+        "title": "Demystifying AWS KMS key operations, bring your own key (BYOK), custom key store, and ciphertext portability",
+        "url": "https://aws.amazon.com/blogs/security/demystifying-kms-keys-operations-bring-your-own-key-byok-custom-key-store-and-ciphertext-portability/"
+      }
+    ]
+  },
+  {
+    "id": "D5-020",
+    "domain": 5,
+    "task": "5.3",
+    "type": "single",
+    "question": "ある企業のアプリケーションは、Amazon CloudWatch Logs に出力するログにクレジットカード番号やメールアドレスを含めてしまうことがあります。セキュリティエンジニアは、アカウント内のすべてのロググループで、今後作成されるロググループも含めてこれらの値を自動でマスクする必要があります。マスク前の値は、セキュリティチームだけが調査時に確認できるようにします。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "各ロググループにサブスクリプションフィルターを設定し、AWS Lambda 関数で値をマスクして別のロググループに書き込む。",
+      "マネージドデータ識別子を指定したアカウントレベルのデータ保護ポリシーを作成し、logs:Unmask の権限をセキュリティチームのロールだけに付与する。",
+      "既存の各ロググループにロググループレベルのデータ保護ポリシーを作成し、logs:Unmask の権限をセキュリティチームのロールだけに付与する。",
+      "ロググループを AWS KMS のカスタマーマネージドキーで暗号化し、kms:Decrypt をセキュリティチームのロールだけに許可する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "CloudWatch Logs のデータ保護ポリシーは、取り込まれたログイベントの中から、マネージドデータ識別子やカスタムデータ識別子に一致する機密データを検出してマスクします。マスクは CloudWatch Logs Insights、メトリクスフィルター、サブスクリプションフィルターなど、すべての出口に適用されます。マスク前の値を見られるのは logs:Unmask の権限を持つユーザーだけです。PutAccountPolicy で作るアカウントレベルのポリシーは、既存のロググループと今後作成されるロググループの両方に適用されるため、「今後作成されるロググループも含めて」という要件に合います。ポリシーを設定する前に取り込まれたログイベントはマスクされない点に注意します。",
+    "optionNotes": [
+      "元のロググループには値がそのまま残り、ロググループごとの設定と Lambda の保守も必要です。",
+      "正解です。アカウントレベルのポリシーは新旧すべてのロググループに適用され、logs:Unmask で閲覧者を限定できます。",
+      "既存のロググループには効きますが、今後作成されるロググループは対象外で、作成のたびに設定が必要です。",
+      "KMS による暗号化は保管中のデータの保護で、閲覧できるユーザーには値がそのまま見えるため、マスクにはなりません。"
+    ],
+    "services": [
+      "Amazon CloudWatch Logs"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Help protect sensitive log data with masking",
+        "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/mask-sensitive-log-data.html"
+      },
+      {
+        "title": "PutDataProtectionPolicy",
+        "url": "https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutDataProtectionPolicy.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-021",
+    "domain": 5,
+    "task": "5.3",
+    "type": "single",
+    "question": "ある企業は、AWS Organizations で 200 の AWS アカウントを管理しています。セキュリティチームは、どの Amazon S3 バケットに個人情報が含まれているかを継続的に把握し、結果を 1 つのアカウントで一元的に確認したいと考えています。バケットごとに検出ジョブを定義して管理する作業は避け、コストも抑えたいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon GuardDuty の S3 Protection を組織全体で有効にし、委任管理者アカウントで検出結果を確認する。",
+      "各アカウントで Amazon Macie を有効にし、各アカウントの担当者がすべてのバケットを対象とする 1 回限りの機密データ検出ジョブを実行する。",
+      "Amazon Macie の委任管理者アカウントを指定し、組織のアカウントを自動でメンバーとして有効にしたうえで、自動機密データ検出を有効にする。",
+      "AWS Config のマネージドルールを組織全体にデプロイし、バケットの暗号化設定とパブリックアクセス設定を評価する。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "Amazon Macie は S3 内のデータを検査して個人情報などの機密データを検出するサービスです。Organizations の管理アカウントが委任管理者を指定すると、委任管理者は組織のアカウントを Macie のメンバーとして追加し、新しいアカウントも自動で有効にできます。自動機密データ検出は、バケット群から代表的なオブジェクトを継続的にサンプリングして分析するため、バケットごとのジョブを定義せずに、どのバケットに機密データがありそうかをコストを抑えて把握できます。Macie はリージョン単位のサービスなので、複数リージョンで使う場合はリージョンごとに委任管理者の指定と設定を行います。",
+    "optionNotes": [
+      "GuardDuty の S3 Protection は不審なアクセスなどの脅威を検出するもので、データの中身から個人情報を見つける機能ではありません。",
+      "1 回限りのジョブでは継続的に把握できず、アカウントごとの作業が必要で、一元的な確認もできません。",
+      "正解です。委任管理者による一元管理と自動機密データ検出で、ジョブを定義せずに継続的に把握できます。",
+      "AWS Config は設定を評価するもので、オブジェクトの中身に個人情報が含まれるかは分かりません。"
+    ],
+    "services": [
+      "Amazon Macie",
+      "AWS Organizations"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Integrating and configuring an organization in Macie",
+        "url": "https://docs.aws.amazon.com/macie/latest/user/accounts-mgmt-ao-integrate.html"
+      },
+      {
+        "title": "Best practices for setting up Amazon Macie with AWS Organizations",
+        "url": "https://aws.amazon.com/blogs/security/best-practices-for-setting-up-amazon-macie-with-aws-organizations/"
+      },
+      {
+        "title": "How automated sensitive data discovery works",
+        "url": "https://docs.aws.amazon.com/macie/latest/user/discovery-asdd-how-it-works.html"
+      }
+    ]
+  },
+  {
+    "id": "D5-022",
+    "domain": 5,
+    "task": "5.3",
+    "type": "multi",
+    "question": "ある企業は、東京リージョンの Application Load Balancer をオリジンとし、独自ドメインの Amazon CloudFront ディストリビューションで Web サイトを公開します。また、30 の AWS アカウントで動く社内のマイクロサービス間の通信に、プライベート証明書による TLS を導入します。プライベート証明書は自動で更新され、認証局（CA）は 1 つのアカウントで一元管理する必要があります。これらの要件を最もコスト効率良く満たす手順はどれですか。（2 つ選択）",
+    "options": [
+      "東京リージョン（ap-northeast-1）の AWS Certificate Manager (ACM) でパブリック証明書をリクエストし、CloudFront ディストリビューションに関連付ける。",
+      "米国東部（バージニア北部）リージョン（us-east-1）の ACM でパブリック証明書をリクエストし、CloudFront ディストリビューションに関連付ける。",
+      "30 のアカウントそれぞれに AWS Private CA を作成し、各アカウントの ACM からプライベート証明書を発行する。",
+      "短期証明書モードの AWS Private CA を作成し、各アカウントの ACM から自動更新付きのプライベート証明書を発行する。",
+      "中央のアカウントに汎用モードの AWS Private CA を作成して AWS RAM で組織に共有し、各アカウントの ACM からプライベート証明書をリクエストする。"
+    ],
+    "answer": [
+      1,
+      4
+    ],
+    "explanation": "CloudFront で ACM の証明書を使うには、オリジンのリージョンに関係なく、米国東部（バージニア北部）リージョンで証明書をリクエストまたはインポートする必要があります。ACM の証明書は別のリージョンへ移せません。プライベート証明書は、AWS Private CA を中央のアカウントに 1 つ作り、AWS RAM で他のアカウントや組織に共有すると、各アカウントの ACM から証明書を発行できます。証明書は要求したアカウントで作られ、汎用モードの CA から ACM で発行した証明書は ACM が更新まで管理します。CA をアカウントごとに作るより費用を抑えられます。ACM は短期証明書を発行できない点も押さえておきます。",
+    "optionNotes": [
+      "CloudFront は us-east-1 の ACM 証明書しか使えないため、東京リージョンの証明書は関連付けられません。",
+      "正解です。CloudFront で使う ACM 証明書は us-east-1 でリクエストまたはインポートします。",
+      "要件は満たせますが、CA ごとに費用がかかり、一元管理の要件にも反します。",
+      "ACM は短期証明書を発行できないため、ACM による自動更新を前提にした構成になりません。",
+      "正解です。CA を 1 つに集約しつつ、各アカウントの ACM で証明書を発行し、自動更新まで任せられます。"
+    ],
+    "services": [
+      "AWS Certificate Manager",
+      "AWS Private Certificate Authority",
+      "Amazon CloudFront",
+      "AWS Resource Access Manager"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "AWS Certificate Manager FAQs",
+        "url": "https://aws.amazon.com/certificate-manager/faqs/"
+      },
+      {
+        "title": "Understand AWS Private CA CA modes",
+        "url": "https://docs.aws.amazon.com/privateca/latest/userguide/short-lived-certificates.html"
+      },
+      {
+        "title": "How to use AWS RAM to share your ACM Private CA cross-account",
+        "url": "https://aws.amazon.com/blogs/security/how-to-use-aws-ram-to-share-your-acm-private-ca-cross-account/"
+      }
+    ]
+  }
+]
