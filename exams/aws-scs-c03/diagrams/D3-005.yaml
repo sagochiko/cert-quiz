@@ -1,0 +1,7 @@
+# D3-005: EC サイトの CloudFront に WAF の Web ACL を付け、JA4 フィンガープリントでスクレイピングを止める
+# 補った部品: ALB、ECS
+set:
+  lang: ja
+flows:
+  - user -> cloudfront -> alb -> ecs
+  - waf -- cloudfront

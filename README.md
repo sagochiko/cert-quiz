@@ -36,7 +36,7 @@ python3 build.py aws-scs-c03
 
 ## 解説の構成図
 
-構成図は [archwire](https://github.com/sagochiko/archwire)(非公開)で描く。`diagrams/<問題ID>.yaml` に定義を書き、1行目のコメントに図の説明を書く(読み上げ用の説明になる)。
+構成図は [archwire](https://github.com/sagochiko/archwire)(非公開)で描く。`diagrams/<問題ID>.yaml` に定義を書き、1行目のコメントに図の説明を書く(読み上げ用の説明になる)。問題文に無い部品を足したときは「# 補った部品: ALB、ECS」の行を足すと、図の下に小さく出る。
 
 ```sh
 cd exams/aws-scs-c03/diagrams

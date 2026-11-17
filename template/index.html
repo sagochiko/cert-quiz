@@ -173,6 +173,7 @@ h2 { font-size: 15px; font-weight: 700; }
 .explain { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
 .explain p { margin: 0; }
 .diagram { margin: 0; background: var(--plate); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
+.diagram figcaption { font-size: 12px; color: #5a6673; text-align: right; margin-top: 6px; }
 .diagram img { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
 .refs { display: grid; gap: 2px; font-size: 13px; }
 .asks { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -693,7 +694,7 @@ function renderQuiz() {
     ${exam || showResult ? `<button class="btn ${showResult ? "primary" : ""}" id="next" type="button">${session.idx === session.ids.length - 1 ? (exam ? "採点へ" : "ホームへ") : "次へ"}</button>` : ""}
   </div>`;
   if (showResult) {
-    html += `<div class="explain"><h2>解説</h2>${q.diagram ? `<figure class="diagram"><img src="${esc(q.diagram.src)}" alt="${esc(q.diagram.alt)}" loading="lazy" decoding="async"></figure>` : ""}<div>${rich(q.explanation)}</div>`;
+    html += `<div class="explain"><h2>解説</h2>${q.diagram ? `<figure class="diagram"><img src="${esc(q.diagram.src)}" alt="${esc(q.diagram.alt)}" loading="lazy" decoding="async">${q.diagram.note ? `<figcaption>${esc(q.diagram.note)}</figcaption>` : ""}</figure>` : ""}<div>${rich(q.explanation)}</div>`;
     if (q.services && q.services.length) html += `<div class="note-line">${q.services.map(esc).join(" / ")}</div>`;
     if (q.refs && q.refs.length) html += `<div class="refs">${q.refs.map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title || r.url)}</a>`).join("")}</div>`;
     if (sampleFn) {

@@ -1,0 +1,7 @@
+# D3-003: 会員サイトの CloudFront に WAF の Web ACL を付け、国と IP で入口を絞る
+# 補った部品: ALB、ECS
+set:
+  lang: ja
+flows:
+  - user -> cloudfront -> alb -> ecs
+  - waf -- cloudfront

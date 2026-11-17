@@ -62,16 +62,25 @@ def main():
     diagrams = {}
     for svg in sorted((exam_dir / "diagrams").glob("*.svg")):
         qid = svg.stem
-        alt = "構成図"
+        # 定義の先頭のコメント: 1行目が図の説明、「補った部品:」の行は問題文に無い部品
+        alt, note = "構成図", ""
         src = svg.with_suffix(".yaml")
         if src.exists():
-            first = src.read_text().splitlines()[0]
-            if first.startswith("#"):
-                alt = first.lstrip("# ").split(":", 1)[-1].strip() or alt
-        diagrams[qid] = (svg, alt)
+            for i, line in enumerate(src.read_text().splitlines()):
+                if not line.startswith("#"):
+                    break
+                text = line.lstrip("# ").strip()
+                if text.startswith("補った部品"):
+                    note = text.replace(":", "", 1).strip()
+                elif i == 0:
+                    alt = text.split(":", 1)[-1].strip() or alt
+        diagrams[qid] = (svg, alt, note)
     for q in bank:
         if q["id"] in diagrams:
-            q["diagram"] = {"src": f"diagrams/{q['id']}.svg", "alt": diagrams[q["id"]][1]}
+            _, alt, note = diagrams[q["id"]]
+            q["diagram"] = {"src": f"diagrams/{q['id']}.svg", "alt": alt + (f"。{note}" if note else "")}
+            if note:
+                q["diagram"]["note"] = note
     print("図:", len(diagrams), sorted(diagrams))
 
     def embed(obj):
@@ -86,7 +95,7 @@ def main():
     out.write_text(page)
     if diagrams:
         (out.parent / "diagrams").mkdir(exist_ok=True)
-        for qid, (svg, _) in diagrams.items():
+        for qid, (svg, _, _) in diagrams.items():
             # draw.io の SVG は DOCTYPE 宣言で始まる。Artifact は DTD を含む XML を受け付けない
             text = re.sub(r"<!DOCTYPE[^>]*>\s*", "", svg.read_text(), count=1)
             # 白い台紙に載せるので、端末がダークモードでも図はライトの配色で描かせる
