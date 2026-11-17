@@ -6,6 +6,7 @@
 import html
 import json
 import pathlib
+import re
 import sys
 from collections import Counter
 
@@ -57,6 +58,22 @@ def main():
     if bad or not bank:
         sys.exit(1)
 
+    # 図: diagrams/<問題ID>.svg があれば解説に載せる。alt は定義の1行目のコメント
+    diagrams = {}
+    for svg in sorted((exam_dir / "diagrams").glob("*.svg")):
+        qid = svg.stem
+        alt = "構成図"
+        src = svg.with_suffix(".yaml")
+        if src.exists():
+            first = src.read_text().splitlines()[0]
+            if first.startswith("#"):
+                alt = first.lstrip("# ").split(":", 1)[-1].strip() or alt
+        diagrams[qid] = (svg, alt)
+    for q in bank:
+        if q["id"] in diagrams:
+            q["diagram"] = {"src": f"diagrams/{q['id']}.svg", "alt": diagrams[q["id"]][1]}
+    print("図:", len(diagrams), sorted(diagrams))
+
     def embed(obj):
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
@@ -67,6 +84,14 @@ def main():
     out = ROOT / "dist" / exam["id"] / "index.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page)
+    if diagrams:
+        (out.parent / "diagrams").mkdir(exist_ok=True)
+        for qid, (svg, _) in diagrams.items():
+            # draw.io の SVG は DOCTYPE 宣言で始まる。Artifact は DTD を含む XML を受け付けない
+            text = re.sub(r"<!DOCTYPE[^>]*>\s*", "", svg.read_text(), count=1)
+            # 白い台紙に載せるので、端末がダークモードでも図はライトの配色で描かせる
+            text = text.replace("color-scheme: light dark;", "color-scheme: light;")
+            (out.parent / "diagrams" / svg.name).write_text(text)
     print("書き出し:", out, f"{len(page.encode()) // 1024}KB")
 
 

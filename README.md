@@ -18,6 +18,8 @@ template/index.html      全試験で共通のページ(出題、履歴の同期
 exams/<試験ID>/
   exam.json              試験名、分野と配点、模擬試験の問題数、Claude への指示、公開先
   questions/*.json       問題。ファイルの分け方は自由(SCS は分野ごと)
+  diagrams/<問題ID>.yaml  解説に載せる構成図の archwire の定義
+  diagrams/<問題ID>.svg   その図。ビルドが拾って解説に載せる
   BRIEF.md               問題を作るときのルール
   REVIEW.md              問題を見直すときの手順
 ```
@@ -31,6 +33,20 @@ python3 build.py aws-scs-c03
 件数、分野ごとの内訳、単一選択の正解位置の分布が出る。形式の誤り(選択肢の数、正解の添字、exam.json にないタスク番号、ID の重複)があると NG を出して止まる。
 
 できた `dist/aws-scs-c03/index.html` を Claude Code の Artifact ツールで公開する。既存の問題集を更新するときは、`exam.json` の `artifact` の URL を指定して公開し直す。URL を指定しないと別の Artifact ができる。宣言する機能(capabilities)は `{"db": {}, "user": {}, "sample": {}, "dictation": {}}`。`dist/` はビルドのたびに作り直せるので、公開したら消してよい。
+
+## 解説の構成図
+
+構成図は [archwire](https://github.com/sagochiko/archwire)(非公開)で描く。`diagrams/<問題ID>.yaml` に定義を書き、1行目のコメントに図の説明を書く(読み上げ用の説明になる)。
+
+```sh
+cd exams/aws-scs-c03/diagrams
+~/develop/aws/archwire/target/debug/archwire compile D3-001.yaml -o D3-001.drawio
+drawio -x -f svg -o D3-001.svg D3-001.drawio
+```
+
+archwire は利用者からの流れを起点に描くので、S3 だけ、Cognito だけのような問題は描けない。描ける部品は archwire の `docs/definition.md` にある。`.drawio` と診断の JSON は Git に入れない。
+
+図がある試験を公開するときは、`dist/<試験ID>/diagrams/*.svg` も Artifact の添付ファイル(`files`)として一緒に載せる。添付ファイルは作業フォルダかスクラッチパッドの下にある必要があるので、`dist/<試験ID>` を写してから公開する。
 
 ## 試験を足す
 

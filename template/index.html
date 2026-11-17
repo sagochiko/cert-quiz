@@ -24,6 +24,7 @@
   --flag: #b27511;
   --flag-soft: #fbf0dc;
   --code-bg: #f0f3f6;
+  --plate: #ffffff;
   --font-body: "IBM Plex Sans JP", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --radius: 10px;
@@ -171,6 +172,8 @@ h2 { font-size: 15px; font-weight: 700; }
 .verdict small { font-weight: 400; font-size: 13px; color: var(--muted); }
 .explain { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
 .explain p { margin: 0; }
+.diagram { margin: 0; background: var(--plate); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
+.diagram img { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
 .refs { display: grid; gap: 2px; font-size: 13px; }
 .asks { display: flex; gap: 6px; flex-wrap: wrap; }
 .ask { border: 1px solid var(--accent); color: var(--accent); background: var(--surface); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
@@ -690,7 +693,7 @@ function renderQuiz() {
     ${exam || showResult ? `<button class="btn ${showResult ? "primary" : ""}" id="next" type="button">${session.idx === session.ids.length - 1 ? (exam ? "採点へ" : "ホームへ") : "次へ"}</button>` : ""}
   </div>`;
   if (showResult) {
-    html += `<div class="explain"><h2>解説</h2><div>${rich(q.explanation)}</div>`;
+    html += `<div class="explain"><h2>解説</h2>${q.diagram ? `<figure class="diagram"><img src="${esc(q.diagram.src)}" alt="${esc(q.diagram.alt)}" loading="lazy" decoding="async"></figure>` : ""}<div>${rich(q.explanation)}</div>`;
     if (q.services && q.services.length) html += `<div class="note-line">${q.services.map(esc).join(" / ")}</div>`;
     if (q.refs && q.refs.length) html += `<div class="refs">${q.refs.map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title || r.url)}</a>`).join("")}</div>`;
     if (sampleFn) {

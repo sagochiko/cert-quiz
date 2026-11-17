@@ -1,0 +1,6 @@
+# D1-017: CloudFront のアクセスログを、サイトとは別の S3 バケットに配信する
+set:
+  lang: ja
+flows:
+  - user -> cloudfront -> s3.site
+  - cloudfront ~> s3.logs
