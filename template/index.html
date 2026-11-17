@@ -1,4 +1,4 @@
-<title>SCS-C03 問題集</title>
+<title>__TITLE__</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -258,7 +258,7 @@ h2 { font-size: 15px; font-weight: 700; }
 
 <header class="top">
   <div class="top-in">
-    <button class="brand" id="home-btn" type="button" aria-label="ホームへ"><span>SCS 問題集</span><span class="tag">C03</span></button>
+    <button class="brand" id="home-btn" type="button" aria-label="ホームへ"><span>__BRAND__</span><span class="tag">__TAG__</span></button>
     <div class="spacer"></div>
     <span class="sync" id="sync" data-s="wait" aria-live="polite"><i></i><span id="sync-t">接続中</span></span>
     <button class="iconbtn" id="sound-btn" type="button" aria-label="効果音"></button>
@@ -305,19 +305,14 @@ h2 { font-size: 15px; font-weight: 700; }
   </form>
 </aside>
 
+<script id="exam" type="application/json">__EXAM__</script>
 <script id="qdata" type="application/json">__QUESTIONS__</script>
 <script>
 "use strict";
 /* ---------- static data ---------- */
-const DOMAINS = {
-  1: { name: "検出", weight: 16, tasks: { "1.1": "モニタリングとアラート", "1.2": "ロギングの設計と実装", "1.3": "モニタリングとロギングのトラブルシューティング" } },
-  2: { name: "インシデント対応", weight: 14, tasks: { "2.1": "インシデント対応計画の策定とテスト", "2.2": "セキュリティイベントへの対応" } },
-  3: { name: "インフラストラクチャのセキュリティ", weight: 18, tasks: { "3.1": "ネットワークエッジのセキュリティ", "3.2": "コンピューティングワークロードのセキュリティ", "3.3": "ネットワークセキュリティ" } },
-  4: { name: "アイデンティティとアクセス管理", weight: 20, tasks: { "4.1": "認証戦略", "4.2": "認可戦略" } },
-  5: { name: "データ保護", weight: 18, tasks: { "5.1": "転送中データの保護", "5.2": "保管中データの保護", "5.3": "機密データ、シークレット、暗号化キーの保護" } },
-  6: { name: "セキュリティの基盤とガバナンス", weight: 14, tasks: { "6.1": "アカウントの一元管理", "6.2": "セキュアで一貫したデプロイ", "6.3": "リソースのコンプライアンス評価" } },
-};
-const EXAM_SIZE = 65;
+const EXAM = JSON.parse(document.getElementById("exam").textContent);
+const DOMAINS = EXAM.domains;
+const EXAM_SIZE = EXAM.examSize;
 const LETTERS = "ABCDE";
 const BANK = JSON.parse(document.getElementById("qdata").textContent);
 const BMAP = Object.fromEntries(BANK.map(q => [q.id, q]));
@@ -859,12 +854,12 @@ function qForPrompt(q, reveal) {
 async function generateSimilar(q) {
   if (!sampleFn || genState[q.id] === "busy") return;
   genState[q.id] = "busy"; renderQuiz();
-  const prompt = `AWS Certified Security - Specialty (SCS-C03) の模擬問題を1問作ってください。下の元の問題と同じ論点を、別の業種・別の状況のシナリオで問います。元の問題の言い換えにはせず、正解の選択肢も変えてください。
+  const prompt = `${EXAM.examName} の模擬問題を1問作ってください。下の元の問題と同じ論点を、別の業種・別の状況のシナリオで問います。元の問題の言い換えにはせず、正解の選択肢も変えてください。
 
 条件
 - 日本語、です・ます調。シナリオの最後の一文で要件(運用負荷が最小、最小権限など)を問う。
 - type が "single" なら選択肢4つで answer は1つ。"multi" なら選択肢5つで answer は2つ、問題文の末尾に「（2 つ選択）」。
-- 不正解の選択肢も、実在する機能でありそうに作る。2026年時点の AWS の仕様で確実に言えることだけで作る。
+- 不正解の選択肢も、もっともらしく作る。${EXAM.genNote}
 - explanation は200〜400字。optionNotes は選択肢ごとに1〜2文。太字やダッシュは使わない。
 - answer は0始まりの添字。
 
@@ -891,10 +886,10 @@ ${qForPrompt(q, true)}`;
 }
 
 /* ---------- Claude: side chat ---------- */
-const RULES = `あなたは AWS Certified Security - Specialty (SCS-C03) の受験勉強を手伝う講師です。
+const RULES = `あなたは ${EXAM.examName} の受験勉強を手伝う講師です。
 - 日本語のです・ます調で、結論から簡潔に答えます。必要なら表や箇条書きを使います。太字は控えめにします。
-- 試験の6分野(検出、インシデント対応、インフラストラクチャのセキュリティ、IAM、データ保護、セキュリティの基盤とガバナンス)の観点で、要件の読み取り方と選択肢の切り分け方を意識して教えます。
-- AWS の仕様で自信がないことは、そう書いたうえで公式ドキュメントで確かめるよう伝えます。
+- 試験の${Object.keys(DOMAINS).length}分野(${Object.values(DOMAINS).map(d => d.name).join("、")})の観点で、要件の読み取り方と選択肢の切り分け方を意識して教えます。
+- ${EXAM.tutorNote}
 - 受験者が問題を解く画面の横で質問しています。「表示中の問題」があればそれを前提に答えます。
 - ツールで受験者の回答履歴や問題を調べられます。問題セットを開くツールを使ったときは、開いたことを一言伝えます。`;
 function examLock() { return view === "quiz" && session && session.mode === "exam"; }
@@ -965,7 +960,7 @@ function refreshChatCtx() {
   if (q && examLock()) list = ["この用語の意味は？"];
   else if (q && curA() && curA().done) list = ["なぜこの答え？", "他の選択肢はなぜだめ？", "似た問題を出して"];
   else if (q) list = ["ヒントだけ欲しい", "問題文の要件を整理して"];
-  else list = ["弱点はどこ？", "苦手な問題を5問出して", "KMS の問題を探して"];
+  else list = ["弱点はどこ？", "苦手な問題を5問出して", EXAM.searchChip];
   chips.innerHTML = list.map(t => `<button class="ask" type="button">${esc(t)}</button>`).join("");
   chips.querySelectorAll("button").forEach(b => b.onclick = () => sendChat(b.textContent));
 }

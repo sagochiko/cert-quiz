@@ -1,0 +1,21 @@
+{
+  "id": "aws-scs-c03",
+  "title": "SCS-C03 問題集",
+  "brand": "SCS 問題集",
+  "tag": "C03",
+  "examName": "AWS Certified Security - Specialty (SCS-C03)",
+  "examSize": 65,
+  "guide": "https://docs.aws.amazon.com/aws-certification/latest/security-specialty-03/security-specialty-03.html",
+  "artifact": "https://claude.ai/artifact/SHwkuB3FB3Pmc3jMwdZ2W1",
+  "tutorNote": "AWS の仕様で自信がないことは、そう書いたうえで公式ドキュメントで確かめるよう伝えます。",
+  "genNote": "2026年時点の AWS の仕様で確実に言えることだけで作る。",
+  "searchChip": "KMS の問題を探して",
+  "domains": {
+    "1": { "name": "検出", "weight": 16, "tasks": { "1.1": "モニタリングとアラート", "1.2": "ロギングの設計と実装", "1.3": "モニタリングとロギングのトラブルシューティング" } },
+    "2": { "name": "インシデント対応", "weight": 14, "tasks": { "2.1": "インシデント対応計画の策定とテスト", "2.2": "セキュリティイベントへの対応" } },
+    "3": { "name": "インフラストラクチャのセキュリティ", "weight": 18, "tasks": { "3.1": "ネットワークエッジのセキュリティ", "3.2": "コンピューティングワークロードのセキュリティ", "3.3": "ネットワークセキュリティ" } },
+    "4": { "name": "アイデンティティとアクセス管理", "weight": 20, "tasks": { "4.1": "認証戦略", "4.2": "認可戦略" } },
+    "5": { "name": "データ保護", "weight": 18, "tasks": { "5.1": "転送中データの保護", "5.2": "保管中データの保護", "5.3": "機密データ、シークレット、暗号化キーの保護" } },
+    "6": { "name": "セキュリティの基盤とガバナンス", "weight": 14, "tasks": { "6.1": "アカウントの一元管理", "6.2": "セキュアで一貫したデプロイ", "6.3": "リソースのコンプライアンス評価" } }
+  }
+}
