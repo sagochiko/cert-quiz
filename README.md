@@ -8,7 +8,9 @@
 |---|---|---|
 | AWS Certified Security - Specialty (SCS-C03) | 120 | [SCS-C03 問題集](https://claude.ai/artifact/SHwkuB3FB3Pmc3jMwdZ2W1) |
 
-Artifact は非公開で、持ち主だけが開ける。Claude のチャットと類題の作成は、開いた人の claude.ai の使用量を使う。
+Artifact は非公開で、持ち主だけが開ける。Claude のチャットと類題の作成は、開いた人の claude.ai の使用量を使う。自分で解きたいときは、下の手順でビルドして自分の Artifact として公開する。
+
+問題と解説は、Claude が AWS の公式ドキュメントで裏を取りながら書いたオリジナルで、本番の試験問題や市販の問題集から写したものではない。見直しはしているが、誤りが残っているかもしれない。気づいたら Issue で教えてほしい。
 
 ## 構成
 
@@ -36,11 +38,11 @@ python3 build.py aws-scs-c03
 
 ## 解説の構成図
 
-構成図は [archwire](https://github.com/sagochiko/archwire)(非公開)で描く。`diagrams/<問題ID>.yaml` に定義を書き、1行目のコメントに図の説明を書く(読み上げ用の説明になる)。問題文に無い部品を足したときは「# 補った部品: ALB、ECS」の行を足すと、図の下に小さく出る。
+構成図は、作者が手元で使っている非公開のツール archwire で描いている。このリポジトリには出来上がった SVG を入れてあるので、図を描き直さないかぎり archwire は要らない。`diagrams/<問題ID>.yaml` に定義を書き、1行目のコメントに図の説明を書く(読み上げ用の説明になる)。問題文に無い部品を足したときは「# 補った部品: ALB、ECS」の行を足すと、図の下に小さく出る。
 
 ```sh
 cd exams/aws-scs-c03/diagrams
-~/develop/aws/archwire/target/debug/archwire compile D3-001.yaml -o D3-001.drawio
+archwire compile D3-001.yaml -o D3-001.drawio
 drawio -x -f svg -o D3-001.svg D3-001.drawio
 ```
 
@@ -55,3 +57,7 @@ archwire は利用者か、検出のサービス(GuardDuty、Inspector、Securit
 3. `python3 build.py <試験ID>` で NG が出ないことを確かめてから公開し、`exam.json` の `artifact` と上の表に URL を書く。
 
 IPA の試験のように分野とタスクの2階層がないものは、分野を大分類、タスクを中分類として当てはめる。
+
+## ライセンス
+
+コードも問題も [MIT License](LICENSE) で公開している。
