@@ -222,7 +222,8 @@ h2 { font-size: 15px; font-weight: 700; }
 .msg.assistant { font-size: 14.5px; }
 .msg .ctx { font-family: var(--font-mono); font-size: 11px; color: var(--muted); display: block; }
 .msg.thinking { color: var(--muted); font-size: 13px; }
-.msg.err { color: var(--ng); font-size: 13px; }
+.msg.err { color: var(--ng); font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.msg.err code { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 .md { overflow-wrap: anywhere; }
 .md > :first-child { margin-top: 0; }
 .md > :last-child { margin-bottom: 0; }
@@ -349,6 +350,7 @@ let streaming = false;
 let sampleFn = null, toolsOK = false, dict = null;
 let tier = "default";
 let stickBottom = true;
+let chatErr = null;         // {msg, code}: the last send failed without an answer; shown in the chat with a retry button
 // The user picks a model by name. The tier is sent too, so the page falls back to it when that model is unavailable.
 const MODELS = { quick: "claude-haiku-5-5", default: "claude-sonnet-5-5", complex: "claude-opus-5-5" };
 const MODEL_NAMES = { quick: "Haiku", default: "Sonnet", complex: "Opus" };
@@ -1066,7 +1068,7 @@ $("#chat-close").onclick = closeChat;
 $("#chat-clear").onclick = () => {
   const b = $("#chat-clear");
   if (!b.dataset.armed) { b.dataset.armed = "1"; b.setAttribute("aria-pressed", "true"); setTimeout(() => { delete b.dataset.armed; b.removeAttribute("aria-pressed"); }, 3000); return; }
-  if (ctl) ctl.abort(); chat = []; remove("chat"); renderChat(); delete b.dataset.armed; b.removeAttribute("aria-pressed");
+  if (ctl) ctl.abort(); chat = []; chatErr = null; remove("chat"); renderChat(); delete b.dataset.armed; b.removeAttribute("aria-pressed");
 };
 $("#tier").querySelectorAll("button").forEach(b => b.onclick = () => { tier = b.dataset.t; try { localStorage.setItem("tier", tier); } catch (e) {} paintTier(); });
 function paintTier() { $("#tier").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === tier)); }
@@ -1092,10 +1094,19 @@ function renderChat(liveText) {
     ? `<div class="msg user">${m.ctx ? `<span class="ctx">${esc(m.ctx)}</span>` : ""}${esc(m.content)}</div>`
     : `<div class="msg assistant md">${md(m.content)}</div>`);
   if (streaming) rows.push(liveText ? `<div class="msg assistant md">${md(liveText)}</div>` : `<div class="msg thinking">考えています…</div>`);
+  if (chatErr && !streaming) rows.push(`<div class="msg err" role="alert"><span>${esc(chatErr.msg)}</span>${chatErr.code ? `<code>${esc(chatErr.code)}</code>` : ""}<button class="ask" id="chat-retry" type="button" aria-label="同じ質問をもう一度送る">再送</button></div>`);
   if (!chat.length && !streaming && !sampleFn) rows.push(`<div class="empty">Claude を使えません</div>`);
   const top = box.scrollTop;
   box.innerHTML = rows.join("");
   box.scrollTop = stickBottom ? box.scrollHeight : top;
+  const rb = $("#chat-retry"); if (rb) rb.onclick = retryChat;
+}
+// Resend the question whose answer never came. The unanswered question is taken back out so it is not sent twice.
+function retryChat() {
+  if (streaming) return;
+  const last = chat[chat.length - 1];
+  if (!last || last.role !== "user") { chatErr = null; renderChat(); return; }
+  chat.pop(); chatErr = null; sendChat(last.content);
 }
 // Follow new text only while the reader is at the bottom, so they can scroll up during an answer.
 $("#msgs").addEventListener("scroll", () => { const b = $("#msgs"); stickBottom = b.scrollHeight - b.scrollTop - b.clientHeight < 32; }, { passive: true });
@@ -1112,7 +1123,7 @@ async function sendChat(text) {
   if (!chatOpen) openChat();
   const q = view === "quiz" && session ? curQ() : null;
   chat.push({ role: "user", content: text, ctx: q ? q.id : "", at: Date.now() });
-  streaming = true; setSendState(); stickBottom = true;
+  streaming = true; setSendState(); stickBottom = true; chatErr = null;
   renderChat("");
   ctl = new AbortController();
   const history = chat.slice(-12).map(m => ({ role: m.role, content: m.role === "user" && m.ctx ? `(${m.ctx} について) ${m.content}` : m.content }));
@@ -1124,10 +1135,14 @@ async function sendChat(text) {
     if (toolsOK) opts.tools = TOOLS; else opts.cache = false;
     const r = await sampleFn(turns, opts);
     if (r.modelApplied === false) toast(`${MODEL_NAMES[tier]} を使えないため、近いモデルで答えました`);
+    // An empty answer looks the same as no answer, so treat it as a failure the user can retry.
+    if (!r || !String(r.text || "").trim()) throw { code: "empty_completion" };
     chat.push({ role: "assistant", content: r.text + (r.truncated ? "\n\n(途中で切れました)" : ""), at: Date.now() });
   } catch (e) {
-    if (e && e.text && e.code !== "refused") chat.push({ role: "assistant", content: e.text + (e.code === "cancelled" ? "" : "\n\n(中断されました)"), at: Date.now() });
-    if (e && e.code !== "cancelled") toast(errText(e));
+    const code = e && e.code;
+    if (e && e.text && code !== "refused") chat.push({ role: "assistant", content: e.text + (code === "cancelled" ? "" : "\n\n(中断されました)"), at: Date.now() });
+    else if (code !== "cancelled") chatErr = { msg: errText(e), code: code || (e && e.name) || "" };
+    if (code !== "cancelled") console.warn("[cert-quiz] chat failed", code, e);
   }
   streaming = false; ctl = null; setSendState();
   renderChat(); persistChat();
