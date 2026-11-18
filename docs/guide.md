@@ -1,10 +1,16 @@
 # 自分の試験の問題集を作る
 
-受けたい資格試験の模擬問題集を、Claude に頼んで作る手順。作者は AWS Certified Security - Specialty の120問をこの手順で作った。完成形は [`exams/aws-scs-c03/`](../exams/aws-scs-c03/) にある。
+受けたい資格試験の模擬問題集を、Claude に頼んで作る手順。作者は AWS Certified Security - Specialty の120問を同じ流れで作った。完成形は [`exams/aws-scs-c03/`](../exams/aws-scs-c03/) にある。
 
-手を動かすのはほぼ Claude で、人は頼む文を送り、出てきた結果を確かめる。`○○試験` と `my-exam` は自分の試験に置き換える。
+手を動かすのはほぼ Claude で、人は試験名を伝え、出てきた結果を確かめる。
 
-頼み方は2通りある。[README](../README.md) の1文で全部を頼んだ場合、Claude は下の段を順に進め、段の終わりごとに確かめてほしい点を伝えて止まる。確かめたら「進めて」と返せばよい。段ごとに頼みたいときは、各段の「頼む文」をそのまま送る。
+```text
+○○試験の問題集を作って
+```
+
+これだけで始まる。Claude は下の段を順に進め、段の終わりごとに確かめてほしい点を伝えて止まる。確かめたら「進めて」と返せばよい。途中からやり直したいときや、1段だけ頼みたいときは、各段の「頼む文」を送る。
+
+試験IDは Claude が試験名から決めて伝えてくる(SCS-C03 なら `aws-scs-c03`)。下の説明では仮に `my-exam` と書いている。
 
 ## 用意するもの
 
@@ -20,11 +26,10 @@ Claude はリポジトリ直下の [`CLAUDE.md`](../CLAUDE.md) を読み、問�
 頼む文。
 
 ```text
-○○試験の問題集を作りたい。試験IDは my-exam。
-公式の試験ガイドを調べて、template/exam を exams/my-exam に写し、exam.json を全部埋めて。
+○○試験の問題集を作って
 ```
 
-Claude は雛形を写し、公式の試験ガイドを読んで [`exam.json`](../template/exam/exam.json) を埋める。ここが問題集の骨組みになる。
+Claude は試験IDを決めて雛形を `exams/<試験ID>/` に写し、公式の試験ガイドを読んで [`exam.json`](../template/exam/exam.json) を全部埋める。ここが問題集の骨組みになる。
 
 | 項目 | 書くこと | 使われる所 |
 |---|---|---|
@@ -47,7 +52,7 @@ Claude は雛形を写し、公式の試験ガイドを読んで [`exam.json`](.
 頼む文。
 
 ```text
-exams/my-exam の BRIEF.md と REVIEW.md を、この試験に合わせて書いて。
+BRIEF.md と REVIEW.md を、この試験に合わせて書いて。
 一次情報の節には、裏取りに使う公式の資料と、古い知識で書くと間違えやすい点を挙げて。
 ```
 
@@ -86,7 +91,7 @@ Claude は分野ごとに `questions/d1.json` のようなファイルを書き�
 頼む文。
 
 ```text
-python3 build.py my-exam でビルドして、件数と正解位置の分布を見せて。
+ビルドして、件数と正解位置の分布を見せて。
 ```
 
 [`build.py`](../build.py) は、形式の誤りがあると `NG` を出して止まる。選択肢の数、正解の添字、`exam.json` に無い細目、数値になっていない `domain`、ID の重複、フォルダ名と違う `id` が対象。止まったら Claude に直させる。最後に `書き出し:` の行が出れば成功。
@@ -100,11 +105,10 @@ python3 build.py my-exam でビルドして、件数と正解位置の分布を�
 頼む文。
 
 ```text
-dist/my-exam/index.html を Artifact として公開して。
-公開したら URL を exam.json の artifact に書いて。
+Artifact として公開して。
 ```
 
-Artifact として公開すると、回答履歴が claude.ai のアカウントに保存され、どの端末で開いても続きから解ける。解説の横で Claude に質問したり、類題を作らせたりもできる。チャットと類題作りは、開いた人の claude.ai の使用量を使う。
+Claude は公開した URL を `exam.json` の `artifact` に書き留める。Artifact として公開すると、回答履歴が claude.ai のアカウントに保存され、どの端末で開いても続きから解ける。解説の横で Claude に質問したり、類題を作らせたりもできる。チャットと類題作りは、開いた人の claude.ai の使用量を使う。
 
 公開には Artifact を公開できる Claude が要る。作者は Claude デスクトップ版の Claude Code で公開している。ターミナルの Claude Code では公開のツールが無いことがあった。その場合は作るところまでをターミナルでやり、公開だけデスクトップ版に頼めばよい。
 
@@ -113,10 +117,10 @@ Artifact として公開すると、回答履歴が claude.ai のアカウント
 解いていて間違いを見つけたら、問題IDと気づいたことを添えて頼む。
 
 ```text
-my-exam の D2-014 は、選択肢 B も正解に読める。裏を取って直して、ビルドして同じ Artifact を更新して。
+D2-014 は、選択肢 B も正解に読める。直して公開し直して。
 ```
 
-同じ URL の Artifact を更新しないと、別の Artifact が新しくできる。回答履歴はその Artifact の DB に保存されているので、別の Artifact になると履歴が引き継がれない。
+Claude は裏を取って直し、ビルドして、`exam.json` に書いた URL の Artifact を更新する。同じ URL の Artifact を更新しないと、別の Artifact が新しくできる。回答履歴はその Artifact の DB に保存されているので、別の Artifact になると履歴が引き継がれない。
 
 ## 構成図を付けるとき
 

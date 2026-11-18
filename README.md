@@ -3,10 +3,10 @@
 資格試験の模擬問題集を Claude に作らせ、自分用の Web ページ(Claude Artifact)として公開するための雛形。問題を書くのも、裏を取るのも、見直すのも Claude で、人は頼む文を送って結果を確かめる。
 
 ```text
-○○試験の問題集を作りたい。試験IDは my-exam。docs/guide.md の手順で進めて。
+○○試験の問題集を作って
 ```
 
-clone したフォルダで Claude Code にこう頼めば始まる。手順の全体は [`docs/guide.md`](docs/guide.md) にある。
+clone したフォルダで Claude Code に試験名を伝えれば始まる。Claude はリポジトリの [`CLAUDE.md`](CLAUDE.md) を読んで進め方を知っているので、ほかの指示は要らない。途中で何が起きて、人がどこを確かめるかは [`docs/guide.md`](docs/guide.md) にある。
 
 ## できあがるページ
 
