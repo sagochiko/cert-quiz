@@ -199,6 +199,15 @@ h2 { font-size: 15px; font-weight: 700; }
 @media (max-width: 1099.98px) {
   .chat { inset: 0; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 }
+.chat-resize { display: none; }
+@media (min-width: 1100px) {
+  .chat-resize { display: block; position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 1; touch-action: none; }
+  .chat-resize::after { content: ""; position: absolute; left: 3px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background .15s; }
+  .chat-resize:hover::after, .chat-resize:focus-visible::after, .chat-resize.drag::after { background: var(--accent); }
+  .chat-resize:focus-visible { outline: none; }
+  body.chat-resizing { cursor: col-resize; user-select: none; }
+  body.chat-resizing .wrap { transition: none; }
+}
 .chat-h { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .chat-h strong { flex: 1; font-size: 14px; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
@@ -284,12 +293,13 @@ h2 { font-size: 15px; font-weight: 700; }
 </button>
 
 <aside class="chat" id="chat" hidden aria-label="Claude に質問">
+  <div class="chat-resize" id="chat-resize" role="separator" aria-orientation="vertical" aria-label="チャット欄の幅" tabindex="0"></div>
   <div class="chat-h">
     <strong>Claude</strong>
-    <div class="seg" id="tier" role="group" aria-label="回答の深さ">
-      <button type="button" data-t="quick" aria-label="速く答える">速い</button>
-      <button type="button" data-t="default" aria-label="標準">標準</button>
-      <button type="button" data-t="complex" aria-label="じっくり考えて答える">深い</button>
+    <div class="seg" id="tier" role="group" aria-label="モデル">
+      <button type="button" data-t="quick" aria-label="Haiku、速く答える">Haiku</button>
+      <button type="button" data-t="default" aria-label="Sonnet、標準">Sonnet</button>
+      <button type="button" data-t="complex" aria-label="Opus、じっくり考えて答える">Opus</button>
     </div>
     <button class="iconbtn" id="chat-clear" type="button" aria-label="会話を消す">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
@@ -338,6 +348,10 @@ let lastResult = null;
 let streaming = false;
 let sampleFn = null, toolsOK = false, dict = null;
 let tier = "default";
+let stickBottom = true;
+// The user picks a model by name. The tier is sent too, so the page falls back to it when that model is unavailable.
+const MODELS = { quick: "claude-haiku-5-5", default: "claude-sonnet-5-5", complex: "claude-opus-5-5" };
+const MODEL_NAMES = { quick: "Haiku", default: "Sonnet", complex: "Opus" };
 let chatOpen = false;
 const genState = {};        // qid -> "busy" | newId
 
@@ -1013,10 +1027,39 @@ let ctl = null;
 function openChat() {
   chatOpen = true; $("#chat").hidden = false; document.body.classList.add("chat-open");
   $("#chat-btn").setAttribute("aria-pressed", "true");
-  refreshChatCtx(); renderChat();
+  stickBottom = true; refreshChatCtx(); renderChat();
   if (matchMedia("(min-width: 1100px)").matches) $("#chat-in").focus();
 }
 function closeChat() { chatOpen = false; $("#chat").hidden = true; document.body.classList.remove("chat-open"); $("#chat-btn").setAttribute("aria-pressed", "false"); }
+// Drag the left edge of the docked chat to change its width. The width is kept per device.
+const CHAT_MIN = 320;
+const chatMax = () => Math.max(CHAT_MIN, innerWidth - 420);
+let chatW = 400;
+function setChatW(w, keep) {
+  chatW = Math.round(Math.min(chatMax(), Math.max(CHAT_MIN, w)));
+  document.documentElement.style.setProperty("--chat-w", chatW + "px");
+  const h = $("#chat-resize"); h.setAttribute("aria-valuenow", chatW); h.setAttribute("aria-valuemin", CHAT_MIN); h.setAttribute("aria-valuemax", chatMax());
+  if (keep) try { localStorage.setItem("chatW", chatW); } catch (e) {}
+}
+try { setChatW(+localStorage.getItem("chatW") || 400); } catch (e) { setChatW(400); }
+addEventListener("resize", () => setChatW(chatW));
+(() => {
+  const h = $("#chat-resize");
+  h.addEventListener("pointerdown", ev => {
+    ev.preventDefault(); h.setPointerCapture(ev.pointerId); h.classList.add("drag"); document.body.classList.add("chat-resizing");
+    const move = e => setChatW(innerWidth - e.clientX);
+    const up = () => { h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); h.removeEventListener("pointercancel", up); h.classList.remove("drag"); document.body.classList.remove("chat-resizing"); setChatW(chatW, true); };
+    h.addEventListener("pointermove", move); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", up);
+  });
+  h.addEventListener("dblclick", () => setChatW(400, true));
+  h.addEventListener("keydown", ev => {
+    const step = ev.shiftKey ? 80 : 20;
+    if (ev.key === "ArrowLeft") setChatW(chatW + step, true);
+    else if (ev.key === "ArrowRight") setChatW(chatW - step, true);
+    else return;
+    ev.preventDefault();
+  });
+})();
 $("#chat-btn").onclick = () => chatOpen ? closeChat() : openChat();
 $("#fab").onclick = openChat;
 $("#chat-close").onclick = closeChat;
@@ -1050,9 +1093,12 @@ function renderChat(liveText) {
     : `<div class="msg assistant md">${md(m.content)}</div>`);
   if (streaming) rows.push(liveText ? `<div class="msg assistant md">${md(liveText)}</div>` : `<div class="msg thinking">考えています…</div>`);
   if (!chat.length && !streaming && !sampleFn) rows.push(`<div class="empty">Claude を使えません</div>`);
+  const top = box.scrollTop;
   box.innerHTML = rows.join("");
-  box.scrollTop = box.scrollHeight;
+  box.scrollTop = stickBottom ? box.scrollHeight : top;
 }
+// Follow new text only while the reader is at the bottom, so they can scroll up during an answer.
+$("#msgs").addEventListener("scroll", () => { const b = $("#msgs"); stickBottom = b.scrollHeight - b.scrollTop - b.clientHeight < 32; }, { passive: true });
 function persistChat() {
   let msgs = chat.slice(-30).map(m => ({ ...m, content: m.content.slice(0, 6000) }));
   while (msgs.length > 2 && JSON.stringify(msgs).length > 60000) msgs = msgs.slice(2);
@@ -1066,7 +1112,7 @@ async function sendChat(text) {
   if (!chatOpen) openChat();
   const q = view === "quiz" && session ? curQ() : null;
   chat.push({ role: "user", content: text, ctx: q ? q.id : "", at: Date.now() });
-  streaming = true; setSendState();
+  streaming = true; setSendState(); stickBottom = true;
   renderChat("");
   ctl = new AbortController();
   const history = chat.slice(-12).map(m => ({ role: m.role, content: m.role === "user" && m.ctx ? `(${m.ctx} について) ${m.content}` : m.content }));
@@ -1074,9 +1120,10 @@ async function sendChat(text) {
   const turns = [{ role: "user", content: contextBlock() }, ...history];
   let live = "";
   try {
-    const opts = { signal: ctl.signal, modelTier: tier, onText: ({ text }) => { live = text; renderChat(live); } };
+    const opts = { signal: ctl.signal, model: MODELS[tier], modelTier: tier, onText: ({ text }) => { live = text; renderChat(live); } };
     if (toolsOK) opts.tools = TOOLS; else opts.cache = false;
     const r = await sampleFn(turns, opts);
+    if (r.modelApplied === false) toast(`${MODEL_NAMES[tier]} を使えないため、近いモデルで答えました`);
     chat.push({ role: "assistant", content: r.text + (r.truncated ? "\n\n(途中で切れました)" : ""), at: Date.now() });
   } catch (e) {
     if (e && e.text && e.code !== "refused") chat.push({ role: "assistant", content: e.text + (e.code === "cancelled" ? "" : "\n\n(中断されました)"), at: Date.now() });
