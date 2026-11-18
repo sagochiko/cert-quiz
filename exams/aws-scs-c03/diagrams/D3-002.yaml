@@ -1,0 +1,7 @@
+# D3-002: CloudFront の WAF で API キーごとにレートを制限し、ALB の先の API を守る
+# 補った部品: ECS
+set:
+  lang: ja
+flows:
+  - user -> cloudfront -> alb -> ecs
+  - waf -- cloudfront

@@ -1,0 +1,5 @@
+# D2-009: Config のルールで違反を見つけ、Systems Manager Automation で自動修復する
+set:
+  lang: ja
+flows:
+  - config -> ssm

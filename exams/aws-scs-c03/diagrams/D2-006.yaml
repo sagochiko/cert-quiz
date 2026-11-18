@@ -1,0 +1,5 @@
+# D2-006: GuardDuty の検出結果を EventBridge で受け、Step Functions のワークフローで対応する
+set:
+  lang: ja
+flows:
+  - guardduty -> eventbridge -> stepfunctions

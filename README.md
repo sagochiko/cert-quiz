@@ -44,7 +44,7 @@ cd exams/aws-scs-c03/diagrams
 drawio -x -f svg -o D3-001.svg D3-001.drawio
 ```
 
-archwire は利用者からの流れを起点に描くので、S3 だけ、Cognito だけのような問題は描けない。描ける部品は archwire の `docs/definition.md` にある。`.drawio` と診断の JSON は Git に入れない。
+archwire は利用者か、検出のサービス(GuardDuty、Inspector、Security Hub、Config、CloudTrail、EventBridge、CloudWatch)を起点に描く。S3 だけ、Cognito だけのような問題や、Organizations、IAM の関係図は描けない。リージョンは東京だけなので、別のリージョンが正解の決め手になる問題には図を付けない。描ける部品は archwire の `docs/definition.md` にある。`.drawio` と診断の JSON は Git に入れない。
 
 図がある試験を公開するときは、`dist/<試験ID>/diagrams/*.svg` も Artifact の添付ファイル(`files`)として一緒に載せる。添付ファイルは作業フォルダかスクラッチパッドの下にある必要があるので、`dist/<試験ID>` を写してから公開する。
 

@@ -1,0 +1,5 @@
+# D2-011: CloudTrail のログファイルを、Object Lock を有効にした S3 バケットに配信する
+set:
+  lang: ja
+flows:
+  - cloudtrail -> s3.trail-logs

@@ -1,0 +1,5 @@
+# D1-019: Security Hub の検出結果を EventBridge のルールで受け取る
+set:
+  lang: ja
+flows:
+  - securityhub -> eventbridge

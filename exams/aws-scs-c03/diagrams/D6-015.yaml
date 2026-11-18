@@ -1,0 +1,5 @@
+# D6-015: Security Hub の重大な検出結果を EventBridge で絞り、SNS でメーリングリストに通知する
+set:
+  lang: ja
+flows:
+  - securityhub -> eventbridge -> sns

@@ -1,0 +1,7 @@
+# D5-001: ALB の HTTPS リスナーに ACM の証明書と TLS 1.2 以上のポリシーを付ける
+# 補った部品: ECS
+set:
+  lang: ja
+flows:
+  - user -> alb -> ecs
+  - acm -- alb

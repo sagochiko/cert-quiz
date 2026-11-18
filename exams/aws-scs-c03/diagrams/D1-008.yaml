@@ -1,0 +1,5 @@
+# D1-008: 組織の証跡を、ログアーカイブ用の S3 バケットに配信する
+set:
+  lang: ja
+flows:
+  - cloudtrail -> s3.log-archive

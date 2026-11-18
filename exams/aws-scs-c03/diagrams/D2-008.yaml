@@ -1,0 +1,5 @@
+# D2-008: GuardDuty の検出結果を Security Hub に集め、EventBridge から Step Functions で証拠保全と隔離を進める
+set:
+  lang: ja
+flows:
+  - guardduty -> securityhub -> eventbridge -> stepfunctions -> ssm
