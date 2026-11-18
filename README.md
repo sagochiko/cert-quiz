@@ -74,6 +74,10 @@ clone したフォルダで Claude Code に試験名を伝えれば始まる。C
 
 この問題は Claude が AWS の公式ドキュメントで裏を取りながら書いたオリジナルで、本番の試験問題や市販の問題集から写したものではない。見直しはしているが、誤りが残っているかもしれない。気づいたら Issue で教えてほしい。
 
+AWS の公式の教材ではなく、Amazon Web Services とは関係がない。AWS、各サービス名、試験名は Amazon.com, Inc. またはその関連会社の商標。
+
+[LICENSE](LICENSE) の MIT はこのリポジトリのコードと文章に適用する。構成図の SVG に含まれる AWS のアイコンは対象外で、[AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) の条件に従う。
+
 ## 構成
 
 ```text
