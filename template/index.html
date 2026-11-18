@@ -242,6 +242,9 @@ h2 { font-size: 15px; font-weight: 700; }
 .praise small { display: block; font-family: var(--font-mono); font-size: 14px; color: var(--flag); font-weight: 500; margin-top: 2px; }
 .praise.big { border-color: var(--flag); color: var(--flag); }
 .praise.big b { font-size: 42px; }
+.praise.miss { border-color: var(--accent); color: var(--accent); }
+.praise.miss b { font-size: 28px; }
+.praise.miss small { color: var(--muted); }
 @keyframes praise {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
   14% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
@@ -389,24 +392,91 @@ function tone(c, f, t0, dur, type = "sine", vol = .16) {
   g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
   o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + .05);
 }
-// ピンポーン. Longer streaks add a rising sparkle run on top.
-function chime(level) {
-  const c = audio(); if (!c) return; const t = c.currentTime + .02;
+// A tone whose pitch glides from f0 to f1 (slide whistle, boing, trombone).
+function sweep(c, f0, f1, t0, dur, type = "sine", vol = .16, vib = 0) {
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  if (vib) { const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = vib; lg.gain.value = f1 * .04; l.connect(lg); lg.connect(o.frequency); l.start(t0); l.stop(t0 + dur + .05); }
+  g.gain.setValueAtTime(.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + .02);
+  g.gain.setValueAtTime(vol, t0 + dur * .7);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + .05);
+}
+let noiseBuf = null;
+function noise(c, t0, dur, freq, q = 1, vol = .2, kind = "bandpass") {
+  if (!noiseBuf) { noiseBuf = c.createBuffer(1, c.sampleRate * .5, c.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+  s.buffer = noiseBuf; f.type = kind; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t0); s.stop(t0 + dur + .02);
+}
+// 太鼓. ドン is the skin (a low thump whose pitch drops), カッ is the rim.
+function don(c, t, vol = 1) {
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = "sine"; o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(72, t + .28);
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.45 * vol, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + .55);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + .6);
+  tone(c, 330, t, .12, "triangle", .06 * vol);
+  noise(c, t, .09, 900, .8, .22 * vol, "lowpass");
+}
+function ka(c, t, vol = 1) {
+  noise(c, t, .05, 3200, 4, .35 * vol);
+  tone(c, 1250, t, .05, "triangle", .1 * vol); tone(c, 1880, t, .035, "square", .025 * vol);
+}
+
+// Correct answers draw from several sounds. Longer streaks add a taiko roll and a sparkle run on top.
+const pinpon = (c, t) => {
   tone(c, 1318.5, t, .32, "sine", .2); tone(c, 659.3, t, .32, "triangle", .05);
   tone(c, 1046.5, t + .17, .9, "sine", .2); tone(c, 523.3, t + .17, .9, "triangle", .05);
-  if (level >= 3) { const run = [1046.5, 1318.5, 1568, 2093]; run.forEach((f, i) => tone(c, f, t + .5 + i * .07, .35, "triangle", .07)); }
-  if (level >= 5) { [2093, 2637, 3136, 4186].forEach((f, i) => tone(c, f, t + .8 + i * .06, .5, "sine", .045)); }
-  if (level >= 10) { [523.3, 659.3, 784, 1046.5].forEach(f => tone(c, f, t + 1.1, 1.2, "triangle", .06)); }
+};
+const CORRECT_SOUNDS = [
+  pinpon,
+  (c, t) => { don(c, t); don(c, t + .14); },                                      // ドドン
+  (c, t) => { don(c, t); ka(c, t + .2); don(c, t + .4, 1.1); },                   // ドン・カッ・ドン
+  (c, t) => [1568, 2093, 2637, 3136].forEach((f, i) => tone(c, f, t + i * .065, .5, "sine", .13)), // キラリン
+  (c, t) => { tone(c, 987.8, t, .09, "square", .09); tone(c, 1318.5, t + .08, .7, "square", .09); tone(c, 2637, t + .08, .7, "sine", .08); }, // チャリーン
+  (c, t) => [523.3, 659.3, 784, 1046.5].forEach((f, i) => { tone(c, f, t + i * .08, .28, "sine", .15); tone(c, f * 4, t + i * .08, .06, "sine", .03); }), // ポコポコ(木琴)
+];
+let lastCorrect = -1, lastWrong = -1;
+const pickIdx = (n, last) => { let i = Math.floor(Math.random() * n); if (n > 1 && i === last) i = (i + 1) % n; return i; };
+function chime(level) {
+  const c = audio(); if (!c) return; const t = c.currentTime + .02;
+  if (level >= 3) {
+    // ドコドコ… ドドン！ then the sparkle.
+    const hits = Math.min(4 + level, 14);
+    for (let i = 0; i < hits; i++) don(c, t + i * .06, .35 + .5 * i / hits);
+    const end = t + hits * .06 + .05;
+    don(c, end, 1.1); don(c, end + .15, 1.25); ka(c, end + .15, .6);
+    pinpon(c, end + .32);
+    const s = end + .7;
+    [1046.5, 1318.5, 1568, 2093].forEach((f, i) => tone(c, f, s + i * .07, .35, "triangle", .07));
+    if (level >= 5) [2093, 2637, 3136, 4186].forEach((f, i) => tone(c, f, s + .3 + i * .06, .5, "sine", .045));
+    if (level >= 10) { [523.3, 659.3, 784, 1046.5].forEach(f => tone(c, f, s + .6, 1.2, "triangle", .06)); ka(c, s + .6); don(c, s + .6, 1.2); }
+    return;
+  }
+  lastCorrect = pickIdx(CORRECT_SOUNDS.length, lastCorrect);
+  CORRECT_SOUNDS[lastCorrect](c, t);
 }
+const WRONG_SOUNDS = [
+  (c, t) => { tone(c, 196, t, .16, "square", .05); tone(c, 185, t + .2, .28, "square", .05); },             // ブッブー
+  (c, t) => { tone(c, 140, t, .55, "sawtooth", .06); tone(c, 147, t, .55, "square", .035); },                // ブーー(クイズのブザー)
+  (c, t) => sweep(c, 1900, 380, t, .75, "sine", .1, 7),                                                       // ひゅるる〜
+  (c, t) => { [311, 293.7, 277.2].forEach((f, i) => sweep(c, f, f * .98, t + i * .32, .3, "sawtooth", .045)); sweep(c, 261.6, 246.9, t + .96, .9, "sawtooth", .045, 6); }, // ぽわわわ〜ん
+  (c, t) => { sweep(c, 140, 520, t, .14, "triangle", .14, 0); sweep(c, 520, 160, t + .14, .5, "triangle", .12, 16); }, // ぼよよん
+  (c, t) => { ka(c, t); ka(c, t + .16, .7); },                                                                // カッカッ
+  (c, t) => { don(c, t, .8); sweep(c, 220, 110, t + .18, .6, "triangle", .1); },                              // ドン…しょぼん
+];
 function buzz() {
   const c = audio(); if (!c) return; const t = c.currentTime + .02;
-  tone(c, 196, t, .16, "square", .05); tone(c, 185, t + .2, .28, "square", .05);
+  lastWrong = pickIdx(WRONG_SOUNDS.length, lastWrong);
+  WRONG_SOUNDS[lastWrong](c, t);
 }
 function fanfare(good) {
   const c = audio(); if (!c) return; const t = c.currentTime + .02;
   const notes = good ? [523.3, 659.3, 784, 1046.5] : [523.3, 659.3, 784];
   notes.forEach((f, i) => tone(c, f, t + i * .13, .3, "triangle", .12));
-  if (good) [523.3, 659.3, 784, 1046.5, 1318.5].forEach(f => tone(c, f, t + .55, 1.4, "triangle", .06));
+  if (good) { [523.3, 659.3, 784, 1046.5, 1318.5].forEach(f => tone(c, f, t + .55, 1.4, "triangle", .06)); don(c, t + .55, 1.2); ka(c, t + .55, .6); for (let i = 0; i < 8; i++) don(c, t + .75 + i * .06, .3 + i * .05); don(c, t + 1.3, 1.1); don(c, t + 1.45, 1.3); }
 }
 let fxCanvas = null, parts = [], fxRunning = false;
 function confetti(x, y, count, power) {
@@ -431,20 +501,23 @@ function stepFx() {
   }
   if (parts.length) requestAnimationFrame(stepFx); else { fxRunning = false; g.clearRect(0, 0, W, H); }
 }
-function praise(title, sub, big) {
+function praise(title, sub, big, miss) {
   document.querySelectorAll(".praise").forEach(e => e.remove());
   const el = document.createElement("div");
-  el.className = "praise" + (big ? " big" : ""); el.setAttribute("role", "status");
+  el.className = "praise" + (big ? " big" : "") + (miss ? " miss" : ""); el.setAttribute("role", "status");
   el.innerHTML = `<b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}`;
   document.body.append(el); setTimeout(() => el.remove(), 1400);
 }
 const pickOne = a => a[Math.floor(Math.random() * a.length)];
 function praiseFor(n, best) {
   const sub = n >= 2 ? `${n}連続正解` + (best ? "  自己ベスト" : "") : "";
-  if (n >= 10) return [pickOne(["止まらない！", "無双！", "神がかってる！"]), sub, true];
-  if (n >= 5) return [pickOne(["すごすぎる！", "絶好調！", "合格が見えた！"]), sub, true];
-  if (n >= 3) return [pickOne(["冴えてる！", "完璧！", "その調子！", "ノってる！"]), sub, false];
-  return [pickOne(["正解！", "すごい！", "さすが！", "いいね！", "ナイス！"]), sub, false];
+  if (n >= 10) return [pickOne(["止まらない！", "無双！", "神がかってる！", "伝説になる！", "もはや試験官！"]), sub, true];
+  if (n >= 5) return [pickOne(["すごすぎる！", "絶好調！", "合格が見えた！", "フルコンボ！", "お見事！"]), sub, true];
+  if (n >= 3) return [pickOne(["冴えてる！", "完璧！", "その調子！", "ノってる！", "ドドン！", "キレてる！"]), sub, false];
+  return [pickOne(["正解！", "すごい！", "さすが！", "いいね！", "ナイス！", "ピンポン！", "やるね！", "お見事！"]), sub, false];
+}
+function missFor(lost) {
+  return [pickOne(["ドンマイ！", "おしい！", "次いこ！", "ここで覚えた！", "伸びしろ！", "解説で回収！"]), lost >= 3 ? `${lost}連続でストップ` : ""];
 }
 function celebrate(n, best) {
   chime(n);
@@ -778,10 +851,12 @@ function submit() {
     stats = { ...stats, dayCorrect: (stats.day === day ? stats.dayCorrect : 0) + 1, day };
     if (session.streak > stats.best) { best = session.streak >= 3; stats.best = session.streak; }
     save("stats", stats);
-  } else session.streak = 0;
+  }
+  let lost = 0;
+  if (!a.ok) { lost = session.streak || 0; session.streak = 0; }
   persistSession(); renderQuiz();
   if (a.ok) celebrate(session.streak, best);
-  else { buzz(); const c = $(".card"); if (c && !reduced()) c.classList.add("shake"); }
+  else { buzz(); const c = $(".card"); if (c && !reduced()) c.classList.add("shake"); const [m, s] = missFor(lost); praise(m, s, false, true); }
 }
 function next() {
   if (session.idx < session.ids.length - 1) return go(session.idx + 1);
