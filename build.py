@@ -26,7 +26,9 @@ def check(q, tasks):
         errs.append("answer の添字が範囲外")
     if len(q.get("optionNotes", [])) != n:
         errs.append("optionNotes の数が選択肢と合わない")
-    if tasks.get(q.get("task")) != str(q.get("domain")):
+    if not isinstance(q.get("domain"), int) or isinstance(q.get("domain"), bool):
+        errs.append('domain は数値で書く(例: 1)。"1" のような文字列だとページで絞り込めない')
+    elif tasks.get(q.get("task")) != str(q.get("domain")):
         errs.append("domain/task が exam.json の分野と合わない")
     for k in ("id", "question", "explanation"):
         if not q.get(k):
@@ -39,6 +41,8 @@ def main():
         sys.exit("使い方: python3 build.py <試験ID>  (exams/ の下のフォルダ名)")
     exam_dir = ROOT / "exams" / sys.argv[1]
     exam = json.loads((exam_dir / "exam.json").read_text())
+    if exam.get("id") != exam_dir.name:
+        sys.exit(f"NG exam.json の id ({exam.get('id')}) をフォルダ名 ({exam_dir.name}) と揃える。出力先 dist/<id>/ が他の試験と重なるのを防ぐため")
     tasks = {t: d for d, dom in exam["domains"].items() for t in dom["tasks"]}
 
     bank, bad = [], 0
@@ -51,17 +55,32 @@ def main():
             bank.append(q)
     dup = [k for k, v in Counter(q["id"] for q in bank).items() if v > 1]
     if dup:
-        print("ID の重複:", dup)
+        print("NG ID の重複:", dup)
         bad += 1
-    print("件数:", len(bank), dict(sorted(Counter(q["domain"] for q in bank).items())))
-    print("正解位置(single):", dict(sorted(Counter(q["answer"][0] for q in bank if q["type"] == "single").items())))
+    if not bank:
+        print("NG 問題が1問も無い。questions/*.json に問題を置く")
     if bad or not bank:
         sys.exit(1)
+    print("件数:", len(bank), dict(sorted(Counter(q["domain"] for q in bank).items())))
+    print("正解位置(single):", dict(sorted(Counter(q["answer"][0] for q in bank if q["type"] == "single").items())))
+    # 警告だけでビルドは止めない。模擬試験は配点の比率で分野ごとに出すので、配点と在庫を見ておく
+    weights = {d: dom["weight"] for d, dom in exam["domains"].items()}
+    if sum(weights.values()) != 100:
+        print(f"注意 配点の合計が {sum(weights.values())}。模擬試験は比率で配分するので動くが、公式の配点と合っているか確かめる")
+    for d, w in weights.items():
+        need = round(exam["examSize"] * w / sum(weights.values()))
+        have = sum(1 for q in bank if str(q["domain"]) == d)
+        if have < need:
+            print(f"注意 分野{d} は {have}問。模擬試験で {need}問ほど出すので、その分だけ模擬試験が短くなる")
 
     # 図: diagrams/<問題ID>.svg があれば解説に載せる。alt は定義の1行目のコメント
     diagrams = {}
+    ids = {q["id"] for q in bank}
     for svg in sorted((exam_dir / "diagrams").glob("*.svg")):
         qid = svg.stem
+        if qid not in ids:
+            print(f"注意 diagrams/{svg.name} に対応する問題が無いので載せない")
+            continue
         # 定義の先頭のコメント: 1行目が図の説明、「補った部品:」の行は問題文に無い部品
         alt, note = "構成図", ""
         src = svg.with_suffix(".yaml")

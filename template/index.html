@@ -950,7 +950,7 @@ async function generateSimilar(q) {
   const prompt = `${EXAM.examName} の模擬問題を1問作ってください。下の元の問題と同じ論点を、別の業種・別の状況のシナリオで問います。元の問題の言い換えにはせず、正解の選択肢も変えてください。
 
 条件
-- 日本語、です・ます調。シナリオの最後の一文で要件(運用負荷が最小、最小権限など)を問う。
+- 日本語、です・ます調。シナリオの最後の一文で要件を問う。
 - type が "single" なら選択肢4つで answer は1つ。"multi" なら選択肢5つで answer は2つ、問題文の末尾に「（2 つ選択）」。
 - 不正解の選択肢も、もっともらしく作る。${EXAM.genNote}
 - explanation は200〜400字。optionNotes は選択肢ごとに1〜2文。太字やダッシュは使わない。
@@ -1012,7 +1012,7 @@ function taskStats() {
 }
 const TOOLS = [
   { name: "get_my_stats", description: "受験者の回答履歴の集計を返す。タスク別の問題数、回答済み数、最新の回答での正解数と不正解数、間違えたままの問題ID、苦手な問題ID(正答率60%未満)、ブックマークした問題ID、模擬試験の記録。", execute: () => ({ byTask: taskStats(), wrongIds: wrongIds(), weakIds: weakIds().slice(0, 30), bookmarkIds: bmIds(), exams: exams.slice(0, 5).map(e => ({ date: new Date(e.at).toISOString().slice(0, 10), correct: e.correct, total: e.total })) }) },
-  { name: "search_questions", description: "問題集をキーワードで検索し、最大10件の {id, task, services, snippet, myResult} を返す。サービス名や論点(例: KMS グラント、SCP)で探すときに使う。", inputSchema: { type: "object", properties: { query: { type: "string", description: "検索語。空白区切りで AND" } }, required: ["query"] },
+  { name: "search_questions", description: "問題集をキーワードで検索し、最大10件の {id, task, services, snippet, myResult} を返す。用語や論点で探すときに使う。", inputSchema: { type: "object", properties: { query: { type: "string", description: "検索語。空白区切りで AND" } }, required: ["query"] },
     execute: ({ query }) => { const terms = String(query || "").toLowerCase().split(/\s+/).filter(Boolean); const all = [...BANK, ...Object.values(aiQs)]; return all.filter(q => { const hay = (q.question + q.options.join(" ") + (q.services || []).join(" ") + q.explanation).toLowerCase(); return terms.every(t => hay.includes(t)); }).slice(0, 10).map(q => { const p = progress[q.id]; return { id: q.id, task: q.task, services: q.services, snippet: q.question.slice(0, 90), myResult: p && p.attempts ? (p.last ? "正解" : "不正解") : "未回答" }; }); } },
   { name: "get_question", description: "問題IDを指定して、問題文、選択肢、正解、解説を返す。表示中ではない問題について話すときに使う。模擬試験の途中では使わない。", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
     execute: ({ id }) => { if (examLock()) throw new Error("模擬試験の途中なので使えません"); const q = getQ(String(id)); if (!q) throw new Error("その ID の問題はありません"); return qForPrompt(q, true); } },

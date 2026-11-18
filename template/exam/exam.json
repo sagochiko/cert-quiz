@@ -1,0 +1,17 @@
+{
+  "id": "my-exam",
+  "title": "○○試験 問題集",
+  "brand": "○○ 問題集",
+  "tag": "2026",
+  "examName": "○○試験(正式名称)",
+  "examSize": 40,
+  "guide": "https://example.com/exam-guide",
+  "artifact": "",
+  "tutorNote": "仕様や制度で自信がないことは、そう書いたうえで公式の資料で確かめるよう伝えます。",
+  "genNote": "公式の資料で確実に言えることだけで作る。",
+  "searchChip": "○○の問題を探して",
+  "domains": {
+    "1": { "name": "分野1の名前", "weight": 60, "tasks": { "1.1": "タスク1.1の名前", "1.2": "タスク1.2の名前" } },
+    "2": { "name": "分野2の名前", "weight": 40, "tasks": { "2.1": "タスク2.1の名前" } }
+  }
+}

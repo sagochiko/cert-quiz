@@ -1,44 +1,61 @@
 # cert-quiz
 
-資格試験の模擬問題集。試験ごとに問題を JSON で持ち、共通のページの雛形に埋め込んで Claude Artifact として公開する。回答履歴、ブックマーク、間違えた問題、途中のセットは Artifact の DB に本人だけが読める形で保存され、どの端末で開いても続きから解ける。解説の横のチャットで Claude に質問でき、類題も作らせられる。
+資格試験の模擬問題集を Claude に作らせ、自分用の Web ページ(Claude Artifact)として公開するための雛形。問題を書くのも、裏を取るのも、見直すのも Claude で、人は頼む文を送って結果を確かめる。
 
-## 公開中の問題集
+```text
+○○試験の問題集を作りたい。試験IDは my-exam。docs/guide.md の手順で進めて。
+```
 
-| 試験 | 問題数 | ページ |
-|---|---|---|
-| AWS Certified Security - Specialty (SCS-C03) | 120 | [SCS-C03 問題集](https://claude.ai/artifact/SHwkuB3FB3Pmc3jMwdZ2W1) |
+clone したフォルダで Claude Code にこう頼めば始まる。手順の全体は [`docs/guide.md`](docs/guide.md) にある。
 
-Artifact は非公開で、持ち主だけが開ける。Claude のチャットと類題の作成は、開いた人の claude.ai の使用量を使う。自分で解きたいときは、下の手順でビルドして自分の Artifact として公開する。
+## できあがるページ
 
-問題と解説は、Claude が AWS の公式ドキュメントで裏を取りながら書いたオリジナルで、本番の試験問題や市販の問題集から写したものではない。見直しはしているが、誤りが残っているかもしれない。気づいたら Issue で教えてほしい。
+- 分野ごとの練習、ランダム10問、本番と同じ配分の模擬試験、間違えた問題と苦手な問題の復習
+- 選択肢ごとの解説と、裏取りに使った公式ページへのリンク
+- 解説の横で Claude に質問でき、同じ論点の類題も作らせられる
+- 回答履歴は claude.ai のアカウントに保存され、どの端末で開いても続きから解ける
+
+チャットと類題作りは、開いた人の claude.ai の使用量を使う。
+
+## 作例
+
+| 試験 | 問題数 |
+|---|---|
+| AWS Certified Security - Specialty (SCS-C03) | 120 |
+
+作者が自分用に作ったもの。問題、ルール、見直しの手順は [`exams/aws-scs-c03/`](exams/aws-scs-c03/) にある。公開した Artifact は作者だけが開ける設定なので、解きたいときは自分でビルドして公開してほしい。
+
+この問題は Claude が AWS の公式ドキュメントで裏を取りながら書いたオリジナルで、本番の試験問題や市販の問題集から写したものではない。見直しはしているが、誤りが残っているかもしれない。気づいたら Issue で教えてほしい。
 
 ## 構成
 
 ```text
+CLAUDE.md                問題集を作るときに Claude が読む進め方
+docs/guide.md            人が読む手順。各段で Claude に送る文が載っている
 build.py                 試験IDを受け取り、検証して dist/<試験ID>/index.html を作る
 template/index.html      全試験で共通のページ(出題、履歴の同期、チャット、効果音)
+template/exam/           新しい試験の雛形。exams/ の下に写して使う
 exams/<試験ID>/
   exam.json              試験名、分野と配点、模擬試験の問題数、Claude への指示、公開先
-  questions/*.json       問題。ファイルの分け方は自由(SCS は分野ごと)
-  diagrams/<問題ID>.yaml  解説に載せる構成図の archwire の定義
-  diagrams/<問題ID>.svg   その図。ビルドが拾って解説に載せる
+  questions/*.json       問題。ファイルの分け方は自由
+  diagrams/<問題ID>.svg   解説に載せる構成図(任意)
   BRIEF.md               問題を作るときのルール
   REVIEW.md              問題を見直すときの手順
 ```
 
-## ビルドと公開
+## ビルド
 
 ```sh
 python3 build.py aws-scs-c03
 ```
 
-件数、分野ごとの内訳、単一選択の正解位置の分布が出る。形式の誤り(選択肢の数、正解の添字、exam.json にないタスク番号、ID の重複)があると NG を出して止まる。
+[`build.py`](build.py) を動かすと、件数、分野ごとの内訳、単一選択の正解位置の分布が出る。形式の誤り(選択肢の数、正解の添字、[`exam.json`](exams/aws-scs-c03/exam.json) に無い細目、ID の重複など)があると NG を出して止まる。Python 3 の標準ライブラリだけで動く。
 
-できた `dist/aws-scs-c03/index.html` を Claude Code の Artifact ツールで公開する。既存の問題集を更新するときは、`exam.json` の `artifact` の URL を指定して公開し直す。URL を指定しないと別の Artifact ができる。宣言する機能(capabilities)は `{"db": {}, "user": {}, "sample": {}, "dictation": {}}`。`dist/` はビルドのたびに作り直せるので、公開したら消してよい。
+できた `dist/<試験ID>/index.html` はブラウザでそのまま開ける。回答の保存と Claude のチャットは、Artifact として公開したときだけ使える。公開のしかたは [`docs/guide.md`](docs/guide.md) の6と7にある。
 
-## 解説の構成図
+## SCS-C03 の構成図
 
-構成図は、作者が手元で使っている非公開のツール archwire で描いている。このリポジトリには出来上がった SVG を入れてあるので、図を描き直さないかぎり archwire は要らない。`diagrams/<問題ID>.yaml` に定義を書き、1行目のコメントに図の説明を書く(読み上げ用の説明になる)。問題文に無い部品を足したときは「# 補った部品: ALB、ECS」の行を足すと、図の下に小さく出る。
+SCS-C03 の構成図は、作者が手元で使っている非公開のツール archwire で描いている。`diagrams/<問題ID>.yaml` がその定義で、1行目のコメントが図の説明(読み上げ用)になる。問題文に無い部品を足したときは「# 補った部品: ALB、ECS」の行を足すと、図の下に小さく出る。SVG はリポジトリに入れてあるので、図を描き直さないかぎり archwire は要らない。
 
 ```sh
 cd exams/aws-scs-c03/diagrams
@@ -46,17 +63,7 @@ archwire compile D3-001.yaml -o D3-001.drawio
 drawio -x -f svg -o D3-001.svg D3-001.drawio
 ```
 
-archwire は利用者か、検出のサービス(GuardDuty、Inspector、Security Hub、Config、CloudTrail、EventBridge、CloudWatch)を起点に描く。S3 だけ、Cognito だけのような問題や、Organizations、IAM の関係図は描けない。リージョンは東京だけなので、別のリージョンが正解の決め手になる問題には図を付けない。描ける部品は archwire の `docs/definition.md` にある。`.drawio` と診断の JSON は Git に入れない。
-
-図がある試験を公開するときは、`dist/<試験ID>/diagrams/*.svg` も Artifact の添付ファイル(`files`)として一緒に載せる。添付ファイルは作業フォルダかスクラッチパッドの下にある必要があるので、`dist/<試験ID>` を写してから公開する。
-
-## 試験を足す
-
-1. `exams/<試験ID>/exam.json` を作る。`aws-scs-c03/exam.json` を写して、試験名、分野(`domains` の番号、名前、配点、タスク番号と名前)、`examSize`、`tutorNote`、`genNote`、`searchChip` を書き換える。分野の番号とタスク番号の先頭の数字は揃える(`"2"` の分野のタスクは `2.1`、`2.2`)。
-2. `BRIEF.md` を試験に合わせて書き、問題を `questions/` に置く。問題の形は BRIEF.md の「出力の形式」のとおり。
-3. `python3 build.py <試験ID>` で NG が出ないことを確かめてから公開し、`exam.json` の `artifact` と上の表に URL を書く。
-
-IPA の試験のように分野とタスクの2階層がないものは、分野を大分類、タスクを中分類として当てはめる。
+archwire は利用者か、検出のサービス(GuardDuty、Inspector、Security Hub、Config、CloudTrail、EventBridge、CloudWatch)を起点に描く。S3 だけ、Cognito だけのような問題や、Organizations、IAM の関係図は描けない。リージョンは東京だけなので、別のリージョンが正解の決め手になる問題には図を付けない。`.drawio` と診断の JSON は Git に入れない。
 
 ## ライセンス
 
