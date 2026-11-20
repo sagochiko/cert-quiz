@@ -102,7 +102,7 @@ h2 { font-size: 15px; font-weight: 700; }
 .domain-h h2 { flex: 1; min-width: 0; }
 .domain-h .w { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font-size: 13px; }
-.task { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 7.5em 3.2em; align-items: center; gap: 10px; padding: 6px 8px; margin: 0 -8px; border-radius: 6px; background: none; border: 0; text-align: left; width: calc(100% + 16px); }
+.task { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 7.5em 4.4em; align-items: center; gap: 10px; padding: 6px 8px; margin: 0 -8px; border-radius: 6px; background: none; border: 0; text-align: left; width: calc(100% + 16px); }
 .task:hover { background: var(--sunken); }
 .task .no { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
 .task .nm { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -111,7 +111,7 @@ h2 { font-size: 15px; font-weight: 700; }
 .bar i { display: block; height: 100%; }
 .bar .b-ok { background: var(--ok); }
 .bar .b-ng { background: var(--ng); }
-@media (max-width: 520px) { .task { grid-template-columns: 2.6em minmax(0, 1fr) 3.2em; } .task .bar { display: none; } }
+@media (max-width: 520px) { .task { grid-template-columns: 2.6em minmax(0, 1fr) 4.4em; } .task .bar { display: none; } }
 .history { padding: 12px 16px; display: grid; gap: 4px; }
 .history-row { display: flex; gap: 12px; font-size: 13px; font-family: var(--font-mono); color: var(--muted); }
 .history-row b { color: var(--fg); font-weight: 500; }
@@ -271,6 +271,25 @@ h2 { font-size: 15px; font-weight: 700; }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 45% { transform: translateX(5px); } 70% { transform: translateX(-3px); } }
 .stat b small.sub { display: block; font-size: 11px; margin: 2px 0 0; color: var(--flag); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } .praise { animation: praise-still 1.3s forwards !important; } @keyframes praise-still { 0%, 80% { opacity: 1; } 100% { opacity: 0; } } }
+.task.done .acc { color: var(--ok); }
+.card.suspense .opt.sel { animation: throb .3s ease-in-out infinite alternate; }
+@keyframes throb { to { transform: scale(1.012); box-shadow: 0 0 0 3px var(--accent-soft); } }
+.card.boss { border-color: var(--ng); box-shadow: 0 0 0 1px var(--ng); }
+.chip.boss { color: #fff; background: var(--ng); border-color: var(--ng); font-weight: 700; letter-spacing: .06em; }
+.praise.gold { box-shadow: 0 0 0 4px var(--flag-soft), 0 12px 32px rgba(0,0,0,.18); background: var(--flag-soft); }
+.flash { position: fixed; inset: 0; z-index: 49; pointer-events: none; background: linear-gradient(120deg, #ff5f6d, #ffc371, #f2f26b, #6be585, #5bc0ff, #b388ff); opacity: 0; animation: flash .9s ease-out forwards; }
+@keyframes flash { 0% { opacity: 0; } 15% { opacity: .5; } 100% { opacity: 0; } }
+.dropcard { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 52; pointer-events: none; transform: translateX(-50%); background: var(--surface); border: 2px solid var(--accent); border-radius: 14px; padding: 10px 22px; text-align: center; box-shadow: 0 12px 32px rgba(0,0,0,.2); display: grid; line-height: 1.5; animation: dropin 2.8s ease forwards; }
+.dropcard small { font-family: var(--font-mono); font-size: 12px; color: var(--accent); letter-spacing: .08em; }
+.dropcard b { font-size: 18px; font-weight: 700; }
+.dropcard .n { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.dropcard.rare { border-color: var(--flag); background: var(--flag-soft); }
+.dropcard.rare small { color: var(--flag); }
+@keyframes dropin { 0% { opacity: 0; transform: translate(-50%, 40px) rotateY(90deg); } 12% { opacity: 1; transform: translate(-50%, 0) rotateY(0); } 85% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, 0); } }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.cardchip { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; background: var(--surface); overflow-wrap: anywhere; }
+.cardchip.rare { border-color: var(--flag); background: var(--flag-soft); }
+.cardchip.off { color: var(--muted); border-style: dashed; background: none; }
 </style>
 
 <header class="top">
@@ -343,6 +362,8 @@ let exams = [];             // [{at,total,correct,byDomain}]
 let chat = [];              // [{role, content, ctx, at}]
 let remoteSession = null;
 let stats = { best: 0, day: "", dayCorrect: 0 };
+let cards = {};             // service name -> 1 (collected)
+let revealing = false;      // true while the drum roll plays before the verdict
 let session = null;         // {mode,title,ids,idx,answers:{qid:{choice,done,ok}},startedAt}
 let view = "home";          // home | quiz | result
 let lastResult = null;
@@ -391,6 +412,24 @@ const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function paintSoundBtn() { const b = $("#sound-btn"); b.innerHTML = soundOn ? SPK_ON : SPK_OFF; b.setAttribute("aria-label", soundOn ? "効果音を消す" : "効果音を鳴らす"); }
 paintSoundBtn();
 $("#sound-btn").onclick = () => { soundOn = !soundOn; try { localStorage.setItem("sound", soundOn ? "on" : "off"); } catch (e) {} paintSoundBtn(); if (soundOn) chime(1); };
+// Haptics. navigator.vibrate works on Android; iPhone Safari ignores it, so a hidden <input type="checkbox" switch> is clicked instead (iOS taps once per toggle).
+let hapLabel = null;
+function tick() {
+  try {
+    if (!hapLabel) {
+      hapLabel = document.createElement("label"); hapLabel.setAttribute("aria-hidden", "true");
+      hapLabel.style.cssText = "position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden";
+      const i = document.createElement("input"); i.type = "checkbox"; i.setAttribute("switch", ""); i.tabIndex = -1;
+      hapLabel.append(i); document.body.append(hapLabel);
+    }
+    hapLabel.click();
+  } catch (e) {}
+}
+// p is a vibrate pattern: on, off, on, off... in ms. Without navigator.vibrate, one tick fires at the start of each "on".
+function haptic(p) {
+  try { if (navigator.vibrate && navigator.vibrate(p)) return; } catch (e) {}
+  let t = 0; p.forEach((ms, i) => { if (i % 2 === 0) setTimeout(tick, t); t += ms; });
+}
 let actx = null, master = null;
 function audio() {
   if (!soundOn) return null;
@@ -489,17 +528,18 @@ function buzz() {
   WRONG_SOUNDS[lastWrong](c, t);
 }
 function fanfare(good) {
+  haptic(good ? [30, 70, 30, 70, 30, 70, 60] : [30, 90, 30]);
   const c = audio(); if (!c) return; const t = c.currentTime + .02;
   const notes = good ? [523.3, 659.3, 784, 1046.5] : [523.3, 659.3, 784];
   notes.forEach((f, i) => tone(c, f, t + i * .13, .3, "triangle", .12));
   if (good) { [523.3, 659.3, 784, 1046.5, 1318.5].forEach(f => tone(c, f, t + .55, 1.4, "triangle", .06)); don(c, t + .55, 1.2); ka(c, t + .55, .6); for (let i = 0; i < 8; i++) don(c, t + .75 + i * .06, .3 + i * .05); don(c, t + 1.3, 1.1); don(c, t + 1.45, 1.3); }
 }
 let fxCanvas = null, parts = [], fxRunning = false;
-function confetti(x, y, count, power) {
+function confetti(x, y, count, power, cols) {
   if (reduced()) return;
   if (!fxCanvas) { fxCanvas = document.createElement("canvas"); fxCanvas.className = "fx"; fxCanvas.setAttribute("aria-hidden", "true"); document.body.append(fxCanvas); }
   const cs = getComputedStyle(document.documentElement);
-  const colors = ["--accent", "--ok", "--flag"].map(v => cs.getPropertyValue(v).trim()).concat(["#e8508a", "#5b7cfa", "#f2c94c"]);
+  const colors = cols || ["--accent", "--ok", "--flag"].map(v => cs.getPropertyValue(v).trim()).concat(["#e8508a", "#5b7cfa", "#f2c94c"]);
   for (let i = 0; i < count; i++) {
     const a = -Math.PI / 2 + (Math.random() - .5) * Math.PI * 1.1, sp = power * (.45 + Math.random() * .75);
     parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, w: 5 + Math.random() * 6, h: 3 + Math.random() * 5, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: colors[i % colors.length], life: 0, max: 70 + Math.random() * 50 });
@@ -517,10 +557,10 @@ function stepFx() {
   }
   if (parts.length) requestAnimationFrame(stepFx); else { fxRunning = false; g.clearRect(0, 0, W, H); }
 }
-function praise(title, sub, big, miss) {
+function praise(title, sub, big, miss, cls) {
   document.querySelectorAll(".praise").forEach(e => e.remove());
   const el = document.createElement("div");
-  el.className = "praise" + (big ? " big" : "") + (miss ? " miss" : ""); el.setAttribute("role", "status");
+  el.className = "praise" + (big ? " big" : "") + (miss ? " miss" : "") + (cls ? " " + cls : ""); el.setAttribute("role", "status");
   el.innerHTML = `<b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}`;
   document.body.append(el); setTimeout(() => el.remove(), 1400);
 }
@@ -535,17 +575,88 @@ function praiseFor(n, best) {
 function missFor(lost) {
   return [pickOne(["ドンマイ！", "おしい！", "次いこ！", "ここで覚えた！", "伸びしろ！", "解説で回収！"]), lost >= 3 ? `${lost}連続でストップ` : ""];
 }
-function celebrate(n, best) {
+function celebrate(n, best, over) {
   chime(n);
-  try { navigator.vibrate && navigator.vibrate(n >= 3 ? [18, 40, 28] : 18); } catch (e) {}
+  haptic(n >= 3 ? [18, 70, 18, 70, 28] : [20]);
   const v = $(".verdict"); const r = v ? v.getBoundingClientRect() : null;
   const x = r ? r.left + 40 : innerWidth / 2, y = r ? r.top + r.height / 2 : innerHeight / 2;
   confetti(x, y, Math.min(36 + n * 14, 200), Math.min(9 + n * .8, 17));
   if (n >= 5) setTimeout(() => confetti(innerWidth * .2, innerHeight * .9, 60, 16), 180), setTimeout(() => confetti(innerWidth * .8, innerHeight * .9, 60, 16), 320);
-  const [t, s, big] = praiseFor(n, best); praise(t, s, big);
+  const [t, s, big, cls] = over || praiseFor(n, best); praise(t, s, big, false, cls);
   if (v) v.classList.add("pop");
 }
 function todayKey() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+
+/* ---------- cards, special effects, suspense ---------- */
+// One card per service named in the bank's "services". Rare cards are fixed by name (about 15%), not by how often the service is asked.
+const SVC = Object.create(null);
+for (const q of BANK) for (const s of q.services || []) SVC[s] = true;
+const SVC_NAMES = Object.keys(SVC);
+const RARE = new Set(SVC_NAMES.filter(n => { let h = 0; for (const ch of n) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h % 100 < 15; }));
+const isRare = n => RARE.has(n);
+const haveCount = () => Object.keys(cards).length;
+function dropCard(q, chance, wantRare) {
+  const fresh = (q.services || []).filter(n => SVC[n] && !cards[n]);
+  if (!fresh.length || Math.random() >= chance) return null;
+  const rares = fresh.filter(isRare);
+  const name = pickOne(wantRare && rares.length ? rares : fresh);
+  cards = { ...cards, [name]: 1 }; save("cards", { names: Object.keys(cards) });
+  return { name, rare: isRare(name) };
+}
+function showDrop(d) {
+  document.querySelectorAll(".dropcard").forEach(e => e.remove());
+  const el = document.createElement("div");
+  el.className = "dropcard" + (d.rare ? " rare" : ""); el.setAttribute("role", "status");
+  el.innerHTML = `<small>${d.rare ? "レアカード" : "NEW"}</small><b>${esc(d.name)}</b><span class="n">${haveCount()} / ${SVC_NAMES.length}</span>`;
+  document.body.append(el); setTimeout(() => el.remove(), 2800);
+  const c = audio(); if (!c) return; const t = c.currentTime + .02;
+  [880, 1318.5].forEach((f, i) => tone(c, f, t + i * .09, .3, "triangle", .08));
+  if (d.rare) [1568, 2093, 2637].forEach((f, i) => tone(c, f, t + .2 + i * .07, .5, "sine", .07));
+}
+function renderCards() {
+  const names = SVC_NAMES.slice().sort((a, b) => (!!cards[b] - !!cards[a]) || (isRare(b) - isRare(a)) || a.localeCompare(b, "ja"));
+  main.innerHTML = `<div class="qbar"><button class="btn small" id="q-home" type="button">ホーム</button><h1>カード</h1><span class="count">${haveCount()} / ${SVC_NAMES.length}</span></div>
+  <section class="cards">${names.map(n => cards[n] ? `<div class="cardchip${isRare(n) ? " rare" : ""}">${isRare(n) ? "★ " : ""}${esc(n)}</div>` : `<div class="cardchip off">${isRare(n) ? "★ " : ""}？？？</div>`).join("")}</section>`;
+  $("#q-home").onclick = goHome;
+}
+function flash() {
+  if (reduced()) return;
+  const el = document.createElement("div"); el.className = "flash"; el.setAttribute("aria-hidden", "true");
+  document.body.append(el); setTimeout(() => el.remove(), 1000);
+}
+// Gold and jackpot extras, layered on top of the normal correct-answer effects.
+function special(kind) {
+  const c = audio();
+  if (c) {
+    const t = c.currentTime + .25;
+    [1318.5, 1568, 2093, 2637, 3136, 4186].forEach((f, i) => tone(c, f, t + i * .07, .6, "sine", .07));
+    if (kind === "jackpot") { for (let i = 0; i < 10; i++) don(c, t + .5 + i * .05, .3 + i * .06); don(c, t + 1.05, 1.3); pinpon(c, t + 1.1); }
+  }
+  const gold = ["#f2c94c", "#e2a900", "#fff1b0", "#ffd54f"];
+  confetti(innerWidth / 2, innerHeight * .6, kind === "jackpot" ? 220 : 120, 18, gold);
+  if (kind === "jackpot") { flash(); setTimeout(() => confetti(innerWidth * .15, innerHeight * .9, 90, 18, gold), 150); setTimeout(() => confetti(innerWidth * .85, innerHeight * .9, 90, 18, gold), 300); }
+  haptic([30, 60, 30, 60, 30, 60, 30, 60, 50]);
+}
+// ドコドコ… before the verdict. The result is decided already; this is only the wait.
+function suspense(done, ms) {
+  const c = audio();
+  if (c) { const t = c.currentTime + .02, hits = Math.round(ms / 60); for (let i = 0; i < hits; i++) don(c, t + i * .06, .18 + .5 * i / hits); }
+  const p = []; for (let i = 0; i < Math.round(ms / 90); i++) p.push(10, 80);
+  haptic(p);
+  setTimeout(done, ms);
+}
+function bossSound() {
+  const c = audio(); if (!c) return; const t = c.currentTime + .02;
+  don(c, t, 1.2); don(c, t + .3, 1.3); sweep(c, 110, 70, t + .3, .8, "sawtooth", .06);
+}
+function taskRemain(task) { return idsBy(x => x.task === task && !(progress[x.id] && progress[x.id].last)).length; }
+function bossPick(excl) {
+  const free = id => !excl.includes(id);
+  const pool = [...weakIds(), ...wrongIds(), ...idsBy(x => x.type === "multi")].filter(free);
+  return pool.length ? pickOne(pool) : pickOne(BANK.map(x => x.id).filter(free)) || null;
+}
+const SURE_OK = ["自信どおり！", "読み切った！", "迷いなし！"];
+const GUESS_OK = ["たぶんが当たった！", "勘が冴えてる！", "ひらめき！"];
 
 /* ---------- storage (db) ---------- */
 function setSync(s, text) { $("#sync").dataset.s = s; $("#sync-t").textContent = text; }
@@ -584,11 +695,13 @@ function applySnap(snap) {
     else if (d.id === "chat") c = v.messages || [];
     else if (d.id === "session") rs = v.ids ? v : null;
     else if (d.id === "stats") stats = { best: v.best || 0, day: v.day || "", dayCorrect: v.dayCorrect || 0 };
+    else if (d.id === "cards") cards = Object.fromEntries((v.names || []).map(n => [n, 1]));
   }
   progress = p; aiQs = ai; exams = ex.sort((a, b) => b.at - a.at); remoteSession = rs;
   if (!streaming && c) { chat = c.slice(); renderChat(); }
   if (view === "home") renderHome();
   else if (view === "quiz") { renderGrid(); paintFlags(); }
+  else if (view === "cards") renderCards();
 }
 async function initStore() {
   const C = window.claude;
@@ -643,10 +756,10 @@ function examIds() {
 }
 
 /* ---------- sessions ---------- */
-function startSession(ids, title, mode = "practice") {
+function startSession(ids, title, mode = "practice", extra = {}) {
   ids = ids.filter(getQ);
   if (!ids.length) { toast("対象の問題がありません"); return; }
-  session = { mode, title, ids, idx: 0, answers: {}, startedAt: Date.now() };
+  session = { mode, title, ids, idx: 0, answers: {}, startedAt: Date.now(), ...extra };
   persistSession();
   view = "quiz"; renderQuiz();
 }
@@ -703,6 +816,7 @@ function renderHome() {
     <button class="start" data-start="later" type="button" ${l ? "" : "disabled"}><strong>後で確認</strong><span>${l}問</span></button>
     <button class="start" data-start="new" type="button" ${n ? "" : "disabled"}><strong>未回答</strong><span>${n}問</span></button>
     <button class="start" data-start="ai" type="button" ${a ? "" : "disabled"}><strong>AI 類題</strong><span>${a}問</span></button>
+    <button class="start" data-start="cards" type="button" ${SVC_NAMES.length ? "" : "disabled"}><strong>カード</strong><span>${haveCount()}/${SVC_NAMES.length}</span></button>
   </section>`;
   html += `<div class="row"><button class="ask" id="analyze" type="button" ${sampleFn ? "" : "hidden"}>弱点を分析</button><button class="ask" id="plan" type="button" ${sampleFn ? "" : "hidden"}>今日の学習メニュー</button></div>`;
   for (const [d, dom] of Object.entries(DOMAINS)) {
@@ -711,10 +825,11 @@ function renderHome() {
     for (const [t, name] of Object.entries(dom.tasks)) {
       const ts = bankStats(idsBy(q => q.task === t));
       const okw = ts.total ? ts.ok / ts.total * 100 : 0, ngw = ts.total ? ts.ng / ts.total * 100 : 0;
-      html += `<button class="task" data-task="${t}" type="button" ${ts.total ? "" : "disabled"} aria-label="タスク${t} ${esc(name)} ${ts.total}問">
+      const mastered = ts.total && ts.ok === ts.total;
+      html += `<button class="task${mastered ? " done" : ""}" data-task="${t}" type="button" ${ts.total ? "" : "disabled"} aria-label="タスク${t} ${esc(name)} ${ts.total}問">
         <span class="no">${t}</span><span class="nm">${esc(name)}</span>
         <span class="bar" aria-hidden="true"><i class="b-ok" style="width:${okw}%"></i><i class="b-ng" style="width:${ngw}%"></i></span>
-        <span class="acc">${ts.answered}/${ts.total}</span></button>`;
+        <span class="acc">${mastered ? "★ " : ""}${ts.answered}/${ts.total}</span></button>`;
     }
     html += `</section>`;
   }
@@ -724,7 +839,11 @@ function renderHome() {
   main.innerHTML = html;
   main.querySelectorAll("[data-start]").forEach(b => b.onclick = () => {
     const k = b.dataset.start;
-    if (k === "random") startSession(shuffle(BANK.map(q => q.id)).slice(0, 10), "ランダム 10問");
+    if (k === "random") {
+      const all = shuffle(BANK.map(q => q.id)), body = all.slice(0, 9), boss = bossPick(body);
+      boss ? startSession([...body, boss], "ランダム 10問", "practice", { boss }) : startSession(all.slice(0, 10), "ランダム 10問");
+    }
+    if (k === "cards") { view = "cards"; renderCards(); window.scrollTo(0, 0); }
     if (k === "exam") startSession(examIds(), "模擬試験", "exam");
     if (k === "wrong") startSession(wrongIds(), "間違えた問題");
     if (k === "weak") startSession(weakIds(), "苦手な問題");
@@ -756,8 +875,8 @@ function renderQuiz() {
   const p = prog(q.id);
   let html = `<div class="qbar"><button class="btn small" id="q-home" type="button">ホーム</button><h1>${esc(session.title)}</h1>${!exam && (session.streak || 0) >= 2 ? `<span class="streak${showResult && a.ok ? " bump" : ""}" aria-label="${session.streak}連続正解">${FLAME}${session.streak}</span>` : ""}<span class="count">${session.idx + 1} / ${session.ids.length}</span>${exam ? `<button class="btn small primary" id="finish" type="button">採点</button>` : ""}</div>`;
   html += `<nav class="grid" id="grid" aria-label="問題の一覧"></nav>`;
-  html += `<article class="panel card">
-    <div class="meta"><span class="id">${esc(q.id)}</span><span>分野${q.domain} ${esc(dom.tasks[q.task] || dom.name)}</span>${q.ai ? '<span class="chip ai">AI</span>' : ""}${multi ? `<span class="chip multi">${need}つ選択</span>` : ""}
+  html += `<article class="panel card${session.boss === q.id && !showResult ? " boss" : ""}">
+    <div class="meta"><span class="id">${esc(q.id)}</span><span>分野${q.domain} ${esc(dom.tasks[q.task] || dom.name)}</span>${q.ai ? '<span class="chip ai">AI</span>' : ""}${multi ? `<span class="chip multi">${need}つ選択</span>` : ""}${session.boss === q.id ? '<span class="chip boss">BOSS</span>' : ""}
       <span class="tools">
         <button class="toggle" id="t-later" type="button" aria-pressed="${!!p.later}" aria-label="後で確認"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 21V4h11l-2 4 2 4H5"/></svg>後で</button>
         <button class="toggle" id="t-bm" type="button" aria-pressed="${!!p.bm}" aria-label="ブックマーク"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
@@ -774,12 +893,12 @@ function renderQuiz() {
   html += `</div>`;
   if (showResult) {
     const ok = a.ok;
-    html += `<div class="verdict ${ok ? "ok" : "ng"}">${ok ? "正解" : "不正解"}<small>正解は ${q.answer.map(i => LETTERS[i]).join(", ")}</small></div>`;
+    html += `<div class="verdict ${ok ? "ok" : "ng"}">${ok ? "正解" : "不正解"}<small>正解は ${q.answer.map(i => LETTERS[i]).join(", ")}</small>${ok && a.tip ? `<small>${esc(a.tip)}</small>` : ""}</div>`;
   }
   html += `<div class="actions">
     <button class="btn" id="prev" type="button" ${session.idx ? "" : "disabled"}>前へ</button>
     <div class="spacer"></div>
-    ${exam || showResult ? "" : `<button class="btn primary" id="submit" type="button" ${a.choice.length === need ? "" : "disabled"}>回答する</button>`}
+    ${exam || showResult ? "" : `<button class="btn" id="submit-n" type="button" aria-label="自信なしで回答する" ${a.choice.length === need ? "" : "disabled"}>たぶん</button><button class="btn primary" id="submit-y" type="button" aria-label="自信ありで回答する。Enter キーでも回答できる" ${a.choice.length === need ? "" : "disabled"}>自信あり</button>`}
     ${exam || showResult ? `<button class="btn ${showResult ? "primary" : ""}" id="next" type="button">${session.idx === session.ids.length - 1 ? (exam ? "採点へ" : "ホームへ") : "次へ"}</button>` : ""}
   </div>`;
   if (showResult) {
@@ -823,8 +942,10 @@ function paintFlags() {
   if (b) b.setAttribute("aria-pressed", !!p.bm);
 }
 function go(i) {
-  if (!session || i < 0 || i >= session.ids.length) return;
+  if (!session || revealing || i < 0 || i >= session.ids.length) return;
   session.idx = i; persistSession(); renderQuiz(); window.scrollTo({ top: 0 });
+  const q = curQ(), a = q && session.answers[q.id];
+  if (q && session.boss === q.id && !(a && a.done) && !session.bossSeen) { session.bossSeen = true; praise("BOSS登場", "", false, true); bossSound(); }
 }
 function bindQuiz(q, a, need, multi, exam, showResult) {
   $("#q-home").onclick = goHome;
@@ -835,7 +956,9 @@ function bindQuiz(q, a, need, multi, exam, showResult) {
     else { del.dataset.armed = "1"; del.innerHTML = "削除する"; setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; renderQuiz(); } }, 3000); }
   };
   if (!showResult) main.querySelectorAll(".opt").forEach(el => el.onclick = ev => { ev.preventDefault(); pick(+el.dataset.i); });
-  const sub = $("#submit"); if (sub) sub.onclick = submit;
+  const sy = $("#submit-y"), sn = $("#submit-n");
+  if (sy) sy.onclick = () => submit(true);
+  if (sn) sn.onclick = () => submit(false);
   const nx = $("#next"); if (nx) nx.onclick = next;
   $("#prev").onclick = () => go(session.idx - 1);
   const fin = $("#finish"); if (fin) fin.onclick = finishExam;
@@ -848,31 +971,72 @@ function bindQuiz(q, a, need, multi, exam, showResult) {
 }
 function pick(i) {
   const q = curQ(), a = curA(); if (!q) return;
-  if (session.mode !== "exam" && a.done) return;
+  if (revealing || (session.mode !== "exam" && a.done)) return;
   if (q.type === "multi") { a.choice = a.choice.includes(i) ? a.choice.filter(x => x !== i) : [...a.choice, i].sort(); }
   else a.choice = [i];
   if (session.mode === "exam") persistSession();
   renderQuiz();
 }
-function submit() {
-  const q = curQ(), a = curA(); if (!q || a.done) return;
+// sure: true when the user pressed 自信あり. The verdict waits for a short drum roll, then reveal() decides the rewards.
+function submit(sure) {
+  const q = curQ(), a = curA(); if (!q || a.done || revealing) return;
   const need = q.type === "multi" ? q.answer.length : 1;
   if (a.choice.length !== need) return;
-  a.done = true; a.ok = sameSet(a.choice, q.answer);
-  record(q.id, a.choice, a.ok);
-  let best = false;
-  if (a.ok) {
+  const ok = sameSet(a.choice, q.answer);
+  const fin = () => reveal(q, a, ok, { sure });
+  if (reduced()) return fin();
+  revealing = true;
+  const card = $(".card"); if (card) card.classList.add("suspense");
+  main.querySelectorAll(".actions .btn").forEach(b => b.disabled = true);
+  suspense(fin, session.boss === q.id ? 1000 : 550 + Math.random() * 300);
+}
+function reveal(q, a, ok, ctx) {
+  revealing = false;
+  const remBefore = q.ai ? 0 : taskRemain(q.task);
+  const revenge = ok && prog(q.id).attempts > 0 && prog(q.id).last === false;
+  a.done = true; a.ok = ok; a.sure = ctx.sure;
+  record(q.id, a.choice, ok);
+  const mastered = ok && !q.ai && remBefore > 0 && taskRemain(q.task) === 0;
+  const boss = session.boss === q.id;
+  let best = false, lost = 0;
+  if (ok) {
     session.streak = (session.streak || 0) + 1;
     const day = todayKey();
     stats = { ...stats, dayCorrect: (stats.day === day ? stats.dayCorrect : 0) + 1, day };
     if (session.streak > stats.best) { best = session.streak >= 3; stats.best = session.streak; }
     save("stats", stats);
+  } else { lost = session.streak || 0; session.streak = 0; }
+
+  // Rewards are partly random on purpose: a fixed reward stops feeling like one.
+  let kind = "normal", over = null, drop = null;
+  a.tip = "";
+  if (ok) {
+    const r = Math.random();
+    if (boss || mastered || r < .03) kind = "jackpot"; else if (revenge || r < .12) kind = "gold";
+    const n = session.streak, sub = n >= 2 ? `${n}連続正解` + (best ? "  自己ベスト" : "") : "";
+    if (boss) over = ["ボス撃破！", sub, true, "gold"];
+    else if (mastered) over = ["細目制覇！", q.task, true, "gold"];
+    else if (kind === "jackpot") over = [pickOne(["大当たり！", "奇跡の正解！", "超ナイス！"]), sub, true, "gold"];
+    else if (revenge) over = ["リベンジ成功！", sub, true, "gold"];
+    else if (kind === "gold") over = [pickOne(["ゴールド正解！", "キラキラ！", "ラッキー！"]), sub, true, "gold"];
+    else if (ctx.sure === false) over = [pickOne(GUESS_OK), sub, false];
+    else if (ctx.sure && n < 3) over = [pickOne(SURE_OK), sub, false];
+    if (!q.ai && !mastered) { const rem = taskRemain(q.task); if (rem >= 1 && rem <= 3) a.tip = `${q.task} 制覇まであと${rem}問`; }
+    drop = dropCard(q, kind !== "normal" || revenge ? 1 : ctx.sure ? .5 : .35, kind !== "normal");
+  } else if (ctx.sure && !prog(q.id).later) toggleFlag(q.id, "later");
+
+  persistSession();
+  if (view !== "quiz" || curQ() !== q) return;
+  renderQuiz();
+  if (ok) {
+    celebrate(session.streak, best, over);
+    if (kind !== "normal") special(kind);
+    if (drop) setTimeout(() => showDrop(drop), kind !== "normal" ? 900 : 500);
+  } else {
+    buzz(); haptic([70, 90, 70]); const c = $(".card"); if (c && !reduced()) c.classList.add("shake");
+    if (ctx.sure) praise(pickOne(["思い込み発見！", "そこが伸びしろ！", "ここで直そう！"]), (lost >= 3 ? `${lost}連続でストップ  ` : "") + "後で確認に入れた", false, true);
+    else { const [m, s] = missFor(lost); praise(m, s, false, true); }
   }
-  let lost = 0;
-  if (!a.ok) { lost = session.streak || 0; session.streak = 0; }
-  persistSession(); renderQuiz();
-  if (a.ok) celebrate(session.streak, best);
-  else { buzz(); const c = $(".card"); if (c && !reduced()) c.classList.add("shake"); const [m, s] = missFor(lost); praise(m, s, false, true); }
 }
 function next() {
   if (session.idx < session.ids.length - 1) return go(session.idx + 1);
@@ -931,7 +1095,7 @@ document.addEventListener("keydown", ev => {
   const k = ev.key.toLowerCase();
   const idx = "12345".indexOf(k) >= 0 ? "12345".indexOf(k) : "abcde".indexOf(k);
   if (idx >= 0 && idx < q.options.length) { ev.preventDefault(); pick(idx); return; }
-  if (k === "enter") { const s = $("#submit"); const n = $("#next"); if (s && !s.disabled) { ev.preventDefault(); s.click(); } else if (n) { ev.preventDefault(); n.click(); } }
+  if (k === "enter") { const s = ev.shiftKey ? $("#submit-n") : $("#submit-y"); const n = $("#next"); if (s && !s.disabled) { ev.preventDefault(); s.click(); } else if (n) { ev.preventDefault(); n.click(); } }
   if (k === "arrowright") go(session.idx + 1);
   if (k === "arrowleft") go(session.idx - 1);
 });
