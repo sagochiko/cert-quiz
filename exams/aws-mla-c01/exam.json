@@ -6,7 +6,7 @@
   "examName": "AWS Certified Machine Learning Engineer - Associate (MLA-C01)",
   "examSize": 65,
   "guide": "https://d1.awsstatic.com/ja_JP/training-and-certification/docs-machine-learning-engineer-associate/AWS-Certified-Machine-Learning-Engineer-Associate_Exam-Guide.pdf",
-  "artifact": "",
+  "artifact": "https://claude.ai/artifact/QNq6spn9U4MBXx1gJXzc6Z",
   "tutorNote": "AWS の仕様で自信がないことは、そう書いたうえで公式ドキュメントで確かめるよう伝えます。出題範囲は日本語で受けられる MLA-C01 で、MLA-C02 で足された RAG、ナレッジベース、エージェントの話は範囲外と伝えます。",
   "genNote": "2026年時点の AWS の仕様で確実に言えることだけで作る。MLA-C01 の範囲に収め、RAG、Bedrock のナレッジベース、エージェントを問う問題は作らない。",
   "searchChip": "SageMaker の問題を探して",
