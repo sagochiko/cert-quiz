@@ -1,0 +1,704 @@
+[
+  {
+    "id": "D1-001",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、数年分の購買ログを Amazon S3 に gzip 圧縮した CSV で保存しています。テーブルには 300 以上の列があります。ML エンジニアは特徴量を探すために Amazon Athena で毎日多くのクエリを実行しますが、1 回のクエリで参照するのは 5〜10 列だけです。スキャンするデータ量が多く、クエリの料金と実行時間が問題になっています。クエリの料金と実行時間を最も減らせる保存形式はどれですか。",
+    "options": [
+      "改行区切りの JSON (JSON Lines) に変換し、gzip で圧縮する",
+      "Apache Parquet に変換し、列ごとに圧縮して保存する",
+      "Apache Avro に変換し、スキーマをファイルに埋め込んで保存する",
+      "CSV のまま、gzip から bzip2 に圧縮方式を変える"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "決め手は「300 以上の列のうち 5〜10 列だけを参照する」というアクセスパターンです。Apache Parquet は列指向の形式で、Athena はクエリに必要な列だけを読み込みます。列ごとにデータ型に合った圧縮がかかり、ブロックの最小値と最大値の統計を使った述語プッシュダウンで不要なブロックも読み飛ばせます。Athena の料金はスキャンしたデータ量で決まるため、列指向にするとスキャン量と実行時間の両方が大きく減ります。CSV、JSON Lines、Avro はいずれも行単位でデータを並べる形式なので、数列だけを使うクエリでも行全体を読む必要があります。変換は Athena の CTAS クエリや AWS Glue で行えます。",
+    "optionNotes": [
+      "JSON Lines は行単位のテキスト形式で、必要な列だけを読むことができず、スキャン量は減りません。",
+      "列指向の Parquet なら参照する列だけを読み込み、列ごとの圧縮と述語プッシュダウンでスキャン量を大きく減らせます。",
+      "Avro は行指向のバイナリ形式で、スキーマの進化には向きますが、少数の列だけを読む分析クエリではスキャン量が減りません。",
+      "圧縮方式を変えても行指向のままなので、全列を読む必要があり、スキャン量はほとんど変わりません。"
+    ],
+    "services": [
+      "Amazon Athena",
+      "Amazon S3"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Use columnar storage formats",
+        "url": "https://docs.aws.amazon.com/athena/latest/ug/columnar-storage.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-002",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、数千万個の小さな画像ファイル (JPEG) を Amazon S3 の 1 つのバケットに、すべて同じプレフィックス (s3://バケット名/images/) の下に置いています。ML エンジニアは、Amazon EC2 の Auto Scaling グループで動く前処理のアプリケーションを数百台に増やし、各インスタンスから並列で GetObject を呼び出すようにしました。すると、S3 から 503 Slow Down のエラーが頻繁に返り、処理が進まなくなりました。データの保存場所は S3 のまま、読み込みのスループットを上げる必要があります。最も適切な対応はどれですか。",
+    "options": [
+      "S3 バケットで S3 Transfer Acceleration を有効にし、アクセラレーションエンドポイントから読み込む",
+      "オブジェクトを S3 Intelligent-Tiering ストレージクラスに移す",
+      "バケットでバージョニングを有効にし、読み込みの対象を最新バージョンに限定する",
+      "キー名の先頭にハッシュから取った文字を付けるなどしてオブジェクトを多くのプレフィックスに分散させ、アプリケーションには指数バックオフ付きの再試行を入れる"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "503 Slow Down は、S3 がリクエストのレートを受け止めきれないときに返すエラーです。S3 のリクエストの性能はパーティション分割されたプレフィックスごとに決まり、1 つのプレフィックスあたり少なくとも毎秒 3,500 件の PUT と 11,000 件の GET を受け付け、トラフィックに合わせて自動で拡張されます。今回のようにすべてのキーが同じプレフィックスに集まっていると、リクエストが 1 か所に集中します。公式のベストプラクティスは、キー名の先頭にハッシュから取った文字を付けるなどして多くのプレフィックスにリクエストを分散させることです。拡張が進むまでの間は 503 が返ることがあるので、アプリケーションに再試行を入れておきます。",
+    "optionNotes": [
+      "Transfer Acceleration は遠く離れたクライアントと S3 の間の転送経路を速くする機能で、同じプレフィックスへのリクエストの集中は解消しません。",
+      "ストレージクラスは保存のコストと取り出しの料金に関わる設定で、プレフィックスあたりのリクエストのレートは変わりません。",
+      "バージョニングは過去の版を残す機能で、リクエストのレートの上限には関係しません。",
+      "多くのプレフィックスに分散させると S3 が並列に拡張でき、再試行で拡張中の 503 にも対応できるため、要件を満たします。"
+    ],
+    "services": [
+      "Amazon S3",
+      "Amazon EC2"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Best practices design patterns: optimizing Amazon S3 performance",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance.html"
+      },
+      {
+        "title": "Performance guidelines for Amazon S3",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance-guidelines.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-003",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、Nitro System 上に構築された Amazon EC2 インスタンスで、特徴量の前処理を自前のプログラムで実行しています。中間ファイルは 500 GiB の gp2 ボリュームに読み書きしています。処理を始めて少しすると急に遅くなり、Amazon CloudWatch の BurstBalance メトリクスが 0% になっていました。この処理は数時間にわたり 100,000 IOPS を安定して必要とし、レイテンシーはミリ秒未満に抑える必要があります。中間ファイルはインスタンスを停止しても残す必要があります。要件を満たす EBS の構成はどれですか。",
+    "options": [
+      "io2 Block Express ボリュームに変更し、100,000 IOPS をプロビジョニングする",
+      "gp3 ボリュームに変更し、プロビジョニングできる上限の IOPS を設定する",
+      "gp2 ボリュームを 5,334 GiB 以上に拡張して、ベースラインの IOPS を上げる",
+      "スループット最適化 HDD (st1) ボリュームに変更する"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "gp2 は容量に応じたベースライン IOPS (1 GiB あたり 3 IOPS) を超えるとバーストクレジットを使い、BurstBalance が 0% になるとベースラインまで落ちます。500 GiB のベースラインは 1,500 IOPS なので、処理が遅くなった原因はクレジットの枯渇です。要件は 100,000 IOPS を数時間安定して出すことと、ミリ秒未満のレイテンシーです。io2 Block Express は Nitro ベースのインスタンスで最大 256,000 IOPS までプロビジョニングでき、16 KiB の I/O で平均 500 マイクロ秒未満のレイテンシーを出せます。プロビジョニングした IOPS は 99.9% の時間で提供され、EBS なので停止してもデータは残ります。",
+    "optionNotes": [
+      "io2 Block Express は 100,000 IOPS をプロビジョニングでき、ミリ秒未満のレイテンシーで安定した性能を出せるため要件を満たします。",
+      "gp3 はバーストを使わず安定していますが、IOPS の上限は 80,000 で、100,000 IOPS に届きません。レイテンシーも 1 桁ミリ秒の設計です。",
+      "gp2 のベースライン IOPS は 5,334 GiB 以上で上限の 16,000 IOPS に達し、それ以上は上がりません。",
+      "st1 は大きなシーケンシャル I/O 向けの HDD で、小さなランダム I/O の高い IOPS には向きません。"
+    ],
+    "services": [
+      "Amazon EBS",
+      "Amazon EC2"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Amazon EBS Provisioned IOPS SSD volumes",
+        "url": "https://docs.aws.amazon.com/ebs/latest/userguide/provisioned-iops.html"
+      },
+      {
+        "title": "Amazon EBS General Purpose SSD volumes",
+        "url": "https://docs.aws.amazon.com/ebs/latest/userguide/general-purpose.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-004",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、IoT センサーのデータをプロビジョンドモードの Amazon Kinesis Data Streams (シャード数 4) で取り込み、ML の学習データとして蓄積しています。最近、データを書き込むプロデューサーで ProvisionedThroughputExceededException が頻繁に発生し、CloudWatch の WriteProvisionedThroughputExceeded メトリクスも 0 より大きくなっています。書き込み量はピーク時に毎秒約 6 MB で、時間帯によって大きく変わり、予測できません。シャードの管理にかかる運用負荷を最小にしながら問題を解決する方法はどれですか。",
+    "options": [
+      "コンシューマーで拡張ファンアウトを有効にする",
+      "データストリームのデータ保持期間を 7 日に延ばす",
+      "データストリームをオンデマンドキャパシティモードに切り替える",
+      "プロデューサーでパーティションキーを 1 つの固定値にまとめる"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "プロビジョンドモードでは、1 シャードあたりの書き込みは毎秒 1 MB または 1,000 レコードまでです。シャード 4 つでは毎秒 4 MB が上限なので、ピーク時の毎秒約 6 MB を受け止められず、書き込み側でスロットリングが起きています。対処はシャードを増やすか、オンデマンドキャパシティモードに切り替えることです。書き込み量が予測できず、シャード管理の運用負荷を最小にしたいという要件から、トラフィックに合わせてシャード数を自動で調整するオンデマンドモードが最も適しています。オンデマンドモードは過去 30 日間の書き込みのピークの 2 倍までを受け止め、新しいピークに達すると容量を自動で広げます。",
+    "optionNotes": [
+      "拡張ファンアウトはコンシューマーごとに専用の読み取りスループットを与える機能で、書き込み側のスロットリングは解決しません。",
+      "保持期間はデータを保存する期間の設定で、書き込みスループットの上限は変わりません。",
+      "オンデマンドモードはトラフィックに合わせて自動で拡張され、シャード数の見積もりや変更が不要になるため要件を満たします。",
+      "パーティションキーを 1 つにすると全レコードが 1 つのシャードに集まり、スロットリングがかえって悪化します。"
+    ],
+    "services": [
+      "Amazon Kinesis Data Streams"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Quotas and limits (Amazon Kinesis Data Streams)",
+        "url": "https://docs.aws.amazon.com/streams/latest/dev/service-sizes-and-limits.html"
+      },
+      {
+        "title": "Choose the right mode to stream in",
+        "url": "https://docs.aws.amazon.com/streams/latest/dev/how-do-i-size-a-stream.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-005",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、ラベル付けした画像データをオンプレミスの NetApp ONTAP ストレージに置いています。アノテーション担当者は Windows のツールから SMB で、前処理を行う Linux サーバーは NFS で、同じデータにアクセスしています。企業はこのデータを AWS に移し、Amazon EC2 で前処理を続けたいと考えています。両方のプロトコルでのアクセスを保ち、NetApp SnapMirror で既存のボリュームをそのまま複製したいと考えています。最も適したストレージはどれですか。",
+    "options": [
+      "Amazon FSx for NetApp ONTAP",
+      "Amazon Elastic File System (Amazon EFS)",
+      "Amazon FSx for Windows File Server",
+      "Amazon FSx for Lustre"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "決め手は「SMB と NFS の両方で同じデータにアクセスする」と「NetApp SnapMirror で複製する」の 2 点です。Amazon FSx for NetApp ONTAP は NFS、SMB、iSCSI、NVMe のマルチプロトコルアクセスに対応し、NetApp の SnapMirror による複製もサポートしています。AWS はオンプレミスの ONTAP から FSx for ONTAP への移行に SnapMirror を推奨しており、ブロックレベルの複製なので、ファイル数が非常に多い場合や小さいファイルが多い場合でも効率よく移せます。重複排除や圧縮をかけたデータはその状態のまま転送され、ソースのスナップショットも保持されます。",
+    "optionNotes": [
+      "NFS と SMB の両方に対応し、SnapMirror でオンプレミスの ONTAP から複製できるため要件を満たします。",
+      "Amazon EFS は NFS のファイルシステムで、SMB でのアクセスや SnapMirror による複製には対応していません。",
+      "FSx for Windows File Server は SMB のファイルサーバーで、Linux サーバーからの NFS アクセスや SnapMirror には対応していません。",
+      "FSx for Lustre は Linux 向けの高性能ファイルシステムで、SMB でのアクセスや SnapMirror には対応していません。"
+    ],
+    "services": [
+      "Amazon FSx for NetApp ONTAP"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "What is Amazon FSx for NetApp ONTAP?",
+        "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/what-is-fsx-ontap.html"
+      },
+      {
+        "title": "Migrating to FSx for ONTAP using NetApp SnapMirror",
+        "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/migrating-fsx-ontap-snapmirror.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-006",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業の ML チームは、Amazon Redshift にある顧客データから特徴量を作り、学習とリアルタイム推論の両方で使いたいと考えています。チームにはデータエンジニアがいないため、データの取り込みと変換はできるだけコードを書かずに行いたいと考えています。作った特徴量は Amazon SageMaker Feature Store の特徴量グループに入れる必要があります。最も運用負荷が小さい方法はどれですか。",
+    "options": [
+      "AWS Glue DataBrew で Redshift のデータを変換し、DataBrew のジョブの出力先に Feature Store の特徴量グループを指定する",
+      "Amazon Athena の CTAS クエリで Redshift のデータを変換し、結果を Feature Store のオンラインストアに直接書き込む",
+      "Amazon SageMaker Canvas の Data Wrangler で Redshift からデータをインポートして変換し、データフローを Feature Store へのエクスポートとして書き出して実行する",
+      "Amazon EMR クラスターを作り、Redshift からデータを読み込む PySpark スクリプトを書いて PutRecord API で 1 件ずつ書き込む"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "SageMaker Data Wrangler は今は SageMaker Canvas の中の機能で、Amazon Redshift、Amazon Athena、Amazon S3 などからデータをインポートし、300 を超える組み込みの変換をコードなしで適用できます。データフローは「Save to SageMaker Feature Store」としてエクスポートでき、生成されたノートブックを実行すると SageMaker Processing ジョブが変換を行い、特徴量グループに取り込みます。特徴量グループをオンラインとオフラインの両方で設定すれば、学習にはオフラインストア、リアルタイム推論にはオンラインストアを使えます。コードを書かずに取り込みから Feature Store への格納まで進められるため、運用負荷が最も小さくなります。",
+    "optionNotes": [
+      "DataBrew はコードなしで変換できますが、ジョブの出力は S3 などに保存され、Feature Store の特徴量グループを直接の出力先にはできません。",
+      "Athena の CTAS は結果を S3 にテーブルとして書き出す機能で、Feature Store のオンラインストアに直接書き込むことはできません。",
+      "Canvas の Data Wrangler は Redshift からのインポート、コードなしの変換、Feature Store へのエクスポートまでを一続きで行えるため要件を満たします。",
+      "EMR のクラスター管理と PySpark のコードが必要になり、データエンジニアがいないチームには運用負荷が大きすぎます。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "Amazon SageMaker Feature Store",
+      "Amazon SageMaker Data Wrangler",
+      "Amazon Redshift"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Data sources and ingestion (Feature Store)",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/feature-store-ingest-data.html"
+      },
+      {
+        "title": "What is AWS Glue DataBrew?",
+        "url": "https://docs.aws.amazon.com/databrew/latest/dg/what-is.html"
+      },
+      {
+        "title": "Prepare data for model building",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/canvas-prepare-data.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-007",
+    "domain": 1,
+    "task": "1.1",
+    "type": "multi",
+    "question": "ある企業は、アジア、欧州、南米の拠点で収集した数十 GB の動画ファイルを、毎日 us-east-1 リージョンの Amazon S3 バケットにアップロードして ML の学習データにしています。インターネット経由のアップロードに時間がかかり、拠点の回線帯域を使い切れていないことが分かりました。アップロードの時間を短くする方法はどれですか。（2 つ選択）",
+    "options": [
+      "S3 バケットの保存先を S3 Glacier Flexible Retrieval に変える",
+      "S3 バケットで S3 Transfer Acceleration を有効にし、アクセラレーションエンドポイントを使ってアップロードする",
+      "毎日 AWS Snowball Edge デバイスを注文し、データを入れて返送する",
+      "アップロード先のバケットでバージョニングを有効にする",
+      "大きなファイルをマルチパートアップロードで分割し、パートを並列にアップロードする"
+    ],
+    "answer": [
+      1,
+      4
+    ],
+    "explanation": "S3 Transfer Acceleration は、データを最寄りの Amazon CloudFront のエッジロケーションで受け取り、AWS の最適化されたネットワーク経路で S3 に送る機能です。大陸をまたいで GB から TB 単位のデータを定期的に転送する場合や、インターネット経由で帯域を使い切れていない場合に向いています。有効にしたあとは、バケット名.s3-accelerate.amazonaws.com のアクセラレーションエンドポイントを使います。マルチパートアップロードは大きなオブジェクトを複数のパートに分けて並列に送るため、スループットが上がり、失敗したパートだけを送り直せます。2 つを組み合わせると、各パートが最寄りのエッジロケーションに送られます。",
+    "optionNotes": [
+      "ストレージクラスは保存のコストと取り出しの速さに関わる設定で、アップロードの転送速度は変わりません。",
+      "Transfer Acceleration はエッジロケーションと AWS のネットワークを使い、長距離のアップロードを速くするため要件を満たします。",
+      "Snowball Edge は配送に日数がかかり、毎日数十 GB を送る用途には合いません。",
+      "バージョニングはオブジェクトの過去の版を残す機能で、転送速度とは関係ありません。",
+      "マルチパートアップロードでパートを並列に送ると、使い切れていない帯域を使えるようになり、アップロードが速くなります。"
+    ],
+    "services": [
+      "Amazon S3"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Configuring fast, secure file transfers using Amazon S3 Transfer Acceleration",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html"
+      },
+      {
+        "title": "Performance guidelines for Amazon S3",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance-guidelines.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-008",
+    "domain": 1,
+    "task": "1.1",
+    "type": "order",
+    "question": "ML エンジニアは、SageMaker Python SDK を使って、pandas の DataFrame にある顧客の特徴量を Amazon SageMaker Feature Store の新しい特徴量グループに取り込みたいと考えています。DataFrame には一意の customer_id 列はありますが、イベント時刻の列はありません。次の候補から 5 つを選び、正しい順序に並べてください。",
+    "options": [
+      "FeatureGroup の create を呼び出し、レコード識別子に customer_id、イベント時刻に EventTime を指定し、オンラインストアとオフラインストアの設定を渡す",
+      "DataFrame に EventTime 列を追加し、各レコードのタイムスタンプを入れる",
+      "特徴量グループの状態が Created になるまで待つ",
+      "DataFrame から特徴量の定義 (名前とデータ型) を読み込む",
+      "ingest で DataFrame のデータを特徴量グループに書き込む",
+      "オフラインストア用の AWS Glue Data Catalog のテーブルを手動で作成する"
+    ],
+    "answer": [
+      1,
+      3,
+      0,
+      2,
+      4
+    ],
+    "explanation": "特徴量グループには、レコード識別子とイベント時刻の 2 つの特徴量が必須です。イベント時刻の列がない場合は、まず DataFrame に EventTime 列を追加します。次に、その DataFrame から特徴量の定義 (名前とデータ型) を読み込みます。EventTime を先に足しておかないと、定義に EventTime が入りません。定義ができたら、レコード識別子とイベント時刻の名前、オンラインストアとオフラインストアの設定を渡して特徴量グループを作ります。作成は非同期で、状態が Creating の間は書き込めないため、Created になるのを待ってから ingest でデータを書き込みます。オフラインストアの Glue Data Catalog のテーブルは Feature Store が自動で作るので、手動の作成は要りません。",
+    "optionNotes": [
+      "3 番目です。読み込んだ特徴量の定義と、レコード識別子、イベント時刻、ストアの設定を指定して特徴量グループを作ります。",
+      "1 番目です。イベント時刻は必須の特徴量なので、定義を読み込む前に DataFrame に追加します。",
+      "4 番目です。作成は非同期で、状態が Creating の間は書き込めないため、Created になるまで待ちます。",
+      "2 番目です。EventTime を足した DataFrame から特徴量の名前とデータ型を読み込みます。",
+      "5 番目です。特徴量グループが Created になったあとで、DataFrame のデータを書き込みます。",
+      "使いません。オフラインストアの Glue Data Catalog のテーブルは Feature Store が自動で作ります。"
+    ],
+    "services": [
+      "Amazon SageMaker Feature Store"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Introduction to Feature Store example notebook",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/feature-store-introduction-notebook.html"
+      },
+      {
+        "title": "Create, store, and share features with Feature Store",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/feature-store.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-009",
+    "domain": 1,
+    "task": "1.1",
+    "type": "match",
+    "question": "次の各データの使い方に最も合うデータ形式を選んでください。選ばない形式もあります。",
+    "prompts": [
+      "Amazon Athena で、数百列あるテーブルのうち数列だけを集計するクエリを繰り返し実行する",
+      "Amazon SageMaker AI の組み込みアルゴリズム Factorization Machines の学習データを、Pipe モードで渡す",
+      "Amazon SageMaker AI の組み込みアルゴリズム LightGBM の学習データを渡す",
+      "Amazon MSK のトピックに、AWS Glue Schema Registry でスキーマを管理しながら、行単位のコンパクトなバイナリ形式でレコードを書き込み、フィールドの追加にも対応する"
+    ],
+    "options": [
+      "CSV",
+      "Apache Avro",
+      "Apache Parquet",
+      "JSON Lines",
+      "RecordIO-protobuf"
+    ],
+    "answer": [
+      2,
+      4,
+      0,
+      1
+    ],
+    "explanation": "Athena で数列だけを読むなら、必要な列だけをスキャンできる列指向の Parquet が合います。組み込みアルゴリズムの入力形式はアルゴリズムごとに決まっていて、Factorization Machines は File モードと Pipe モードのどちらでも recordIO-protobuf を受け付けます。LightGBM は File モードで CSV を受け付けます。Avro はスキーマを持つ行指向のバイナリ形式で、Kafka (Amazon MSK) や Kinesis Data Streams のレコードを AWS Glue Schema Registry で管理しながら、互換性を保ったままフィールドを追加するスキーマの進化に向いています。JSON Lines は DeepAR などが受け付ける形式ですが、このプロンプトのどれにも最も合うものではありません。",
+    "optionNotes": [
+      "LightGBM の組み込みアルゴリズムが受け付ける学習データの形式です。",
+      "スキーマを持つ行指向のバイナリ形式で、Glue Schema Registry によるスキーマの進化に対応するため、MSK への書き込みに合います。",
+      "列指向で必要な列だけを読めるため、Athena で数列だけを集計するクエリに合います。",
+      "テキスト形式で、列だけを読むことも、コンパクトなバイナリでスキーマを管理することもできないため、どのプロンプトにも最も合うものではありません。",
+      "Factorization Machines の学習データの形式で、Pipe モードでも使えます。"
+    ],
+    "services": [
+      "Amazon Athena",
+      "Amazon SageMaker AI",
+      "Amazon MSK",
+      "AWS Glue"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Parameters for Built-in Algorithms",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/common-info-all-im-models.html"
+      },
+      {
+        "title": "Data files for queries in Amazon Redshift Spectrum",
+        "url": "https://docs.aws.amazon.com/redshift/latest/dg/c-spectrum-data-files.html"
+      },
+      {
+        "title": "Creating a schema",
+        "url": "https://docs.aws.amazon.com/glue/latest/dg/schema-registry-gs4.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-010",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "case": "C1",
+    "question": "ML チームは、Kinesis Data Streams に流れているクリックストリームを Amazon S3 に蓄積し、Amazon Athena で効率よく集計できるようにしたいと考えています。アプリケーションのコードを書かずに、運用負荷を最小にする必要があります。最も適した方法はどれですか。",
+    "options": [
+      "Kinesis Data Streams をトリガーにした AWS Lambda 関数を書き、レコードを 1 件ずつ JSON ファイルとして S3 に書き込む",
+      "Kinesis Data Streams をソースとする Amazon Data Firehose ストリームを作り、AWS Glue Data Catalog のテーブルのスキーマを使ったレコード形式の変換で Apache Parquet にして S3 に配信する",
+      "Amazon EC2 で Kinesis Client Library (KCL) のアプリケーションを動かし、レコードを CSV にまとめて S3 にアップロードする",
+      "Amazon Data Firehose ストリームを作り、JSON のまま S3 に配信したあと、毎日 Athena の CTAS クエリで CSV に変換する"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "Amazon Data Firehose は Kinesis Data Streams をソースにでき、サーバーの管理なしでレコードをバッファリングして S3 に配信します。レコード形式の変換を有効にすると、JSON の入力を AWS Glue Data Catalog のテーブルに定義したスキーマに従って Apache Parquet または Apache ORC に変換してから保存できます。Parquet は列指向の形式なので、Athena のクエリで必要な列だけを読み、スキャン量と料金を減らせます。コードを書かずに、取り込みから列指向形式での保存までを 1 つのマネージドサービスで行えるため、運用負荷が最も小さくなります。",
+    "optionNotes": [
+      "Lambda のコードを書いて保守する必要があり、1 件ずつの小さな JSON ファイルは Athena での集計にも向きません。",
+      "Firehose のレコード形式の変換で、コードなしに JSON を Parquet にして S3 へ配信できるため要件を満たします。",
+      "EC2 と KCL アプリケーションの管理が必要で、CSV は行指向なので Athena での集計も効率が悪くなります。",
+      "変換後の CSV は行指向で、Athena のスキャン量が減りません。毎日の変換処理を別に運用する手間もかかります。"
+    ],
+    "services": [
+      "Amazon Data Firehose",
+      "Amazon Kinesis Data Streams",
+      "Amazon S3",
+      "AWS Glue"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Convert input data format in Amazon Data Firehose",
+        "url": "https://docs.aws.amazon.com/firehose/latest/dev/record-format-conversion.html"
+      },
+      {
+        "title": "Use columnar storage formats",
+        "url": "https://docs.aws.amazon.com/athena/latest/ug/columnar-storage.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-011",
+    "domain": 1,
+    "task": "1.1",
+    "type": "multi",
+    "case": "C1",
+    "question": "ML チームは、RDS の注文履歴、DynamoDB の会員の属性、S3 の商品カタログを会員 ID と商品 ID で結合し、学習用のデータセットを毎日作りたいと考えています。本番の DynamoDB テーブルの性能に影響を与えず、運用負荷を最小にする必要があります。どの 2 つを組み合わせますか。（2 つ選択）",
+    "options": [
+      "DynamoDB テーブルでポイントインタイムリカバリ (PITR) を有効にし、DynamoDB の S3 へのエクスポート機能でテーブルのデータを S3 に書き出す",
+      "AWS Lambda 関数で DynamoDB テーブルを毎日 Scan し、結果を S3 に書き出す",
+      "AWS Glue の ETL ジョブ (Spark) で、JDBC 接続を使って RDS の注文履歴を読み、S3 にエクスポートした会員データと商品カタログを結合して Parquet で S3 に書き出す",
+      "RDS に DynamoDB と S3 のデータをすべてコピーし、RDS の SQL で結合する",
+      "Amazon EC2 に Apache Spark のクラスターを自分で構築し、結合処理を実行する"
+    ],
+    "answer": [
+      0,
+      2
+    ],
+    "explanation": "DynamoDB の S3 へのエクスポートは PITR のバックアップから読み出すため、読み込みキャパシティユニットを消費せず、テーブルの性能や可用性に影響しません。シナリオにある「読み込みキャパシティに余裕がない」という制約を満たせます。エクスポートは DynamoDB JSON または Amazon Ion 形式で S3 に書き出されます。複数のソースの結合には、サーバーレスで Spark を実行できる AWS Glue の ETL ジョブが合います。Glue は JDBC 接続で RDS for MySQL を読み、S3 のデータと結合して Parquet などで出力できます。クラスターの管理が不要なので、少人数のチームでも運用できます。",
+    "optionNotes": [
+      "PITR のバックアップから書き出すため読み込みキャパシティを消費せず、本番テーブルに影響を与えずにデータを取り出せます。",
+      "Scan はテーブルの読み込みキャパシティを消費するため、余裕のない本番テーブルの性能に影響します。",
+      "Glue の ETL ジョブはサーバーレスの Spark で、RDS と S3 のデータを結合できるため、運用負荷を抑えて要件を満たします。",
+      "本番の RDS に大量のデータを入れて結合すると負荷とストレージが増え、コピー処理の運用も必要になります。",
+      "Spark クラスターの構築と管理が必要で、サーバーの管理を避けたいという要件に合いません。"
+    ],
+    "services": [
+      "Amazon DynamoDB",
+      "AWS Glue",
+      "Amazon RDS",
+      "Amazon S3"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "DynamoDB data export to Amazon S3: how it works",
+        "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/S3DataExport.HowItWorks.html"
+      },
+      {
+        "title": "Connection types and options for ETL in AWS Glue for Spark",
+        "url": "https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-connect.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-012",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "case": "C1",
+    "question": "ML チームは、オンラインストアとオフラインストアの両方を有効にした 2 つの特徴量グループを Amazon SageMaker Feature Store に作りました。1 つは会員 ID をレコード識別子とする会員の特徴量、もう 1 つは商品 ID をレコード識別子とする商品の特徴量です。注文確定時の推論では、注文した会員の特徴量と、注文に含まれる最大 10 個の商品の特徴量を取り出してからモデルを呼び出します。数十ミリ秒以内の応答を保つため、特徴量の取得にかかる API の呼び出し回数を最小にする必要があります。最も適した方法はどれですか。",
+    "options": [
+      "Amazon Athena で 2 つの特徴量グループのオフラインストアのテーブルを結合するクエリを実行し、結果を推論に使う",
+      "会員の特徴量グループに GetRecord を 1 回呼び出し、続けて商品ごとに商品の特徴量グループへ GetRecord を呼び出す",
+      "オフラインストアが Amazon S3 に書き出した Parquet ファイルを、推論のたびにアプリケーションから直接読み込む",
+      "BatchGetRecord を 1 回呼び出し、Identifiers に会員の特徴量グループと会員 ID、商品の特徴量グループと商品 ID の一覧をまとめて指定し、オンラインストアから取り出す"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "BatchGetRecord は Feature Store のオンラインストアから複数のレコードをまとめて取り出す API です。Identifiers には特徴量グループの名前と、そのグループのレコード識別子の値の一覧を組にして最大 100 件まで渡せ、応答の各レコードにはどの特徴量グループのものかが入ります。そのため、会員の特徴量と複数の商品の特徴量を 1 回の呼び出しで取り出せます。GetRecord は 1 つの特徴量グループの 1 つのレコードを取り出す API なので、商品の数だけ呼び出しが増え、往復の時間が積み上がります。オフラインストアは学習やバッチ推論のための履歴で、数十ミリ秒の応答には向きません。",
+    "optionNotes": [
+      "Athena のクエリは数秒単位かかることが多く、数十ミリ秒以内に応答する注文確定時の推論には向きません。",
+      "特徴量は取り出せますが、商品の数だけ GetRecord を呼ぶことになり、呼び出し回数を最小にする要件に合いません。",
+      "オフラインストアは履歴を保存する場所で、最新の値をレコード単位で低レイテンシーに読む用途には向きません。",
+      "複数の特徴量グループのレコードを 1 回の呼び出しでオンラインストアから取り出せるため、要件を満たします。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "Amazon SageMaker Feature Store"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "BatchGetRecord",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_feature_store_BatchGetRecord.html"
+      },
+      {
+        "title": "Create, store, and share features with Feature Store",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/feature-store.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-013",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある医療機関は、画像診断のモデルを作るために、数万枚の医用画像にラベルを付ける必要があります。画像には機密の患者情報が含まれるため、社外の作業者には見せられません。ラベル付けは院内の放射線科医だけが行い、作業者の認証は組織で管理したいと考えています。ラベル付けの作業画面と作業の割り当ては AWS のマネージドサービスで用意したいと考えています。要件を満たす方法はどれですか。",
+    "options": [
+      "Amazon SageMaker Ground Truth のラベリングジョブで、Amazon Mechanical Turk のパブリックな作業者を使う",
+      "Amazon SageMaker Ground Truth のラベリングジョブで、Amazon Cognito で管理するプライベートワークフォースの作業チームに放射線科医を登録して使う",
+      "Amazon SageMaker Ground Truth のラベリングジョブで、AWS Marketplace のベンダーが管理するワークフォースを使う",
+      "Amazon Rekognition の DetectLabels API で画像に自動でラベルを付け、その結果を学習データにする"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "Ground Truth のプライベートワークフォースは、自社の従業員や特定分野の専門家など、自分で選んだ作業者のグループです。公式ドキュメントでも、医用画像のラベル付けにはその画像に詳しい人でプライベートワークフォースを作る例が挙げられています。プライベートワークフォースは Amazon Cognito または自社の OIDC の IdP で作業者を認証し、作業ポータルへのアクセスを IP アドレスの範囲で制限することもできます。社外の作業者に画像を見せずに、ラベリングジョブの作業画面と割り当ては Ground Truth が用意します。なお、Ground Truth は2026年6月30日から保守モードに入り、新規の利用ができなくなっています。",
+    "optionNotes": [
+      "Mechanical Turk のパブリックな作業者は社外の不特定の人なので、機密の患者情報を見せられないという要件に反します。",
+      "プライベートワークフォースなら院内の放射線科医だけが作業し、Cognito で認証を管理できるため要件を満たします。",
+      "ベンダーが管理するワークフォースは社外の作業者なので、機密の画像を社外に見せないという要件に反します。",
+      "DetectLabels は一般的な物体やシーンのラベルを返す API で、専門医による診断のラベルの代わりにはなりません。"
+    ],
+    "services": [
+      "Amazon SageMaker Ground Truth",
+      "Amazon Cognito"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Private workforce",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sms-workforce-private.html"
+      },
+      {
+        "title": "Workforce Authentication and Restrictions",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sms-security-workforce-authentication.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-014",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業では、ビジネスアナリストが ML 用の学習データの準備を担当しています。毎日 Amazon S3 に届く CSV ファイルについて、列ごとの欠損率や値の分布を見て品質を確かめ、欠損値の補完、表記ゆれの統一、外れ値の除外を行ってから S3 に保存する必要があります。アナリストはコードを書けません。同じ手順を毎日決まった時刻に新しいファイルへ適用したいと考えています。最も適した方法はどれですか。",
+    "options": [
+      "AWS Glue の ETL ジョブを PySpark スクリプトで書き、毎日のトリガーで実行する",
+      "Amazon EMR クラスターで Spark のノートブックを使って変換処理を書き、cron で実行する",
+      "AWS Glue DataBrew のプロジェクトでデータのプロファイルを確かめながら変換手順をレシピにまとめ、レシピジョブをスケジュールで毎日実行する",
+      "S3 のイベント通知で AWS Lambda 関数を起動し、pandas でファイルごとに変換する"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "決め手は「コードを書けない」と「同じ手順を毎日適用する」です。AWS Glue DataBrew はコードを書かずにデータをクリーニングし正規化できるビジュアルなデータ準備ツールで、250 を超える変換をポイントアンドクリックで適用できます。プロジェクトでは値の分布やグラフでデータのプロファイルを確かめられ、欠損値の置き換えや異常値のフィルタリングもできます。変換の手順はレシピとして保存し、ほかのデータセットにも再利用できます。レシピジョブにはスケジュールを関連付けられるので、毎日決まった時刻に新しいファイルへ同じ手順を適用できます。DataBrew はサーバーレスで、クラスターの管理も要りません。",
+    "optionNotes": [
+      "PySpark のスクリプトを書く必要があり、コードを書けないアナリストには扱えません。",
+      "Spark のコードを書く必要があるうえ、EMR クラスターの管理も必要です。",
+      "コードなしでプロファイルの確認と変換ができ、レシピジョブをスケジュール実行できるため要件を満たします。",
+      "Lambda 関数と pandas のコードを書いて保守する必要があり、コードを書けないアナリストには扱えません。"
+    ],
+    "services": [
+      "AWS Glue DataBrew"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "What is AWS Glue DataBrew?",
+        "url": "https://docs.aws.amazon.com/databrew/latest/dg/what-is.html"
+      },
+      {
+        "title": "Creating and working with AWS Glue DataBrew recipe jobs",
+        "url": "https://docs.aws.amazon.com/databrew/latest/dg/jobs.recipe.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-015",
+    "domain": 1,
+    "task": "1.2",
+    "type": "multi",
+    "question": "ある企業は、Amazon Kinesis Data Streams に流れる決済イベントを学習データとして Amazon S3 に保存しています。保存する前に、カード番号の一部をマスクし、欠けている通貨コードを補い、タイムスタンプの形式をそろえる処理を、ほぼリアルタイムでレコードごとに行う必要があります。この変換に使えるものはどれですか。（2 つ選択）",
+    "options": [
+      "AWS Glue DataBrew のレシピジョブ",
+      "AWS Glue のクローラー",
+      "Amazon Data Firehose のデータ変換で呼び出す AWS Lambda 関数",
+      "Amazon Managed Service for Apache Flink のアプリケーション",
+      "Amazon SageMaker AI のバッチ変換ジョブ"
+    ],
+    "answer": [
+      2,
+      3
+    ],
+    "explanation": "ストリーミングデータをほぼリアルタイムに変換するには、ストリームのレコードを受け取りながら処理するサービスが必要です。Amazon Data Firehose のデータ変換を有効にすると、Firehose は受け取ったデータをバッファリングし、まとまりごとに Lambda 関数を同期的に呼び出します。関数が返した変換後のレコードが S3 などの宛先に配信されるので、マスクや補完をレコードごとに行えます。Amazon Managed Service for Apache Flink は、Java、Scala、Python、SQL でストリーミングデータを処理するアプリケーションを、インフラを管理せずに実行できます。Kinesis Data Streams をソースにし、S3 をシンクにできます。",
+    "optionNotes": [
+      "DataBrew のレシピジョブは S3 などにあるデータセットをまとめて変換するバッチ処理で、ストリームのレコードをほぼリアルタイムに変換する用途には使えません。",
+      "クローラーはデータのスキーマを調べて Data Catalog にテーブルを作る機能で、データの中身は変換しません。",
+      "Firehose がバッファリングしたレコードを Lambda 関数で変換してから S3 に配信できるため、要件を満たします。",
+      "Flink のアプリケーションで Kinesis Data Streams のレコードを継続的に変換し、S3 に書き出せるため、要件を満たします。",
+      "バッチ変換は学習済みモデルでまとめて推論する機能で、データの前処理をストリームに対して行うものではありません。"
+    ],
+    "services": [
+      "Amazon Data Firehose",
+      "AWS Lambda",
+      "Amazon Managed Service for Apache Flink",
+      "Amazon Kinesis Data Streams"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Transform source data in Amazon Data Firehose",
+        "url": "https://docs.aws.amazon.com/firehose/latest/dev/data-transformation.html"
+      },
+      {
+        "title": "What is Amazon Managed Service for Apache Flink?",
+        "url": "https://docs.aws.amazon.com/managed-flink/latest/java/what-is.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-016",
+    "domain": 1,
+    "task": "1.2",
+    "type": "order",
+    "question": "ML エンジニアは、数値の特徴量を標準化 (平均 0、標準偏差 1 にそろえる) してから回帰モデルを学習し、テストデータで性能を評価します。評価の結果がデータリークで実際より良く見えることを防ぎたいと考えています。次の候補から 4 つを選び、正しい順序に並べてください。",
+    "options": [
+      "データセット全体で各特徴量の平均と標準偏差を計算する",
+      "学習用データだけを使って各特徴量の平均と標準偏差を計算する",
+      "データセットを学習用、検証用、テスト用に分割する",
+      "学習用データで求めた平均と標準偏差を使い、学習用、検証用、テスト用のデータをそれぞれ標準化する",
+      "標準化した学習用データでモデルを学習し、検証用データで調整したあと、テスト用データで評価する"
+    ],
+    "answer": [
+      2,
+      1,
+      3,
+      4
+    ],
+    "explanation": "データリークを防ぐには、テスト用や検証用のデータの情報が学習に入らないようにします。そのため、最初にデータセットを学習用、検証用、テスト用に分割します。標準化に使う平均と標準偏差は学習用データだけから計算します。分割前の全体で計算すると、テスト用データの分布が平均と標準偏差を通じて学習に混ざり、評価が実際より良く見えます。次に、学習用データで求めた同じ値を使って 3 つのデータをそれぞれ標準化します。本番の推論でも同じ値を使うことになるので、評価と本番の条件がそろいます。最後に学習し、検証用データで調整してから、テスト用データで評価します。",
+    "optionNotes": [
+      "使いません。全体で計算するとテスト用データの情報が標準化のパラメータに入り、データリークになります。",
+      "2 番目です。標準化のパラメータは分割後の学習用データだけから求めます。",
+      "1 番目です。どんな前処理のパラメータを求めるよりも先に、データを分割します。",
+      "3 番目です。学習用データで求めた同じ平均と標準偏差で、3 つのデータを標準化します。",
+      "4 番目です。標準化したデータで学習と調整を行い、最後にテスト用データで評価します。"
+    ],
+    "services": [
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Splits and data leakage",
+        "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/ml-operations-planning/splits-leakage.html"
+      },
+      {
+        "title": "Transform data (SageMaker Canvas Data Wrangler)",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/canvas-transform.html"
+      }
+    ]
+  },
+  {
+    "id": "D1-017",
+    "domain": 1,
+    "task": "1.2",
+    "type": "match",
+    "question": "ML エンジニアは EC サイトの注文データから学習用のデータセットを作っています。次の各課題に最も合う処理を選んでください。選ばない処理もあります。",
+    "prompts": [
+      "「注文日時」の列 (年月日と時分の値) から曜日と時刻の列を取り出し、曜日や時間帯ごとの傾向を学習させたい",
+      "「世帯年収」の列に欠損がある。分布は一部の非常に高い値に引っ張られており、その影響を受けにくい代表値で欠損を埋めたい",
+      "ニューラルネットワークに入力する数値の特徴量を、それぞれ最小値 0、最大値 1 の範囲にそろえたい",
+      "書き出しの不具合で、同じ注文がまったく同じ内容で 2 回ずつ記録された行がある",
+      "注文データの各行に、会員 ID をキーにして会員マスタの属性 (会員ランク、登録日など) を付け加えたい"
+    ],
+    "options": [
+      "結合",
+      "平均値による補完",
+      "特徴量分割",
+      "Min-max 正規化",
+      "重複排除",
+      "中央値による補完",
+      "標準化"
+    ],
+    "answer": [
+      2,
+      5,
+      3,
+      4,
+      0
+    ],
+    "explanation": "日時の値を曜日や時刻のような部品に分けて別の列にするのは特徴量分割で、曜日や時間帯ごとの傾向をモデルが学べるようになります。欠損値の補完では、平均値は一部の極端な値に引っ張られるため、外れ値の影響を受けにくい中央値を使います。値を最小値 0、最大値 1 の範囲に収めるのは Min-max 正規化 (Min-max スケーリング) です。標準化は平均 0、標準偏差 1 にそろえる処理で、値の範囲は 0 から 1 に収まりません。同じ内容の行を取り除くのは重複排除で、残したままにすると同じ行が学習用と検証用に分かれて入るおそれがあります。キーを使って別の表の列を付け加えるのは結合です。",
+    "optionNotes": [
+      "5 つ目の課題に合います。会員 ID をキーにして、会員マスタの列を注文データに付け加えます。",
+      "どれにも合いません。平均値は一部の非常に高い値に引っ張られるため、2 つ目の課題の要件に合いません。",
+      "1 つ目の課題に合います。日時の値から曜日や時刻を取り出して別の列にします。",
+      "3 つ目の課題に合います。各特徴量を最小値 0、最大値 1 の範囲にそろえます。",
+      "4 つ目の課題に合います。まったく同じ内容の行を取り除きます。",
+      "2 つ目の課題に合います。中央値は外れ値の影響を受けにくい代表値です。",
+      "どれにも合いません。平均 0、標準偏差 1 にそろえる処理で、値の範囲は 0 から 1 に収まりません。"
+    ],
+    "services": [
+      "Amazon SageMaker Canvas"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Transform data",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/canvas-transform.html"
+      }
+    ]
+  }
+]

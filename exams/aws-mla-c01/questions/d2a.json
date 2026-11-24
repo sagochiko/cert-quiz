@@ -1,0 +1,461 @@
+[
+  {
+    "id": "D2-001",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある決済代行会社は、カード決済のトランザクションの中から、普段と異なる不審な取引を見つけたいと考えています。トランザクションのデータは金額、時刻、加盟店カテゴリ、利用地域などの数値と区分の列からなる表形式で、Amazon S3 に保存されています。過去の取引に不正かどうかのラベルは付いておらず、ラベルを付ける予算もありません。ML エンジニアは Amazon SageMaker AI の組み込みアルゴリズムを使いたいと考えています。これらの要件を満たすアルゴリズムはどれですか。",
+    "options": [
+      "XGBoost アルゴリズムで、objective を binary:logistic にして二値分類のモデルをトレーニングする。",
+      "Random Cut Forest (RCF) アルゴリズムでモデルをトレーニングし、各トランザクションの異常スコアが高いものを不審な取引として扱う。",
+      "Linear Learner アルゴリズムで、predictor_type を regressor にして取引金額を予測するモデルをトレーニングする。",
+      "IP Insights アルゴリズムで、加盟店カテゴリと利用地域の組み合わせを学習させる。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「ラベルが付いていない」「普段と異なる取引を見つけたい」という2点です。ラベルの無いデータから外れ値を見つけるのは教師なしの異常検知で、SageMaker AI の組み込みアルゴリズムでは Random Cut Forest (RCF) がこれに当たります。RCF は各データ点に異常スコアを付け、スコアが低ければ通常、高ければ異常とみなします。どこからを異常とするかは用途によりますが、平均から標準偏差の3倍を超えるスコアを異常とするのが一般的です。RCF は任意の次元の入力を扱え、特徴量の数やデータの量が増えてもスケールします。XGBoost や Linear Learner は教師あり学習で、正解のラベルが必要です。",
+    "optionNotes": [
+      "XGBoost の二値分類は教師あり学習で、不正かどうかのラベルが必要です。ラベルが無いこの状況では学習できません。",
+      "RCF は教師なしの異常検知アルゴリズムで、ラベル無しの表形式データから各点の異常スコアを出せます。要件を満たします。",
+      "取引金額の回帰は不審な取引の検出とは目的が違い、教師あり学習なので目的変数も必要です。",
+      "IP Insights は IPv4 アドレスとユーザー ID などの関連を学習するアルゴリズムです。このデータには IP アドレスが無く、用途に合いません。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Random Cut Forest (RCF) Algorithm", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/randomcutforest.html" },
+      { "title": "Built-in algorithms and pretrained models in Amazon SageMaker", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/algos.html" }
+    ]
+  },
+  {
+    "id": "D2-002",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある金融機関は、ローンの申込者が返済不能になる確率を予測するモデルを作ろうとしています。監督当局への説明のため、各特徴量(年収、勤続年数、既存の借入額など)が予測をどちら向きにどの程度動かすのかを、モデル全体として係数で示せる必要があります。予測の正解率が多少下がることは許容されます。ML エンジニアは Amazon SageMaker AI の組み込みアルゴリズムから選びたいと考えています。これらの要件を最もよく満たすものはどれですか。",
+    "options": [
+      "スクリプトモードで、10層以上の全結合のニューラルネットワークをトレーニングする。",
+      "XGBoost アルゴリズムで、num_round を 1000、max_depth を 12 にしてトレーニングする。",
+      "k-NN アルゴリズムで、近傍の数 k を 10 にしてトレーニングする。",
+      "Linear Learner アルゴリズムで、predictor_type を binary_classifier にしてトレーニングする。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「各特徴量が予測をどちら向きにどの程度動かすのかを、モデル全体として係数で示せる」と「正解率が多少下がることは許容される」という要件です。Linear Learner は分類では線形のしきい値関数を学習するので、特徴量ごとの重みがそのまま影響の向きと大きさを表し、解釈しやすいモデルになります。predictor_type を binary_classifier にすると二値分類になり、ラベルは 0 か 1 で与えます。深いニューラルネットワークや、深い木を大量に組み合わせた勾配ブースティングは、精度は出やすい一方で、モデル全体の振る舞いを少数の係数で説明することはできません。解釈可能性と精度のトレードオフを、要件に合わせて選ぶ問題です。",
+    "optionNotes": [
+      "深いニューラルネットワークは特徴量の影響が非線形に絡み合い、係数で説明できません。",
+      "深い木を1000本組み合わせたモデルは精度は高くなりやすいものの、全体を係数で示すことはできず、解釈可能性の要件に合いません。",
+      "k-NN は近傍の点の多数決や平均で予測するため、特徴量ごとの影響を係数として示せません。",
+      "Linear Learner の線形モデルは特徴量ごとの重みで予測が決まり、影響の向きと大きさを示せます。要件を最もよく満たします。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Linear Learner Algorithm", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/linear-learner.html" },
+      { "title": "Built-in algorithms and pretrained models in Amazon SageMaker", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/algos.html" }
+    ]
+  },
+  {
+    "id": "D2-003",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は、中南米のコールセンターで録音したスペイン語の通話の音声ファイルを毎日数千件 Amazon S3 に保存しています。本社のアナリストは英語しか読めないため、通話の内容を英語のテキストで読めるようにしたいと考えています。社内に ML の専門家はおらず、モデルのトレーニングや運用はしたくありません。運用の負荷が最も小さいソリューションはどれですか。",
+    "options": [
+      "Amazon Transcribe のバッチの文字起こしジョブで音声をスペイン語のテキストにし、そのテキストを Amazon Translate で英語に翻訳する。",
+      "Amazon Polly で音声をスペイン語のテキストにし、そのテキストを Amazon Translate で英語に翻訳する。",
+      "Amazon SageMaker AI の Sequence-to-Sequence アルゴリズムで音声認識のモデルをトレーニングし、エンドポイントにデプロイする。",
+      "Amazon Textract で音声ファイルからテキストを抽出し、そのテキストを Amazon Translate で英語に翻訳する。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「モデルのトレーニングや運用はしたくない」と「音声を英語のテキストで読みたい」という要件です。Amazon Transcribe は音声をテキストに変換する自動音声認識のサービスで、S3 に置いたメディアファイルをバッチで文字起こしできます。Amazon Translate はテキストを別の言語に翻訳するサービスです。どちらも学習済みのモデルを API で呼ぶだけなので、モデルの開発や運用は要りません。音声からテキスト、テキストから翻訳という順に2つの AI サービスをつなげば要件を満たします。Sequence-to-Sequence アルゴリズムでも音声認識のモデルは作れますが、トレーニングデータの準備とエンドポイントの運用が必要になります。",
+    "optionNotes": [
+      "Transcribe で文字起こしし、Translate で翻訳する構成は、どちらも学習済みのサービスで運用の負荷が最も小さくなります。",
+      "Amazon Polly はテキストを音声にする読み上げのサービスで、音声からテキストへの変換はできません。",
+      "自前でモデルをトレーニングしてエンドポイントを運用することになり、運用の負荷が大きく要件に合いません。",
+      "Amazon Textract は文書の画像や PDF から文字や表を抽出するサービスで、音声ファイルは扱えません。"
+    ],
+    "services": ["Amazon Transcribe", "Amazon Translate"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "What is Amazon Transcribe?", "url": "https://docs.aws.amazon.com/transcribe/latest/dg/what-is.html" },
+      { "title": "What is Amazon Translate?", "url": "https://docs.aws.amazon.com/translate/latest/dg/what-is.html" }
+    ]
+  },
+  {
+    "id": "D2-004",
+    "domain": 2,
+    "task": "2.1",
+    "type": "match",
+    "question": "次の各課題に最も合う Amazon SageMaker AI の組み込みアルゴリズムを選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "全国200店舗それぞれの過去3年間の日次売上から、来月の日次売上を店舗ごとに予測する。",
+      "ユーザー ID と広告 ID をワンホットにした、非常に疎で高次元な表示ログから、広告がクリックされる確率を予測する。",
+      "大量の社内文書を、あらかじめ決めていない話題ごとに分ける。",
+      "ラベルの無い購買履歴から、買い方の似た顧客どうしをいくつかのグループにまとめる。",
+      "ラベルの付いた書籍の紹介文を使って、紹介文を決まった10の分野のどれかに分類する。"
+    ],
+    "options": [
+      "K-Means",
+      "BlazingText",
+      "DeepAR",
+      "Random Cut Forest",
+      "Latent Dirichlet Allocation (LDA)",
+      "Factorization Machines"
+    ],
+    "answer": [2, 5, 4, 0, 1],
+    "explanation": "SageMaker AI のドキュメントには、課題の種類と組み込みアルゴリズムの対応表があります。時系列の予測は DeepAR で、RNN を使い多数の関連する時系列をまとめて学習できます。疎で高次元なデータの特徴量どうしの相互作用を捉える分類と回帰は Factorization Machines で、クリック予測が代表例です。事前に決めていない話題で文書を分けるトピックモデルは LDA(または NTM)で、教師なし学習です。ラベルの無いデータを似たものどうしにまとめるクラスタリングは K-Means です。決まったカテゴリへのテキスト分類は BlazingText の教師ありモードが当たります。Random Cut Forest は異常検知のアルゴリズムで、どの課題にも当たりません。",
+    "optionNotes": [
+      "K-Means は教師なしのクラスタリングで、似た顧客をグループにまとめる4番目の課題に合います。",
+      "BlazingText は教師ありモードでテキスト分類ができ、紹介文を10分野に分類する5番目の課題に合います。",
+      "DeepAR は RNN による時系列の予測アルゴリズムで、店舗ごとの日次売上を予測する1番目の課題に合います。",
+      "Random Cut Forest は異常検知のアルゴリズムで、どの課題にも合いません。",
+      "LDA は文書を事前に決めていない話題に分けるトピックモデルで、3番目の課題に合います。",
+      "Factorization Machines は高次元で疎なデータの特徴量の相互作用を捉え、クリック予測の2番目の課題に合います。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Built-in algorithms and pretrained models in Amazon SageMaker", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/algos.html" },
+      { "title": "Factorization Machines Algorithm", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/fact-machines.html" },
+      { "title": "Use the SageMaker AI DeepAR forecasting algorithm", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/deepar.html" }
+    ]
+  },
+  {
+    "id": "D2-005",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は、社内の会議の議事録を要約する社内向けのツールを作ろうとしています。利用は平日の日中に1日数百回ほどで、夜間と週末にはほとんど使われません。要約の品質は汎用の基盤モデルで十分であることを確認済みです。社内にインフラを管理する担当者はいません。最もコスト効率が良いソリューションはどれですか。",
+    "options": [
+      "Amazon SageMaker JumpStart から大規模言語モデルを ml.g5 インスタンスのリアルタイムエンドポイントにデプロイし、常時稼働させる。",
+      "Amazon Bedrock で基盤モデルの Provisioned Throughput を6か月の契約で購入する。",
+      "Amazon Bedrock の基盤モデルをオンデマンドで呼び出し、処理したトークンの分だけ支払う。",
+      "Amazon SageMaker AI の Sequence-to-Sequence アルゴリズムで要約モデルをトレーニングし、リアルタイムエンドポイントにデプロイする。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「利用量が少なく、時間帯で大きく偏る」「汎用の基盤モデルで十分」「インフラを管理する担当者がいない」という3点です。Amazon Bedrock のオンデマンドの推論は、長期の契約なしに処理したトークンの分だけ支払う料金体系で、使われない夜間や週末には費用がかかりません。Bedrock はフルマネージドなので、インスタンスの管理も要りません。Provisioned Throughput は一定のスループットを時間単位で確保する仕組みで、常に大量の呼び出しがある安定した負荷で割安になります。利用の少ない時間帯が長いこのケースでは、確保した容量が遊んでしまいます。常時稼働の GPU エンドポイントも同じ理由で割高です。",
+    "optionNotes": [
+      "GPU インスタンスのエンドポイントは使われない夜間や週末も課金され、インスタンスの管理も必要になります。",
+      "Provisioned Throughput は安定して大量に呼ぶ負荷向けで、利用が偏るこのケースでは確保した容量が遊び、割高になります。",
+      "オンデマンドはトークン単位の従量課金で契約が要らず、少なく偏った利用に最もコスト効率が良くなります。",
+      "汎用の基盤モデルで十分なのに、モデルのトレーニングとエンドポイントの運用の費用がかかり、要件に合いません。"
+    ],
+    "services": ["Amazon Bedrock"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "What is Amazon Bedrock?", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html" },
+      { "title": "ADVCOST05-BP06 Use provisioned throughput for steady-state agents and on-demand pricing for variable workloads", "url": "https://docs.aws.amazon.com/wellarchitected/latest/video-streaming-advertising-lens/advcost05-bp06.html" }
+    ]
+  },
+  {
+    "id": "D2-006",
+    "domain": 2,
+    "task": "2.1",
+    "type": "multi",
+    "question": "ある動画共有サービスは、ユーザーが投稿した動画を Amazon S3 に保存しています。公開前に、暴力的な場面や成人向けの場面などの不適切なコンテンツが含まれていないかを確認し、あわせて動画の音声から字幕のテキストを作りたいと考えています。社内で ML のモデルを開発せずに実現したいと考えています。これらの要件を満たすために組み合わせるサービスはどれですか。（2 つ選択）",
+    "options": [
+      "Amazon Rekognition Video の StartContentModeration で、保存済みの動画の不適切なコンテンツを検出する。",
+      "Amazon Transcribe で、動画の音声を文字起こしする。",
+      "Amazon Comprehend で、動画の不適切な場面を検出する。",
+      "Amazon Polly で、動画の音声から字幕を作る。",
+      "Amazon Textract で、動画のフレームから字幕のテキストを作る。"
+    ],
+    "answer": [0, 1],
+    "explanation": "要件は、動画の不適切な場面の検出と、音声からの字幕の作成の2つです。Amazon Rekognition Video の StartContentModeration は、S3 に保存された動画の不適切な、または不快なコンテンツを非同期で検出します。完了すると Amazon SNS のトピックに通知され、GetContentModeration で結果を取得します。音声から字幕のテキストを作るのは自動音声認識の Amazon Transcribe です。どちらも学習済みのモデルを API で使うので、社内でモデルを開発する必要はありません。Comprehend はテキストを、Textract は文書を、Polly はテキストの読み上げを扱うサービスで、動画の場面の判定や音声の文字起こしはできません。",
+    "optionNotes": [
+      "StartContentModeration は S3 の動画から不適切なコンテンツを検出でき、1つ目の要件を受け持ちます。",
+      "Transcribe は音声をテキストにする自動音声認識のサービスで、字幕の作成を受け持ちます。",
+      "Amazon Comprehend はテキストを分析する自然言語処理のサービスで、動画の映像は扱えません。",
+      "Amazon Polly はテキストを音声にするサービスで、向きが逆です。",
+      "Amazon Textract は文書の画像や PDF から文字を抽出するサービスで、音声から字幕は作れません。"
+    ],
+    "services": ["Amazon Rekognition", "Amazon Transcribe"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "StartContentModeration", "url": "https://docs.aws.amazon.com/rekognition/latest/APIReference/API_StartContentModeration.html" },
+      { "title": "Moderating content", "url": "https://docs.aws.amazon.com/rekognition/latest/dg/moderation.html" },
+      { "title": "What is Amazon Transcribe?", "url": "https://docs.aws.amazon.com/transcribe/latest/dg/what-is.html" }
+    ]
+  },
+  {
+    "id": "D2-007",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある製造業の企業は、公開されているオープンなモデルの中から大規模言語モデルを選び、自社の AWS アカウントの Amazon SageMaker AI のエンドポイントで動かしたいと考えています。エンドポイントのインスタンスタイプは自社で選び、VPC の中に置く必要があります。さらに、社内の技術文書でモデルをファインチューニングしたいと考えています。コードをできるだけ書かずに始めたい場合、最も適したものはどれですか。",
+    "options": [
+      "Amazon Bedrock の基盤モデルをオンデマンドで呼び出す。",
+      "Amazon SageMaker JumpStart で事前学習済みのモデルを選び、ファインチューニングしてから自社のエンドポイントにデプロイする。",
+      "モデルの重みをインターネットからダウンロードし、推論用のカスタムコンテナを一から作って Amazon ECR に登録し、エンドポイントにデプロイする。",
+      "Amazon SageMaker Autopilot に技術文書を渡し、最適なモデルを自動で選ばせてデプロイする。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「自社のアカウントの SageMaker AI のエンドポイントで動かす」「インスタンスタイプを自社で選ぶ」「ファインチューニングしたい」「コードをできるだけ書かない」という要件です。Amazon SageMaker JumpStart は、オープンな事前学習済みモデル、ソリューションテンプレート、ノートブックの例を提供します。Studio の画面や SageMaker Python SDK から、モデルのデプロイ、ファインチューニング、評価ができます。デプロイ先は自社のアカウントの SageMaker AI のエンドポイントなので、インスタンスタイプや VPC の設定を自社で決められます。Bedrock のオンデマンドの呼び出しはフルマネージドで、エンドポイントのインスタンスを自社で選ぶことはありません。",
+    "optionNotes": [
+      "Bedrock のオンデマンドはインフラを意識せずに使える反面、自社のエンドポイントのインスタンスタイプを選ぶ要件に合いません。",
+      "JumpStart は事前学習済みモデルの選択、ファインチューニング、自社エンドポイントへのデプロイを少ないコードで行えます。要件を最もよく満たします。",
+      "実現はできますが、コンテナの作成や推論コードの実装が必要で、コードをできるだけ書かないという要件に合いません。",
+      "Autopilot は表形式データなどの AutoML の機能で、大規模言語モデルを選んでファインチューニングする用途ではありません。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker JumpStart"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "SageMaker JumpStart pretrained models", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/studio-jumpstart.html" },
+      { "title": "Amazon SageMaker JumpStart Foundation Models", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/jumpstart-foundation-models.html" }
+    ]
+  },
+  {
+    "id": "D2-008",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "あるオンラインストアの事業部門は、注文ごとに送料を無料にするかどうかを ML で判定したいと ML エンジニアに相談しました。調べたところ、送料を無料にする条件は「会員で、かつ注文金額が 5,000 円以上」と社内規程で明確に決まっており、例外はありません。過去の注文データには、送料を無料にしたかどうかの記録が残っています。最も適切な対応はどれですか。",
+    "options": [
+      "過去の注文データで XGBoost の二値分類モデルをトレーニングし、注文ごとに推論する。",
+      "注文の内容を Amazon Bedrock の基盤モデルに渡し、送料を無料にするかどうかを答えさせる。",
+      "Amazon SageMaker Autopilot で最適なモデルを自動で作り、エンドポイントにデプロイする。",
+      "ML は使わず、社内規程の条件をアプリケーションのコードにルールとして実装する。"
+    ],
+    "answer": [3],
+    "explanation": "ML の検討を始める前に、その課題に ML が要るかを見極めます。この課題は、判定の条件が「会員で、かつ注文金額が 5,000 円以上」と明確に決まっていて例外もありません。こうした決定的なルールはコードで正確に表せるので、データからパターンを学ぶ ML を使う理由がありません。ML のモデルにすると、まれに誤判定が出るうえ、トレーニング、デプロイ、監視の手間と費用がかかります。ML が役に立つのは、ルールで書き切れない複雑なパターンがあり、それを学ぶのに十分なデータがある場合です。データと課題の複雑さを見て、ML ソリューションが妥当かどうかを判断することが求められています。",
+    "optionNotes": [
+      "条件が明確なルールを確率的なモデルで近似することになり、誤判定の可能性と運用の手間が増えるだけです。",
+      "基盤モデルは決定的な判定を保証せず、呼び出しごとの費用もかかります。ルールで済む課題には過剰です。",
+      "Autopilot でもモデルの運用が必要になり、ルールで正確に表せる課題に ML を使う理由はありません。",
+      "条件が明確で例外の無い判定はルールで正確に実装でき、ML は不要です。最も適切な対応です。"
+    ],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Built-in algorithms and pretrained models in Amazon SageMaker", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/algos.html" }
+    ]
+  },
+  {
+    "id": "D2-009",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "case": "C2",
+    "question": "ML エンジニアは、配送遅延を予測する最初のモデルを作ろうとしています。表形式のデータに合い、遅延した荷物が少ないことにも対処でき、トレーニングと推論のコストを抑えられる方法が必要です。最も適したものはどれですか。",
+    "options": [
+      "Amazon SageMaker AI の組み込みの XGBoost アルゴリズムを使い、objective を binary:logistic にする。scale_pos_weight を「遅延していない件数 ÷ 遅延した件数」の目安で設定し、ラベルを先頭の列に置いたヘッダーの無い CSV でトレーニングする。",
+      "Amazon SageMaker AI の DeepAR アルゴリズムで、出荷記録を時系列として学習させ、遅延の有無を予測する。",
+      "Amazon SageMaker AI の K-Means アルゴリズムで出荷記録を2つのクラスターに分け、小さいほうのクラスターを遅延と判定する。",
+      "出荷記録の各行を文章に直し、Amazon Bedrock で大規模言語モデルをファインチューニングして遅延の有無を答えさせる。"
+    ],
+    "answer": [0],
+    "explanation": "課題はラベル付きの表形式データによる二値分類で、正例(遅延)が約4%と偏っています。組み込みの XGBoost は勾配ブースティング木の実装で、表形式の分類と回帰に強く、CPU インスタンスで安くトレーニングできます。objective を binary:logistic にすると二値分類の確率を出せます。scale_pos_weight は正例と負例の重みの釣り合いを調整するハイパーパラメータで、クラスの偏りに有効です。目安の値は負例の数を正例の数で割ったものです。CSV でトレーニングするときは、目的変数を先頭の列に置き、ヘッダー行を付けません。DeepAR は時系列の予測、K-Means は教師なしのクラスタリングで、この課題に合いません。",
+    "optionNotes": [
+      "XGBoost は表形式の二値分類に適し、scale_pos_weight で偏りに対処でき、CPU で安く動きます。CSV の形式の指定も正しく、要件を最も満たします。",
+      "DeepAR は1次元の時系列の値を予測するアルゴリズムで、出荷ごとの遅延の有無を分類する課題に合いません。",
+      "K-Means はラベルを使わないクラスタリングで、遅延のラベルがあるのに使わず、クラスターが遅延と対応する保証もありません。",
+      "表形式の分類に大規模言語モデルのファインチューニングと推論を使うと費用が大きく、コストを抑える要件に合いません。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "XGBoost hyperparameters", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/xgboost_hyperparameters.html" },
+      { "title": "XGBoost algorithm with Amazon SageMaker AI", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/xgboost.html" }
+    ]
+  },
+  {
+    "id": "D2-010",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "あるEC事業者は、出品される商品のタイトル(短い文章)を30の商品カテゴリのどれかに自動で分類したいと考えています。カテゴリのラベルが付いたタイトルが約100万件あり、データの大きさは 1 GB 未満です。トレーニングと推論のコストをできるだけ抑え、推論のレイテンシーも低くしたいと考えています。最も適したソリューションはどれですか。",
+    "options": [
+      "Amazon Bedrock で大規模言語モデルをファインチューニングし、Provisioned Throughput を購入して推論する。",
+      "Amazon SageMaker AI の Object Detection アルゴリズムで、タイトルを画像に変換して学習させる。",
+      "Amazon SageMaker AI の BlazingText アルゴリズムを教師ありモード(mode を supervised)にし、C5 インスタンスでトレーニングする。",
+      "Amazon SageMaker AI の Sequence-to-Sequence アルゴリズムで、タイトルからカテゴリ名を生成するモデルをトレーニングする。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「短い文章を決まったカテゴリに分類する」「ラベル付きのデータが十分にある」「コストとレイテンシーを抑えたい」という要件です。BlazingText は Word2vec とテキスト分類を高速に実装したアルゴリズムで、mode を supervised にするとテキスト分類のモデルを学習します。教師ありモードでは、トレーニングデータが 2 GB 未満なら C5 インスタンスが推奨されており、GPU を使わずに安く学習できます。軽いモデルなので推論も速く、コストを抑えられます。大規模言語モデルのファインチューニングでも分類はできますが、この規模の単純な分類には費用が大きすぎます。",
+    "optionNotes": [
+      "精度は出る可能性がありますが、ファインチューニングと Provisioned Throughput の費用が大きく、コストを抑える要件に合いません。",
+      "Object Detection は画像の中の物体を検出するアルゴリズムで、テキスト分類には使いません。",
+      "BlazingText の教師ありモードは大量のテキストの分類を高速に学習でき、2 GB 未満なら C5 が推奨です。要件を最もよく満たします。",
+      "Sequence-to-Sequence は翻訳や要約のような系列の生成向けで、決まったカテゴリへの分類には重く、コスト面でも不利です。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "BlazingText algorithm", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/blazingtext.html" },
+      { "title": "Built-in algorithms and pretrained models in Amazon SageMaker", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/algos.html" }
+    ]
+  },
+  {
+    "id": "D2-011",
+    "domain": 2,
+    "task": "2.2",
+    "type": "multi",
+    "question": "ML エンジニアは、畳み込みニューラルネットワークで画像分類のモデルをトレーニングしています。15エポックを過ぎたあたりから、トレーニングデータの正解率は 99% まで上がり続ける一方で、検証データの損失は増え始め、検証データの正解率は 72% で頭打ちになりました。この問題を改善するために取るべき対応はどれですか。（2 つ選択）",
+    "options": [
+      "ネットワークにドロップアウトの層を追加する。",
+      "エポック数を100に増やして、さらに長くトレーニングする。",
+      "検証データの損失を監視し、改善しなくなった時点でトレーニングを止める早期停止を設定する。",
+      "畳み込み層と全結合層のニューロンの数を増やし、モデルを大きくする。",
+      "検証データを使わず、すべてのデータをトレーニングに回す。"
+    ],
+    "answer": [0, 2],
+    "explanation": "トレーニングデータでは性能が上がり続けるのに検証データでは悪化しているのは、モデルがトレーニングデータを覚えてしまう過学習の典型的な症状です。過学習にはモデルの柔軟性を下げる対処が有効です。ドロップアウトはトレーニング中にニューロンをランダムに無効にする正則化の手法で、特定のニューロンへの依存を防ぎます。早期停止は、検証データの指標が改善しなくなった時点で学習を止め、モデルがノイズまで学習するのを防ぎます。エポックを増やす、モデルを大きくするといった対応は過学習を悪化させます。検証データを無くすと過学習を検知できなくなります。",
+    "optionNotes": [
+      "ドロップアウトは過学習を防ぐ正則化の手法で、この症状に有効です。",
+      "検証データの損失が増え始めた後に学習を続けると、過学習がさらに進みます。",
+      "早期停止は検証データの損失が改善しなくなった時点で学習を止め、過学習を防ぎます。",
+      "モデルを大きくすると柔軟性が増し、過学習が悪化します。未学習のときの対処です。",
+      "検証データが無くなると汎化の性能を測れず、過学習を検知できなくなります。"
+    ],
+    "difficulty": 1,
+    "refs": [
+      { "title": "What is Overfitting?", "url": "https://aws.amazon.com/what-is/overfitting/" }
+    ]
+  },
+  {
+    "id": "D2-012",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "ある保険会社の ML エンジニアは、契約者が翌年に保険金を請求するかどうかを予測するため、表形式のデータで深さ 2 の決定木を学習しました。トレーニングデータでも検証データでも誤分類が多く、両者の成績はほぼ同じです。調べると、決定木が浅すぎて特徴量どうしの複雑な関係を捉えきれていないことが分かりました。浅い決定木を弱学習器として使いながら、前の木が誤った部分を後の木が順に補正していくアンサンブルで精度を上げたいと考えています。最も適した方法はどれですか。",
+    "options": [
+      "ブートストラップ法で作った複数の標本で浅い決定木を並列に学習し、予測を多数決で組み合わせるバギングを使う",
+      "決定木の学習に L2 正則化を強くかけ、モデルの複雑さを抑える",
+      "検証データの成績が改善しなくなった時点で学習を打ち切る早期停止を設定する",
+      "Amazon SageMaker AI の組み込みの XGBoost アルゴリズムで、前の木の残差 (誤差) を予測する木を順に追加していく勾配ブースティングを使う"
+    ],
+    "answer": [3],
+    "explanation": "症状はトレーニングデータでも検証データでも成績が低いアンダーフィット (高いバイアス) で、原因は弱学習器である浅い決定木の表現力の不足です。ブースティングは複数の弱学習器を 1 つずつ順に学習し、前のモデルの誤りを後のモデルが補正するアンサンブルの方法です。SageMaker AI の XGBoost は勾配ブースティング木の実装で、前の木の残差 (誤差) を予測する新しい木を繰り返し追加し、それらを組み合わせて最終的な予測を作ります。浅い木を積み重ねることでバイアスを下げられるので、要件の「前の木が誤った部分を後の木が順に補正していく」にそのまま当たります。バギングは複数のモデルを並列に学習して組み合わせる方法で、順に補正する仕組みではありません。",
+    "optionNotes": [
+      "バギングは各モデルを並列に独立して学習するため、前の木の誤りを後の木が補正する仕組みがなく、浅い木そのものの表現力の不足も解消しません。",
+      "正則化はモデルの柔軟性を下げる対処で、アンダーフィットをさらに悪化させます。",
+      "早期停止は過学習を防ぐための対処で、表現力の不足によるアンダーフィットは改善しません。",
+      "前の木の残差を予測する木を順に追加する勾配ブースティングなので、浅い木を弱学習器にしたまま誤りを順に補正してバイアスを下げられます。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "How the SageMaker AI XGBoost algorithm works", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/xgboost-HowItWorks.html" },
+      { "title": "What is Overfitting?", "url": "https://aws.amazon.com/what-is/overfitting/" }
+    ]
+  },
+  {
+    "id": "D2-013",
+    "domain": 2,
+    "task": "2.2",
+    "type": "match",
+    "question": "ML エンジニアは、Amazon SageMaker AI の自動モデルチューニング (AMT) でハイパーパラメータを調整しようとしています。次の各要件に最も合うチューニングの戦略を選んでください。",
+    "prompts": [
+      "前のトレーニングジョブの結果を使って、次に試すハイパーパラメータを賢く選びたい。並列で走らせるジョブの数は少なくてよい。",
+      "各ジョブが前のジョブの結果に依存せず、できるだけ多くのジョブを同時に並列で走らせたい。",
+      "同じ設定でチューニングし直したときに同じ最適値が得られるようにし、探索空間のすべての組み合わせを均等に調べたい。",
+      "エポックごとに指標を出すニューラルネットワークで、途中の結果から見込みの無い構成を自動で打ち切り、有望な構成に計算資源を回したい。"
+    ],
+    "options": [
+      "Hyperband",
+      "グリッド検索",
+      "ベイズ最適化",
+      "ランダム検索"
+    ],
+    "answer": [2, 3, 1, 0],
+    "explanation": "AMT にはベイズ最適化、ランダム検索、グリッド検索、Hyperband の戦略があります。ベイズ最適化は前の実行で得た情報を使って次の実行を改善しますが、逐次的な性質のため大規模な並列化には向きません。ランダム検索は後のジョブが前の結果に依存しないので、ほかの戦略より多くのジョブを並列で走らせられます。グリッド検索はすべての組み合わせを順に調べるので、同じ設定なら同じ最適値になり、結果の再現や探索空間を均等に調べたいときに使います。Hyperband はトレーニングジョブの途中と最終の結果を使い、成績の悪い構成を止めて有望な構成にエポックを割り当て直します。エポックごとに指標を出す反復型のアルゴリズムでだけ使います。",
+    "optionNotes": [
+      "Hyperband は途中の結果から成績の悪い構成を止めて資源を割り当て直すので、4番目の要件に合います。",
+      "グリッド検索はすべての組み合わせを調べ、同じ設定なら同じ結果になるので、3番目の要件に合います。",
+      "ベイズ最適化は前の結果を次の選択に使う逐次的な戦略で、1番目の要件に合います。",
+      "ランダム検索はジョブどうしが独立で、最も多く並列にできるので、2番目の要件に合います。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Best Practices for Hyperparameter Tuning", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/automatic-model-tuning-considerations.html" },
+      { "title": "Understand the hyperparameter tuning strategies available in Amazon SageMaker AI", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/automatic-model-tuning-how-it-works.html" }
+    ]
+  },
+  {
+    "id": "D2-014",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "case": "C2",
+    "question": "チームは、拠点ごとの荷量を予測している既存の PyTorch のトレーニングスクリプトを Amazon SageMaker AI に移したいと考えています。スクリプトの書き換えはできるだけ少なくし、トレーニングはジョブとして実行して、終わったら計算資源が自動で止まるようにしたいと考えています。最も適した方法はどれですか。",
+    "options": [
+      "トレーニングのロジックを一から実装したカスタムの Docker コンテナを作って Amazon ECR に登録し、そのイメージでトレーニングジョブを実行する。",
+      "SageMaker AI が提供する PyTorch のコンテナを使うスクリプトモードで、既存のスクリプトをエントリポイントに指定してトレーニングジョブを実行する。スクリプトは入力のチャネルのディレクトリ(SM_CHANNEL_TRAIN など)からデータを読み、/opt/ml/model にモデルを保存するよう少しだけ直す。",
+      "既存のスクリプトをやめ、SageMaker AI の組み込みの DeepAR アルゴリズムに置き換えてトレーニングする。",
+      "SageMaker Studio の JupyterLab のスペースを大きな GPU インスタンスに変え、ノートブックから既存のスクリプトをそのまま実行する。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「スクリプトの書き換えをできるだけ少なくする」「ジョブとして実行し、終わったら計算資源が止まる」という要件です。スクリプトモードでは、SageMaker AI が用意した PyTorch などのフレームワークのコンテナに自分のスクリプトを渡し、トレーニングジョブとして実行します。コンテナを自分で作る必要はありません。スクリプトは、入力のデータの場所を SM_CHANNEL_TRAIN などの環境変数から受け取り、学習したモデルを /opt/ml/model に書き出すように直せば動きます。トレーニングジョブは終わるとインスタンスが自動で止まり、モデルは S3 に保存されます。JupyterLab で直接動かすと、スペースを止め忘れれば課金が続きます。",
+    "optionNotes": [
+      "カスタムコンテナでも実行できますが、コンテナの作成と保守が必要で、書き換えを最小にする要件に合いません。",
+      "スクリプトモードは用意されたフレームワークのコンテナで既存のスクリプトを少しの修正で動かせ、ジョブの終了後にインスタンスも止まります。要件を最もよく満たします。",
+      "組み込みアルゴリズムに置き換えるとモデルそのものが変わり、既存のスクリプトを移す要件に合いません。",
+      "ノートブックで直接動かすとトレーニングジョブにならず、計算資源も自動では止まりません。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Resources for using PyTorch with Amazon SageMaker AI", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/pytorch.html" },
+      { "title": "SageMaker AI environment variables and the default paths for training storage locations", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-train-storage-env-var-summary.html" }
+    ]
+  },
+  {
+    "id": "D2-015",
+    "domain": 2,
+    "task": "2.2",
+    "type": "order",
+    "case": "C2",
+    "question": "配送遅延のモデルのトレーニングが終わりました。ML エンジニアは SageMaker Model Registry を使い、監査の要件を満たす形でこのモデルを本番のエンドポイントに出したいと考えています。まだ Model Registry には何も登録されていません。次の候補から 4 つを選び、正しい順序に並べてください。",
+    "options": [
+      "評価の結果を確認した担当者が、モデルバージョンの承認ステータスを Approved に更新する。",
+      "配送遅延のモデルのためのモデルグループ(Model Package Group)を作成する。",
+      "承認済みのモデルバージョンを SageMaker AI のエンドポイントにデプロイする。",
+      "モデルの成果物を指定し、ModelApprovalStatus を PendingManualApproval にしてモデルバージョンを登録する。",
+      "登録したモデルバージョンを削除し、モデルグループを作り直す。"
+    ],
+    "answer": [1, 3, 0, 2],
+    "explanation": "Model Registry では、モデルバージョンは必ずモデルグループに属します。そのため、最初にモデルグループを作成します。次に、トレーニングで得たモデルの成果物を指定してモデルバージョンを登録します。登録のときに ModelApprovalStatus を PendingManualApproval にしておくと、承認前のモデルが本番に出ません。評価を確認した担当者が update_model_package などで承認ステータスを Approved に更新すると、そのバージョンはデプロイできる状態になります。最後に、承認済みのバージョンをエンドポイントにデプロイします。バージョンは1から順に番号が振られ、承認の履歴も残るので、どのバージョンをいつ承認したかを後から追えます。",
+    "optionNotes": [
+      "承認ステータスの更新は、登録したバージョンに対して行うので3番目です。デプロイの前に承認が要ります。",
+      "モデルバージョンはモデルグループに属する必要があるので、最初にモデルグループを作ります。",
+      "承認された後にデプロイするので最後です。",
+      "モデルグループができてから、その中にバージョンを登録するので2番目です。",
+      "バージョンを削除するとバージョンの履歴が失われ、監査の要件に反します。この手順は使いません。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Model Registry Models, Model Versions, and Model Groups", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry-models.html" },
+      { "title": "Update the Approval Status of a Model", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry-approve.html" },
+      { "title": "Deploy a Model from the Registry with Python", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry-deploy.html" }
+    ]
+  },
+  {
+    "id": "D2-016",
+    "domain": 2,
+    "task": "2.2",
+    "type": "order",
+    "question": "ある企業は、オンプレミスのサーバーで scikit-learn を使ってトレーニングしたモデルを持っています。このモデルを Amazon SageMaker AI が提供する scikit-learn の推論コンテナで動かし、リアルタイムエンドポイントとして公開したいと考えています。モデルはそのまま使い、学習し直す必要はありません。次の候補から 4 つを選び、正しい順序に並べてください。",
+    "options": [
+      "SageMaker AI のモデルを作成(CreateModel)し、推論コンテナのイメージと、モデルの成果物の S3 の場所(ModelDataUrl)を指定する。",
+      "エンドポイントを作成(CreateEndpoint)する。",
+      "モデルのファイルと推論のコードを model.tar.gz にまとめ、Amazon S3 にアップロードする。",
+      "同じデータで SageMaker AI のトレーニングジョブを作成し、モデルを学習し直す。",
+      "エンドポイント設定を作成(CreateEndpointConfig)し、モデル、インスタンスタイプ、インスタンス数を指定する。"
+    ],
+    "answer": [2, 0, 4, 1],
+    "explanation": "SageMaker AI の外で作ったモデルを取り入れるときは、まず成果物を1つの tar.gz にまとめて S3 に置きます。CreateModel の ModelDataUrl は tar.gz のファイルを指す必要があり、SageMaker AI はそれを /opt/ml/model に展開してからコンテナを起動します。次に CreateModel で、推論コンテナのイメージと ModelDataUrl を組み合わせたモデルを作ります。続いて CreateEndpointConfig で、そのモデルをどのインスタンスタイプで何台動かすかを決めます。最後に CreateEndpoint でエンドポイント設定を指定してエンドポイントを作ります。前の手順で作ったものの名前や場所を、次の手順で指定するので、この順序になります。",
+    "optionNotes": [
+      "モデルの作成には S3 の成果物の場所が要り、エンドポイント設定はこのモデルを参照するので2番目です。",
+      "エンドポイントはエンドポイント設定を指定して作るので最後です。",
+      "CreateModel の ModelDataUrl に指定する tar.gz を先に S3 に置く必要があるので最初です。",
+      "学習済みのモデルをそのまま使うので、トレーニングジョブは要りません。",
+      "エンドポイント設定は作成済みのモデルを参照し、エンドポイントの作成に使われるので3番目です。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Custom Inference Code with Hosting Services", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html" },
+      { "title": "CreateEndpointConfig", "url": "https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_CreateEndpointConfig.html" }
+    ]
+  }
+]

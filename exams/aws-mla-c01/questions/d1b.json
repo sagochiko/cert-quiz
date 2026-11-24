@@ -1,0 +1,489 @@
+[
+  {
+    "id": "D1-018",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある製造企業は、工場のセンサーデータから設備の異常を予測するモデルを作っています。ML エンジニアは Amazon SageMaker Canvas の Data Wrangler でデータを調べ、温度の列に 9999 や -999 といった値が混じっていることに気づきました。センサーの仕様上、正しい値は -40℃ から 125℃ の範囲に収まり、範囲外の値はすべて故障時の記録です。範囲外の値を含む行は学習に使いたくありません。コードを書かずにこの要件を満たす変換はどれですか。",
+    "options": [
+      "Handle outliers の Standard deviation numeric outliers を使い、平均から 3 標準偏差を超える値を Clip で境界の値に置き換える。",
+      "Handle outliers の Min-max numeric outliers を使い、上限に 125、下限に -40 を指定して、Fix method に Remove を選ぶ。",
+      "Process numeric の Robust scaler を温度の列に適用し、外れ値の影響を受けにくい尺度にそろえる。",
+      "Handle outliers の Replace rare を使い、出現回数の少ない値を「Others」に置き換える。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「正しい範囲が仕様で決まっている」と「範囲外の値を含む行は学習に使わない」の 2 点です。Data Wrangler の Min-max numeric outliers は、外れ値とみなす上限と下限のしきい値が分かっているときに使う変換で、Fix method として Clip、Remove、Invalidate を選べます。Remove を選ぶと、しきい値の外にある値を含む行がデータフレームから取り除かれます。標準偏差や分位数で境界を決める変換は、データの分布から境界を推定するため、9999 のような極端な値が平均や標準偏差を引っ張り、仕様どおりの境界になりません。スケーリングは値の尺度を変えるだけで、誤った行は残ります。",
+    "optionNotes": [
+      "境界を平均と標準偏差から推定するため仕様の範囲と一致せず、Clip では故障時の行が境界の値に置き換わって学習に残ります。",
+      "既知のしきい値で外れ値を判定し、Remove でその行を取り除けるので、要件をそのまま満たします。",
+      "Robust scaler は尺度をそろえる処理で、外れ値の行を取り除きません。",
+      "Replace rare は出現回数の少ないカテゴリーをまとめる変換で、数値の範囲外の行を取り除く用途ではありません。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker Canvas"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Transform data", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/canvas-transform.html" }
+    ]
+  },
+  {
+    "id": "D1-019",
+    "domain": 1,
+    "task": "1.2",
+    "type": "match",
+    "question": "ある小売企業の ML エンジニアは、需要予測と顧客分析のための表形式のデータを前処理しています。次の各列について、要件に最も合う処理を選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "「年収」の列は右に長く裾を引いた分布で、線形モデルのために分布の歪みを小さくしたい。",
+      "「年齢」の列を「20代」「30代」のような区間にまとめ、区間ごとの傾向を学習させたい。",
+      "「支払い方法」の列には順序のない 5 種類の値があり、値の間に大小関係を持ち込まずに数値にしたい。",
+      "「会員ランク」の列の「ブロンズ」「シルバー」「ゴールド」を、順序を保ったまま整数に置き換えたい。",
+      "「郵便番号」の列には数千種類の値があり、大小関係を持ち込まずに、ワンホットエンコーディングより少ない列数で表したい。",
+      "「レビュー本文」の列の文章を、単語やサブワードの単位に分けてモデルに入力したい。"
+    ],
+    "options": [
+      "トークン化",
+      "ワンホットエンコーディング",
+      "標準化 (平均 0、分散 1 へのスケーリング)",
+      "ビニング",
+      "序数エンコーディング (Ordinal encoding)",
+      "ログ変換",
+      "バイナリエンコーディング"
+    ],
+    "answer": [5, 3, 1, 4, 6, 0],
+    "explanation": "右に裾を引いた分布はログ変換で歪みを小さくできます。連続値を区間にまとめるのはビニングです。順序のないカテゴリーで種類が少なければ、値ごとに 0 と 1 の列を作るワンホットエンコーディングが向いています。順序のあるカテゴリーは、順序どおりの整数を割り当てる序数エンコーディングで表せます。カテゴリーに任意の番号を振るだけのラベルエンコーディングでは、順序が保たれるとは限りません。種類が数千あるカテゴリーをワンホットにすると列が数千に増えるため、カテゴリーの番号を 2 進数の各桁に分けて少ない列で表すバイナリエンコーディングを使います。文章を単語やサブワードに分けるのはトークン化です。標準化は平均と分散をそろえる処理で、分布の歪みそのものは変わらないため、どの要件にも最も合うものではありません。",
+    "optionNotes": [
+      "「レビュー本文」の列に合います。文章を単語やサブワードの単位に分けます。",
+      "「支払い方法」の列に合います。種類が少なく順序のないカテゴリーを、大小関係を持ち込まずに数値にできます。",
+      "どれにも合いません。尺度はそろいますが、分布の形 (歪み) は変わらず、区間化やカテゴリーの数値化もしません。",
+      "「年齢」の列に合います。連続値を区間に分けます。",
+      "「会員ランク」の列に合います。順序を保った整数を割り当てます。",
+      "「年収」の列に合います。大きな値を圧縮し、右に裾を引いた分布の歪みを小さくします。",
+      "「郵便番号」の列に合います。カテゴリーの番号を 2 進数の桁に分けるので、ワンホットよりずっと少ない列数で済みます。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Transform data", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/canvas-transform.html" }
+    ]
+  },
+  {
+    "id": "D1-020",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "あるオンライン広告企業は、クリックイベントを Amazon Kinesis Data Streams に送っています。不正クリック検出モデルの特徴量として、ユーザーごとの「直近 10 分間のクリック数」を 1 分ごとに更新し、Amazon SageMaker Feature Store のオンラインストアに書き込みたいと考えています。集計のウィンドウは互いに重なり合う必要があり、遅れて届いたイベントもイベントの発生時刻で集計する必要があります。インフラストラクチャの管理を最小限にしながら、この要件を満たすソリューションはどれですか。",
+    "options": [
+      "Kinesis Data Streams をイベントソースとする AWS Lambda 関数でタンブリングウィンドウを 10 分に設定し、集計結果を Feature Store に書き込む。",
+      "Amazon Data Firehose で 10 分ごとにイベントを Amazon S3 に配信し、AWS Glue のバッチジョブで集計して Feature Store に取り込む。",
+      "Amazon EC2 インスタンス上に Apache Spark Structured Streaming のクラスターを自前で構築し、スライディングウィンドウで集計する。",
+      "Amazon Managed Service for Apache Flink のアプリケーションでスライディングウィンドウ (HOP) の集計を行い、結果を PutRecord API で Feature Store のオンラインストアに書き込む。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「重なり合うウィンドウ」「イベントの発生時刻で集計」「インフラストラクチャの管理を最小限」の 3 点です。Amazon Managed Service for Apache Flink は、Apache Flink のアプリケーションを動かすための計算資源の用意、スケーリング、チェックポイントをサービス側で受け持ちます。Flink では一定間隔で進みながら重なり合うスライディングウィンドウ (Flink SQL では HOP) を使え、イベント時刻に基づく集計もできます。Lambda の Kinesis 向けのウィンドウはタンブリングウィンドウ (重ならない固定区間) で、境界はレコードがストリームに入った時刻で決まるため、2 つの要件を満たしません。",
+    "optionNotes": [
+      "Lambda のタンブリングウィンドウは重ならない区間で、境界もストリームへの到着時刻で決まるため、重なりとイベント時刻の要件を満たしません。",
+      "10 分ごとのバッチ処理になり、1 分ごとの更新に間に合いません。",
+      "スライディングウィンドウは実現できますが、クラスターの構築と運用を自前で行うため、管理の負担が最小になりません。",
+      "マネージドな Flink でスライディングウィンドウとイベント時刻の集計ができ、インフラストラクチャの管理も最小限で済みます。"
+    ],
+    "services": ["Amazon Managed Service for Apache Flink", "Amazon Kinesis Data Streams", "AWS Lambda", "Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "What is Amazon Managed Service for Apache Flink?", "url": "https://docs.aws.amazon.com/managed-flink/latest/java/what-is.html" },
+      { "title": "Implementing stateful Kinesis Data Streams processing in Lambda", "url": "https://docs.aws.amazon.com/lambda/latest/dg/services-kinesis-windows.html" },
+      { "title": "Track events in Managed Service for Apache Flink using the DataStream API", "url": "https://docs.aws.amazon.com/managed-flink/latest/java/how-time.html" }
+    ]
+  },
+  {
+    "id": "D1-021",
+    "domain": 1,
+    "task": "1.2",
+    "type": "multi",
+    "question": "ある金融企業は、与信モデルの特徴量を Amazon SageMaker Feature Store で管理しようとしています。要件は 2 つあります。リアルタイム推論では、顧客 ID ごとの最新の特徴量をミリ秒単位で取得すること。学習では、各申込みの時点で実際に使えた特徴量の値だけを使い、申込みより後の値が混ざらないデータセットを作ること。これらの要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "オンラインストアとオフラインストアの両方を有効にしたフィーチャーグループを作成し、推論時は GetRecord API でオンラインストアから最新のレコードを取得する。",
+      "オンラインストアだけを有効にし、学習データは GetRecord API で顧客ごとに過去のレコードを取り出して作る。",
+      "オフラインストアだけを有効にし、推論時に Amazon Athena でオフラインストアを照会して最新の値を取得する。",
+      "学習データは、オフラインストアに残る履歴に対し、申込みのイベント時刻より前の最新のレコードを選ぶポイントインタイムクエリで作る。",
+      "学習データは、オンラインストアの現在の値を毎日 Amazon S3 にエクスポートし、すべての申込みにその値を結合して作る。"
+    ],
+    "answer": [0, 3],
+    "explanation": "Feature Store のオンラインストアは低レイテンシーで高可用性のストアで、GetRecord API でレコードの最新の値をすぐに取得できます。ただし、オンラインストアが持つのは最新のイベント時刻のレコードだけです。オフラインストアは Amazon S3 にすべての履歴を残し、学習やバッチ推論に使います。両方を有効にすると 2 つのストアが同期され、学習と推論の特徴量の食い違いを防げます。学習データは、各申込みのイベント時刻より後のレコードを除き、残りのうち最新のものを選ぶポイントインタイムクエリで作ります。こうすると、申込みの時点では知りえなかった未来の値が混ざるデータリークを防げます。",
+    "optionNotes": [
+      "オンラインストアで最新の特徴量を低レイテンシーで取得でき、オフラインストアで履歴も残るため、両方の要件の土台になります。",
+      "オンラインストアは最新のイベント時刻のレコードしか持たないため、過去の値を取り出せません。",
+      "Athena でオフラインストアを照会する方法はミリ秒単位の取得に向きません。",
+      "イベント時刻で履歴を絞るので、各申込みの時点で使えた値だけでデータセットを作れます。",
+      "現在の値を過去の申込みに結合すると、申込みより後の値が学習に混ざります。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker Feature Store"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Feature Store concepts", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/feature-store-concepts.html" },
+      { "title": "Feature Store storage configurations", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/feature-store-storage-configurations.html" }
+    ]
+  },
+  {
+    "id": "D1-022",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある EC 企業は、商品画像 20 万枚を自社の 12 のカテゴリーに分類するモデルを作るため、各画像にカテゴリーのラベルを 1 つずつ付ける必要があります。画像は公開済みの商品写真で、社外の作業者が見ても問題ありません。ラベル付けのコストと時間をできるだけ抑えたいと考えています。最も適したソリューションはどれですか。",
+    "options": [
+      "Amazon SageMaker Ground Truth で画像分類 (単一ラベル) のラベリングジョブを作成し、Amazon Mechanical Turk の作業者を使い、自動データラベリングを有効にする。",
+      "Ground Truth で社員だけのプライベートワークフォースを作成し、自動データラベリングを使わずに、すべての画像を人が分類する。",
+      "Ground Truth のストリーミングラベリングジョブを作成し、自動データラベリングを有効にして、画像が届くたびに自動でラベルを付ける。",
+      "Amazon Rekognition の DetectLabels API ですべての画像にラベルを付け、その結果をそのまま学習データにする。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「20 万枚と大量」「社外の作業者でもよい」「コストと時間を抑えたい」の 3 点です。Ground Truth の自動データラベリングは能動学習を使い、モデルが十分な精度で判定できる画像には自動でラベルを付け、難しい画像だけを人に回します。人だけでラベルを付けるよりコストと時間を減らせます。最小で 1,250 件、推奨は 5,000 件以上と、大量のデータに向いた機能で、画像分類 (単一ラベル) はその対象です。社外の作業者でよいので、Amazon Mechanical Turk の作業者を使えます。なお、Ground Truth は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "大量の画像分類に自動データラベリングを使い、Mechanical Turk の作業者で人の作業も確保できるため、コストと時間を最も抑えられます。",
+      "機密性の要件がないのに社員だけで全件を人手で分類するため、コストと時間がかかります。",
+      "ストリーミングラベリングジョブは自動データラベリングに対応していません。",
+      "DetectLabels は Rekognition が持つ一般的なラベルを返すもので、自社の 12 のカテゴリーに沿ったラベルにはなりません。"
+    ],
+    "services": ["Amazon SageMaker Ground Truth", "Amazon Mechanical Turk"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Automate data labeling", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sms-automated-labeling.html" }
+    ]
+  },
+  {
+    "id": "D1-023",
+    "domain": 1,
+    "task": "1.2",
+    "type": "order",
+    "question": "あるデータ分析チームは、AWS Glue DataBrew を使い、Amazon S3 にある CSV 形式の顧客データに欠損値の補完と列の正規化を行い、変換後の全データを学習用として S3 に出力したいと考えています。変換の手順は、コンソールでサンプルを見ながら対話的に組み立てます。次の候補から 4 つを選び、正しい順序に並べてください。",
+    "options": [
+      "プロジェクトを作成し、データセットのサンプルに変換を加えてレシピを組み立てる。",
+      "レシピを公開 (Publish) して、バージョンを作る。",
+      "S3 上の CSV ファイルを指す DataBrew のデータセットを作成する。",
+      "公開したレシピを使うレシピジョブを作成し、出力先の S3 を指定して実行する。",
+      "プロファイルジョブを実行し、レシピの変換を全データに適用する。"
+    ],
+    "answer": [2, 0, 1, 3],
+    "explanation": "DataBrew では、まずデータの場所を示すデータセットを作ります。プロジェクトはデータセットを開いて作業する場所なので、データセットの後に作ります。プロジェクトではデータのサンプルに対して変換を加え、その手順がレシピのステップとして積み上がります。レシピを公開すると DataBrew のほかの場所から使えるようになり、サンプルではなくデータセット全体を変換するレシピジョブを実行できます。公開したバージョンは後から戻れる「最後に正しく動いた版」にもなります。最後にレシピジョブで全データを変換し、S3 に出力します。",
+    "optionNotes": [
+      "2 番目です。データセットを開いたプロジェクトで、サンプルを見ながらレシピを組み立てます。",
+      "3 番目です。公開したレシピがレシピジョブで使えるようになります。",
+      "最初です。プロジェクトとジョブはどちらもデータセットを入力にします。",
+      "最後です。公開したレシピで全データを変換し、S3 に出力します。",
+      "使いません。プロファイルジョブはデータの統計や品質を調べるジョブで、レシピの変換を適用するものではありません。"
+    ],
+    "services": ["AWS Glue DataBrew"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Overview of a DataBrew project session", "url": "https://docs.aws.amazon.com/databrew/latest/dg/projects.overview.html" }
+    ]
+  },
+  {
+    "id": "D1-024",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある銀行は、ローン審査モデルを学習する前に、学習データに偏りがないかを確かめたいと考えています。具体的には、25 歳未満の申込者と 25 歳以上の申込者とで、学習データ中の「承認」ラベルの割合にどれだけ差があるかを数値で把握したいと考えています。Amazon SageMaker Clarify のどの指標を使うべきですか。",
+    "options": [
+      "Class Imbalance (CI)",
+      "Difference in Proportions of Labels (DPL)",
+      "Difference in Positive Proportions in Predicted Labels (DPPL)",
+      "Disparate Impact (DI)"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「学習する前」と「グループごとの承認ラベルの割合の差」の 2 点です。DPL はトレーニング前のバイアス指標で、ファセット a (この例では 25 歳以上) で観測ラベルが正 (承認) の割合 qa と、ファセット d (25 歳未満) で正の割合 qd の差 qa − qd として計算します。DPL が大きいデータで学習したモデルは、同じ偏りを予測にも引き継ぎやすくなります。CI はファセットごとのサンプル数の偏りを測る指標で、ラベルの割合は見ません。DPPL と DI はモデルの予測ラベルを使うトレーニング後の指標です。なお、Clarify は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "CI はファセットごとのサンプル数の差を測る指標で、承認ラベルの割合の差は測りません。",
+      "観測ラベルが正の割合をファセット間で比べるトレーニング前の指標で、要件にそのまま合います。",
+      "DPPL は予測ラベルの正の割合を比べるトレーニング後の指標で、学習前には計算できません。",
+      "DI は予測ラベルの正の割合の比をとるトレーニング後の指標で、学習前には計算できません。"
+    ],
+    "services": ["Amazon SageMaker Clarify"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Difference in Proportions of Labels (DPL)", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-data-bias-metric-true-label-imbalance.html" },
+      { "title": "Class Imbalance (CI)", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-bias-metric-class-imbalance.html" },
+      { "title": "Difference in Positive Proportions in Predicted Labels (DPPL)", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-post-training-bias-metric-dppl.html" }
+    ]
+  },
+  {
+    "id": "D1-025",
+    "domain": 1,
+    "task": "1.3",
+    "type": "match",
+    "question": "ある医療系企業は、ML のデータ基盤で扱う機密データの保護を見直しています。次の各要件に最も合う AWS のサービスを選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "組織内の多数の Amazon S3 バケットのうち、クレジットカード番号や氏名などの機密データを含むものを自動で見つけたい。",
+      "英語で書かれた診療記録の自由記述から、患者名や日付などの保護対象保健情報 (PHI) を検出したい。",
+      "学習データと SageMaker AI の学習ジョブのストレージボリュームを、自社で管理し、利用履歴を監査できるキーで暗号化したい。",
+      "データサイエンティストに Data Catalog のテーブルの照会を許可しつつ、個人番号の列だけは見せないようにしたい。"
+    ],
+    "options": [
+      "AWS Lake Formation",
+      "Amazon Macie",
+      "AWS Secrets Manager",
+      "Amazon Comprehend Medical",
+      "AWS Key Management Service (AWS KMS)"
+    ],
+    "answer": [1, 3, 4, 0],
+    "explanation": "Amazon Macie は機械学習とパターンマッチングで S3 の機密データを見つけ、結果を検出結果として報告します。Amazon Comprehend Medical の DetectPHI は、診療記録のテキストから PHI のエンティティを検出し、カテゴリー、位置、信頼度を返します (英語のテキストのみ対応)。AWS KMS は暗号化キーを作成して管理するサービスで、カスタマーマネージドキーを SageMaker AI の学習ジョブに渡せば、ストレージボリュームの暗号化に使えます。キーの利用は AWS CloudTrail で監査できます。AWS Lake Formation は Data Catalog のテーブルに対する権限に列のフィルターを付けられ、特定の列だけを見せない列レベルのセキュリティを実現します。",
+    "optionNotes": [
+      "4 つ目の要件に合います。列レベルのセキュリティで、個人番号のような列だけを見せないようにできます。",
+      "1 つ目の要件に合います。S3 のバケットを調べ、機密データを自動で見つけます。",
+      "どれにも合いません。データベースの認証情報や API キーのようなシークレットを保管するサービスで、データの検出、暗号化キーの管理、列の権限制御は行いません。",
+      "2 つ目の要件に合います。英語の診療テキストから PHI を検出します。",
+      "3 つ目の要件に合います。自社で管理するキーで学習データやストレージボリュームを暗号化し、利用を監査できます。"
+    ],
+    "services": ["Amazon Macie", "Amazon Comprehend Medical", "AWS Key Management Service (AWS KMS)", "AWS Lake Formation"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "What is Amazon Macie?", "url": "https://docs.aws.amazon.com/macie/latest/user/what-is-macie.html" },
+      { "title": "Detect PHI", "url": "https://docs.aws.amazon.com/comprehend-medical/latest/dev/textanalysis-phi.html" },
+      { "title": "Data filtering and cell-level security in Lake Formation", "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/data-filtering.html" }
+    ]
+  },
+  {
+    "id": "D1-026",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "あるクレジットカード会社は、取引データから不正利用を検出する二値分類モデルを作っています。データは 200 万行で、不正の行は約 0.3% しかありません。ML エンジニアは Amazon SageMaker Canvas の Data Wrangler で前処理を行っており、少数クラスのサンプルを単純に複製するのではなく、新しい合成サンプルを作って偏りを減らしたいと考えています。モデルの評価結果は本番のデータ分布を反映したものにする必要があります。最も適した手順はどれですか。",
+    "options": [
+      "Balance data の Random oversampling を全データに適用してから、学習用とテスト用に分割する。",
+      "Balance data の SMOTE を全データに適用してから、学習用とテスト用に分割する。",
+      "Split data で学習用とテスト用に分割し、学習用のデータだけに Balance data の SMOTE を適用する。",
+      "Split data で学習用とテスト用に分割し、学習用とテスト用の両方に Balance data の Random undersampling を適用する。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「単純な複製ではなく合成サンプル」と「評価は本番の分布を反映」の 2 点です。Data Wrangler の Balance data には Random oversampling、Random undersampling、SMOTE があります。SMOTE は少数クラスの実サンプル 2 つの数値特徴量を重み付き平均で補間し、新しい合成サンプルを作ります。合成サンプルは元のサンプルから作られるため、分割の前に適用すると、テスト用データに学習用データとよく似たサンプルが入り、評価が実際より良く見えます。テスト用データは本番と同じ不均衡のまま残し、学習用データだけを均衡させます。",
+    "optionNotes": [
+      "Random oversampling は少数クラスを複製するだけで合成サンプルを作らず、分割前の適用で同じサンプルが学習用とテスト用の両方に入ります。",
+      "合成サンプルは作れますが、分割前に適用するため、テスト用データが本番の分布から外れ、学習用データと似たサンプルも混ざります。",
+      "分割後に学習用データだけへ SMOTE を適用するので、合成サンプルで偏りを減らしつつ、テスト用データは本番の分布のまま評価できます。",
+      "アンダーサンプリングは合成サンプルを作らず、テスト用データまで均衡させると本番の分布を反映した評価になりません。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker Canvas"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Transform data", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/canvas-transform.html" }
+    ]
+  },
+  {
+    "id": "D1-027",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、毎晩 AWS Glue の ETL ジョブ (Spark) で注文データを加工し、Amazon SageMaker AI の学習用データとして Amazon S3 に書き出しています。最近、主キーの重複や必須の列の欠損が混じったデータで学習が行われる事故がありました。今後は、注文 ID が一意であること、顧客 ID に欠損がないこと、金額が 0 以上であることを書き出す前に確かめ、条件を満たさない場合はジョブを失敗させたいと考えています。運用の手間が最も少ないソリューションはどれですか。",
+    "options": [
+      "既存の ETL ジョブに AWS Glue Data Quality の EvaluateDataQuality 変換を追加し、DQDL でルールセットを定義して、ルールに違反したらジョブを失敗させる。",
+      "SageMaker Model Monitor のデータ品質ベースラインを学習データから作成し、毎晩のモニタリングスケジュールで違反を検出する。",
+      "AWS Glue クローラーを ETL ジョブの後に実行し、スキーマの変更が検出されたら Amazon SNS で通知する。",
+      "ETL ジョブの出力に対して Amazon Athena のクエリを実行する AWS Lambda 関数を作成し、Amazon EventBridge で毎晩起動して結果を確かめる。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「既存の Glue ETL ジョブ」「書き出す前に確かめる」「違反したらジョブを失敗させる」「運用の手間が最小」の 4 点です。AWS Glue Data Quality はサーバーレスで、Data Quality Definition Language (DQDL) でルールを書きます。IsPrimaryKey、IsComplete、ColumnValues のようなルールで、一意性、欠損、値の範囲を確かめられます。ETL ジョブの中に EvaluateDataQuality 変換を置けば、書き出しの前にデータを評価でき、問題があればジョブを失敗させる設定や、結果を見て処理を分ける書き方ができます。インフラストラクチャを別に用意する必要はありません。",
+    "optionNotes": [
+      "既存のジョブにルールの評価を組み込み、書き出す前に違反を見つけてジョブを止められるため、手間が最も少なく済みます。",
+      "Model Monitor はデプロイ後の推論データをベースラインと比べる仕組みで、ETL ジョブの書き出し前のデータを止める用途ではありません。",
+      "クローラーはスキーマを推定するもので、値の一意性、欠損、範囲は確かめません。",
+      "書き出した後の確認になるうえ、Lambda、Athena、EventBridge を組み合わせて作り込む手間がかかります。"
+    ],
+    "services": ["AWS Glue", "AWS Glue Data Quality"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AWS Glue Data Quality", "url": "https://docs.aws.amazon.com/glue/latest/dg/glue-data-quality.html" },
+      { "title": "EvaluateDataQuality class", "url": "https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-crawler-pyspark-transforms-EvaluateDataQuality.html" },
+      { "title": "Evaluating data quality for ETL jobs in AWS Glue Studio", "url": "https://docs.aws.amazon.com/glue/latest/dg/tutorial-data-quality.html" }
+    ]
+  },
+  {
+    "id": "D1-028",
+    "domain": 1,
+    "task": "1.3",
+    "type": "multi",
+    "question": "ある通信会社は、解約予測モデルを作っています。データは顧客 1 人につき 1 行で、解約した顧客は全体の約 5% です。データはデータベースから解約フラグの昇順で書き出されており、書き出しの不具合で約 10% の行が 2 回ずつ含まれています。前回のモデルは検証データでの成績が良かったのに、本番では大きく下がりました。ML エンジニアは Amazon SageMaker Canvas の Data Wrangler で学習用と検証用のデータを作り直します。評価の過大な見積もりと予測の偏りを防ぐために行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "Ordered split で、先頭の 80% を学習用、残りの 20% を検証用にする。",
+      "分割の前に、重複している行を削除する (Drop duplicates)。",
+      "分割の前に SMOTE で解約クラスのサンプルを増やし、その後で学習用と検証用に分ける。",
+      "検証用データにも Random oversampling を適用し、解約と継続の行数をそろえる。",
+      "Stratified split で解約フラグを入力列に指定し、学習用と検証用で解約の割合をそろえる。"
+    ],
+    "answer": [1, 4],
+    "explanation": "重複した行が残ったまま分割すると、同じ行が学習用と検証用の両方に入り、モデルが覚えた行で評価することになります。検証データでの成績が実際より良く見えるのはこのためで、分割の前に重複を取り除きます。データが解約フラグの順に並んでいるので、順序を保って分ける Ordered split では、検証用に解約した顧客ばかりが入ります。Stratified split は指定した列の値ごとに同じ比率で分けるので、解約が 5% しかなくても、学習用と検証用の両方に同じ割合の解約が入ります。少数クラスを増やす処理は学習用データだけに行い、検証用データは本番と同じ分布で残します。",
+    "optionNotes": [
+      "ラベルの順に並んだデータを順序どおりに分けるため、学習用と検証用でラベルの分布が大きく偏ります。",
+      "同じ行が学習用と検証用の両方に入るのを防ぎ、評価の過大な見積もりをなくせます。",
+      "分割前に合成サンプルを作ると、学習用データとよく似たサンプルが検証用に入り、評価が実際より良く見えます。",
+      "検証用データの分布を本番と変えてしまうため、本番の性能を正しく見積もれません。",
+      "少数クラスの割合を学習用と検証用でそろえられ、どちらかに解約が偏るのを防げます。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker Canvas"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Transform data", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/canvas-transform.html" },
+      { "title": "Perform exploratory data analysis (EDA)", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/canvas-analyses.html" }
+    ]
+  },
+  {
+    "id": "D1-029",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある自動運転の研究チームは、Amazon S3 にある合計 2 TB、数百万個の小さな画像ファイルを使い、Amazon SageMaker AI の学習ジョブをハイパーパラメータを変えながら 1 日に何十回も実行しています。File モードでは毎回データのダウンロードに長い時間がかかっています。学習スクリプトはファイルをランダムな順序で読み込みます。学習の開始を早め、高いスループットと低いレイテンシーでデータを読めるようにしたいと考えています。最も適したソリューションはどれですか。",
+    "options": [
+      "入力モードを Pipe モードに変更し、データを名前付きパイプで学習コンテナに流し込む。",
+      "入力モードを Fast File モードに変更し、S3 のデータを必要なときに読み込む。",
+      "学習インスタンスの ML ストレージボリュームを大きくし、File モードのまま実行する。",
+      "S3 バケットとリンクした Amazon FSx for Lustre のファイルシステムを作成し、学習ジョブを VPC に接続して、FSx for Lustre をデータソースに指定する。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「同じデータで何十回も学習」「数百万個の小さなファイル」「ランダムな順序で読む」「高スループットと低レイテンシー」の 4 点です。FSx for Lustre は数百 GB/秒規模のスループットと数百万 IOPS、低レイテンシーのファイル取得に対応します。学習ジョブの開始時はファイルシステムをマウントするだけで、マウントにかかる時間はデータ量に左右されません。S3 とリンクすれば S3 のデータをそのまま使え、何十回もの学習で同じファイルシステムを使い回せます。学習ジョブを VPC に接続する設定は必要です。",
+    "optionNotes": [
+      "Pipe モードは S3 から順番にデータを流す方式で、各パイプは 1 つのプロセスしか読めず、ランダムな順序での読み込みに向きません。",
+      "Fast File モードはランダムアクセスもできますが、順番に読むときに最も性能が出る方式で、S3 のプレフィックス内のファイルが多いほど開始に時間がかかります。",
+      "File モードのままでは毎回データセット全体のダウンロードを待つため、開始は早くなりません。",
+      "マウントだけで学習を始められ、高スループット、低レイテンシーで小さなファイルをランダムに読めます。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon FSx", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Setting up training jobs to access datasets", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-access-training-data.html" },
+      { "title": "Configure data input channel to use Amazon FSx for Lustre", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-access-training-data-fsx.html" }
+    ]
+  },
+  {
+    "id": "D1-030",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある銀行は、ローンの返済見込みを予測するモデルを、スマートフォンのアプリから申し込んだ顧客の過去 5 年分のデータだけで学習しました。今後は店舗の窓口からの申込みも同じモデルで審査することになり、窓口の申込者の多くは 65 歳以上です。Amazon SageMaker Clarify のトレーニング前のバイアス分析で年齢層をファセットにすると、Class Imbalance (CI) は 0.9 に近い値でした。65 歳以上の申込者に対する予測の偏りを減らすために、最初に行うべき対応はどれですか。",
+    "options": [
+      "年齢の列を学習データから削除し、年齢がモデルの入力に使われないようにする",
+      "アプリからの申込みデータだけで学習を続け、エポック数を増やしてモデル全体の精度を上げる",
+      "学習データ全体に標準化を適用し、年齢の列の値の範囲をほかの特徴量とそろえる",
+      "窓口からの申込みの記録を学習データに加え、本番で審査する申込者の構成を反映したデータにしてから、CI を測り直す"
+    ],
+    "answer": [3],
+    "explanation": "学習データをアプリの利用者だけから集めたため、本番で審査する申込者の構成とデータの構成がずれています。データの集め方が対象の母集団を代表していないことで起きる、選択バイアスの例です。CI が 1 に近いのは、ファセット a (65 歳未満) の件数がファセット d (65 歳以上) よりずっと多いことを示します。Clarify のドキュメントも、主に中年層のデータで学習したモデルは若年層や高齢層への予測の精度が下がりうると説明しています。対策の第一歩は、窓口の申込みのように不足している層のデータを加えて本番の構成に近づけることです。年齢の列を消しても、年齢と相関するほかの特徴量が残り、データ不足も解消しません。なお、Clarify は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "年齢と相関するほかの特徴量が残るうえ、65 歳以上のデータが少ないこと自体は変わらないため、偏りは減りません。",
+      "偏ったデータのまま学習を進めても、多数派の層に合わせたモデルになるだけで、65 歳以上の予測は改善しません。",
+      "標準化は値の尺度をそろえる処理で、ファセットごとの件数の偏りは変わりません。",
+      "不足している層のデータを加えて本番の申込者の構成に近づけ、CI で改善を確かめられるため、最初の対応として適切です。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker Clarify"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Class Imbalance (CI)", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-bias-metric-class-imbalance.html" },
+      { "title": "Pre-training Data Bias", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-detect-data-bias.html" }
+    ]
+  },
+  {
+    "id": "D1-031",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある保険会社は、契約データと請求データを AWS Glue DataBrew で前処理してから ML に使います。データサイエンティストに顧客のメールアドレスを見せてはいけませんが、2 つのデータセットをメールアドレスの列で結合できる必要があります。不正調査の担当者は、必要なときに元のメールアドレスに戻せなければなりません。DataBrew のどの変換を使うべきですか。",
+    "options": [
+      "メールアドレスの列を Nulling out で null に置き換える。",
+      "メールアドレスの列に Hashing を適用する。",
+      "メールアドレスの列に Deterministic encryption を適用する。",
+      "メールアドレスの列に Probabilistic encryption を適用する。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「値を見せない」「列で結合できる」「元に戻せる」の 3 点です。DataBrew の PII 向けの変換のうち、決定的暗号化 (Deterministic encryption) は同じ値から常に同じ暗号文を作ります。そのため、2 つのデータセットで同じメールアドレスは同じ暗号文になり、暗号文のまま結合できます。暗号化なので、キーを使える担当者は Decryption で元の値に戻せます。確率的暗号化は適用のたびに異なる暗号文を作るため、結合のキーに使えません。ハッシュ化は同じ値が同じ結果になりますが、元に戻せません。",
+    "optionNotes": [
+      "値が消えるため、結合にも復元にも使えません。",
+      "同じ値は同じハッシュ値になるので結合はできますが、元のメールアドレスに戻せません。",
+      "同じ値が同じ暗号文になるため結合でき、キーを使って復号すれば元の値に戻せます。",
+      "復号はできますが、同じ値でも毎回異なる暗号文になるため、列で結合できません。"
+    ],
+    "services": ["AWS Glue DataBrew"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Identifying and handling personally identifiable information (PII)", "url": "https://docs.aws.amazon.com/databrew/latest/dg/personal-information-protection.html" }
+    ]
+  },
+  {
+    "id": "D1-032",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある医療機関は、Amazon SageMaker AI で複数のインスタンスを使う分散学習を行っています。セキュリティ部門から、学習中にインスタンス間でやり取りされるデータも暗号化するよう求められました。学習コードの変更は最小限にしたいと考えています。この要件を満たす方法はどれですか。",
+    "options": [
+      "学習ジョブの作成時に EnableInterContainerTrafficEncryption を True にし、セキュリティグループで必要な通信 (UDP の 500 番ポートと ESP (プロトコル 50)) を許可する。",
+      "学習ジョブの ML ストレージボリュームを暗号化するキーとして、AWS KMS のカスタマーマネージドキーを指定する。",
+      "学習ジョブの EnableNetworkIsolation を True にする。",
+      "学習データを SSE-KMS で暗号化した Amazon S3 バケットに置き、学習ジョブの出力にも AWS KMS のキーを指定する。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「インスタンス間でやり取りされるデータ」と「学習コードの変更は最小限」です。分散学習ではインスタンスの間でモデルの重みなどがやり取りされます。コンテナ間トラフィックの暗号化 (EnableInterContainerTrafficEncryption) を有効にすると、SageMaker AI がインスタンス間の通信を暗号化されたトンネルで運び、アルゴリズム側で暗号化と復号を実装する必要がありません。セキュリティグループでは、同じセキュリティグループからの UDP の 500 番ポートと ESP (プロトコル 50) を許可します。AWS のドキュメントは、医療分野ではノード間の通信を暗号化することをベストプラクティスとしています。通信量が多いと学習時間とコストが増える点には注意が必要です。",
+    "optionNotes": [
+      "インスタンス間の通信を SageMaker AI が暗号化するため、コードを変えずに要件を満たせます。",
+      "保存時の暗号化であり、インスタンス間でやり取りされるデータは暗号化されません。",
+      "ネットワーク分離は学習コンテナからの外部への通信を止める設定で、インスタンス間の通信を暗号化するものではありません。",
+      "S3 上の入力と出力の保存時の暗号化であり、学習中のインスタンス間の通信は対象外です。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Protect Communications Between ML Compute Instances in a Distributed Training Job", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/train-encrypt.html" },
+      { "title": "enableNetworkIsolation", "url": "https://docs.aws.amazon.com/sdk-for-kotlin/api/latest/sagemaker/aws.sdk.kotlin.services.sagemaker.model/-hyper-parameter-training-job-definition/-builder/enable-network-isolation.html" }
+    ]
+  },
+  {
+    "id": "D1-033",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある医療機関は、院内のシステムから Amazon S3 のバケットに患者データを含む学習データをアップロードし、Amazon SageMaker AI の学習ジョブで読み込んでいます。セキュリティ監査で、暗号化されていない HTTP でバケットにアクセスする要求があっても拒否されない設定になっていると指摘されました。このバケットへのすべての要求で、転送中のデータの暗号化を強制する必要があります。最も適切な方法はどれですか。",
+    "options": [
+      "バケットポリシーに、aws:SecureTransport 条件キーが false の要求を拒否する Deny ステートメントを追加する",
+      "バケットで S3 Object Lock をコンプライアンスモードで有効にする",
+      "バケットでバージョニングと MFA Delete を有効にする",
+      "バケットのデフォルト暗号化を SSE-KMS に変更し、AWS KMS のカスタマーマネージドキーを指定する"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「転送中のデータの暗号化を強制する」という要件です。aws:SecureTransport はグローバル条件キーで、要求が HTTPS (TLS) で送られたときに true、HTTP で送られたときに false になります。バケットポリシーで aws:SecureTransport が false の要求に対して s3:* を Deny すると、暗号化されていない HTTP の要求はすべて拒否され、バケットへのアクセスは TLS で暗号化された接続に限られます。明示的な Deny はほかの Allow より優先されるので、IAM ポリシーの設定にかかわらず強制できます。SSE-KMS のデフォルト暗号化は保存時の暗号化で、転送経路は守りません。",
+    "optionNotes": [
+      "HTTP で送られた要求を明示的に拒否し、TLS の接続だけを許すため、転送中の暗号化を強制できます。",
+      "Object Lock はオブジェクトの削除や上書きを防ぐ機能で、転送中の暗号化とは関係ありません。",
+      "バージョニングと MFA Delete は誤削除への備えで、HTTP の要求を拒否しません。",
+      "SSE-KMS は保存時の暗号化で、HTTP での要求は拒否されないため、転送中の暗号化を強制できません。"
+    ],
+    "services": ["Amazon S3", "AWS Identity and Access Management (IAM)"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Examples of Amazon S3 bucket policies", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-bucket-policies.html" }
+    ]
+  },
+  {
+    "id": "D1-034",
+    "domain": 1,
+    "task": "1.3",
+    "type": "multi",
+    "question": "ある欧州の医療系企業は、患者データを使う ML モデルを Amazon SageMaker AI で学習します。コンプライアンスの要件は 2 つあります。データと学習処理を eu-central-1 リージョンの外に出さないこと。学習ジョブのストレージボリュームと学習の出力を、自社で管理し、ローテーションと利用の監査ができるキーで暗号化すること。これらの要件を満たすために行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "Amazon S3 のクロスリージョンレプリケーションで学習データを eu-west-1 にも複製し、障害に備える。",
+      "学習ジョブで EnableInterContainerTrafficEncryption を True にする。",
+      "AWS Organizations の SCP で、aws:RequestedRegion 条件キーを使い、eu-central-1 以外のリージョンへの操作を拒否する。",
+      "AWS KMS のカスタマーマネージドキーを作成し、学習ジョブの ML ストレージボリュームと出力の暗号化キーとして指定する。",
+      "KMS キーを指定せず、SageMaker AI の既定の暗号化 (AWS マネージドキー) に任せる。"
+    ],
+    "answer": [2, 3],
+    "explanation": "データレジデンシーの要件には、aws:RequestedRegion 条件キーで指定したリージョン以外への操作を拒否するポリシーを使います。SCP にすれば組織のアカウント全体に強制でき、誤って別のリージョンで学習ジョブやバケットを作る操作も止められます。IAM のようなグローバルサービスは NotAction で除外します。暗号化の要件には、AWS KMS のカスタマーマネージドキーを学習ジョブに渡します。SageMaker AI の学習ジョブは、ML ストレージボリュームと Amazon S3 への出力の暗号化に KMS キーを指定でき、キーのローテーションや利用の監査といった KMS の機能を使えます。キーを指定しなければ、出力は Amazon S3 用の AWS マネージドキーで暗号化されますが、キーポリシーやローテーションを自社で管理できないため要件を満たしません。",
+    "optionNotes": [
+      "データを eu-central-1 の外に複製するため、データレジデンシーの要件に反します。",
+      "インスタンス間の通信の暗号化で、保存時の暗号化やリージョンの制限という要件には当たりません。",
+      "eu-central-1 以外のリージョンへの操作を組織全体で拒否でき、データと処理をリージョン内にとどめられます。",
+      "自社で管理するキーでストレージボリュームと出力を暗号化でき、ローテーションと利用の監査もできます。",
+      "既定で使われる AWS マネージドキーは AWS が管理するキーで、キーポリシーやローテーションを自社で管理する要件を満たしません。"
+    ],
+    "services": ["AWS Organizations", "AWS Key Management Service (AWS KMS)", "Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AWS: Denies access to AWS based on the requested Region", "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_aws_deny-requested-region.html" },
+      { "title": "Protect Data at Rest Using Encryption", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/encryption-at-rest.html" },
+      { "title": "OutputDataConfig", "url": "https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_OutputDataConfig.html" }
+    ]
+  }
+]

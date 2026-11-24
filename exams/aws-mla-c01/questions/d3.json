@@ -1,0 +1,760 @@
+[
+  {
+    "id": "D3-001",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある医療画像解析の企業は、病院からアップロードされる CT 画像(1件あたり 300〜800 MB)をセグメンテーションモデルで解析しています。1件の推論には 10〜25 分かかります。依頼は日中に不規則に届き、まとまって届くこともありますが、取りこぼしは許されません。結果は依頼から 30 分以内に返せれば十分で、依頼がない時間帯の費用はできるだけ抑えたいと考えています。これらの要件を最もコスト効率良く満たすデプロイ方法はどれですか。",
+    "options": [
+      "GPU インスタンスのリアルタイムエンドポイントにデプロイし、ターゲット追跡のオートスケーリングを設定する",
+      "非同期推論エンドポイントにデプロイし、入力を Amazon S3 に置いて InvokeEndpointAsync で呼び出し、依頼がないときはインスタンス数を0まで縮小する",
+      "メモリサイズを 6144 MB にしたサーバーレス推論エンドポイントにデプロイする",
+      "毎晩1回、その日に届いた画像をまとめてバッチ変換ジョブで処理する"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「1件 300〜800 MB」「1件 10〜25 分」「まとまって届いても取りこぼさない」「依頼がない時間帯の費用を抑える」の4点です。SageMaker AI の非同期推論は、受け取ったリクエストを内部のキューにためて順に処理する仕組みで、最大 1 GB のペイロードと最大 1 時間の処理時間に対応します。入力は S3 に置き、呼び出し側には出力先の S3 の場所が返るので、長い処理でも接続を保ち続ける必要がありません。リクエストがないときはインスタンス数を0まで縮小でき、処理している間だけ費用がかかります。リアルタイム推論はペイロード 25 MB、処理 60 秒まで、サーバーレス推論は 4 MB、60 秒までなので、この画像と処理時間には対応できません。",
+    "optionNotes": [
+      "リアルタイム推論はペイロード 25 MB、処理時間 60 秒(ストリーミング以外)が上限で、数百 MB の画像と 25 分の処理には使えません。",
+      "非同期推論は 1 GB までのペイロードと 1 時間までの処理に対応し、キューで取りこぼしを防ぎ、0台まで縮小して待機中の費用をなくせます。",
+      "サーバーレス推論はペイロード 4 MB、処理 60 秒までで、GPU も使えないため要件に合いません。",
+      "1日1回の一括処理では、依頼から 30 分以内に結果を返す要件を満たせません。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Asynchronous inference", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference.html" },
+      { "title": "Inference options in Amazon SageMaker AI", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model-options.html" }
+    ]
+  },
+  {
+    "id": "D3-002",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業の人事部門は、社内ポータルから従業員の離職リスクを予測する scikit-learn モデルを呼び出します。呼び出しは1日に数十回で時間帯も決まっておらず、何時間も呼び出しがないこともあります。ペイロードは数 KB、モデルは CPU で 1 秒以内に推論でき、モデルとコンテナはメモリ 3 GB に収まります。ポータルは同期で応答を受け取り、数秒のコールドスタートは許容されます。インスタンスを管理せず、使った分だけ支払いたいと考えています。これらの要件を最もコスト効率良く満たすデプロイ方法はどれですか。",
+    "options": [
+      "ml.t2.medium 1台のリアルタイムエンドポイントを常時起動する",
+      "非同期推論エンドポイントにデプロイし、呼び出しがないときはインスタンス数を0にする",
+      "1時間ごとのバッチ変換ジョブで、その時点までに溜まった依頼をまとめて処理する",
+      "メモリサイズを 4096 MB にしたサーバーレス推論エンドポイントにデプロイする"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「不規則で何時間も呼ばれないことがある」「同期で応答」「コールドスタートは許容」「インスタンスを管理せず使った分だけ支払う」です。SageMaker AI のサーバーレス推論は、断続的で予測しにくいトラフィック向けの選択肢で、基盤のインフラを SageMaker AI が管理し、アイドル時間には費用がかかりません。メモリサイズは 1024 MB から 6144 MB まで 1 GB 単位で選べるので、3 GB に収まるモデルなら 4096 MB で足ります。ペイロードは 4 MB、処理時間は 60 秒までで、数 KB のペイロードと 1 秒以内の推論は範囲に収まります。GPU は使えませんが、このモデルは CPU で動くので問題になりません。",
+    "optionNotes": [
+      "常時起動のインスタンスは呼び出しがない時間も課金され、使った分だけ支払う要件に合いません。",
+      "非同期推論は入力を S3 に置き、結果を後から受け取る方式で、ポータルが同期で応答を受け取る要件に合いません。",
+      "バッチ変換は溜まったデータの一括処理で、ポータルからの同期の呼び出しに応答できません。",
+      "サーバーレス推論は呼び出しがないときの費用がかからず、インスタンスの管理も不要で、ペイロードと処理時間も上限内に収まります。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Deploy models with Amazon SageMaker Serverless Inference", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html" },
+      { "title": "ProductionVariantServerlessConfig", "url": "https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProductionVariantServerlessConfig.html" }
+    ]
+  },
+  {
+    "id": "D3-003",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業は、すべてのマイクロサービスを Amazon EKS クラスターで運用しています。デプロイは Helm チャートと GitOps のツールで、監視は Prometheus で統一しており、運用チームは Kubernetes に習熟しています。新たに GPU で動く物体検出モデルを、同じクラスター内の別のサービスから数十ミリ秒で呼べる推論 API として提供することになりました。デプロイと監視の仕組みを既存のものと分けたくないと考えています。この要件を最も満たすデプロイ先はどれですか。",
+    "options": [
+      "EKS クラスターに GPU インスタンスのマネージドノードグループを追加し、推論コンテナを Kubernetes の Deployment と Service としてデプロイする",
+      "SageMaker AI のリアルタイムエンドポイントに GPU インスタンスでデプロイし、クラスター内のサービスから InvokeEndpoint で呼び出す",
+      "Amazon ECS クラスターを新たに作り、GPU を搭載した EC2 インスタンスで推論のタスクを動かす",
+      "SageMaker AI のバッチ変換ジョブを、Kubernetes の CronJob から定期的に起動する"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「すべてを EKS で運用」「Helm と GitOps、Prometheus で統一」「デプロイと監視の仕組みを分けたくない」です。デプロイターゲットは、性能だけでなく既存の運用の仕組みとの整合で選びます。EKS では GPU インスタンスのノードグループを追加すると、GPU 対応の EKS 最適化 AMI と NVIDIA のデバイスプラグインで、Pod に GPU を割り当てられます。推論コンテナを Deployment と Service として置けば、既存の Helm チャート、GitOps、Prometheus の監視をそのまま使え、同じクラスター内から低レイテンシーで呼べます。SageMaker AI のエンドポイントや ECS も推論をホストできますが、デプロイと監視の仕組みがもう一つ増えるため、この要件には合いません。",
+    "optionNotes": [
+      "既存の EKS クラスターに GPU ノードを足して Kubernetes のリソースとして置くので、デプロイと監視の仕組みを統一したまま GPU 推論を提供できます。",
+      "推論のホストとしては使えますが、SageMaker AI 側のデプロイと監視が別に必要になり、仕組みを分けたくない要件に合いません。",
+      "ECS で GPU のタスクは動かせますが、別のオーケストレーターが増え、Kubernetes のツールで一元管理できません。",
+      "バッチ変換は定期的な一括処理で、他のサービスから数十ミリ秒で呼べる推論 API になりません。"
+    ],
+    "services": ["Amazon EKS", "Amazon SageMaker AI", "Amazon ECS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "GPU Support (eksctl)", "url": "https://docs.aws.amazon.com/eks/latest/eksctl/gpu-support.html" },
+      { "title": "Amazon ECS task definitions for GPU workloads", "url": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-gpu.html" }
+    ]
+  },
+  {
+    "id": "D3-004",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある SaaS 企業は、顧客企業ごとに個別に学習した XGBoost の解約予測モデルを約 2,000 個持っています。どのモデルも同じ SageMaker AI の XGBoost コンテナで推論でき、1つ1つのモデルが呼ばれる頻度は低く、1日に数回しか呼ばれないものも多くあります。しばらく呼ばれていないモデルの最初の呼び出しが多少遅くなることは許容されます。新しい顧客のモデルは、エンドポイントを更新せずに追加したいと考えています。ホスティング費用を最も抑えられる方法はどれですか。",
+    "options": [
+      "モデルごとにリアルタイムエンドポイントを作り、各エンドポイントを最小のインスタンスで動かす",
+      "マルチコンテナエンドポイントを作り、各モデルを別々のコンテナとして登録する",
+      "マルチモデルエンドポイントを作り、すべてのモデルの model.tar.gz を同じ S3 プレフィックスに置いて、呼び出し時に TargetModel でモデルを指定する",
+      "モデルごとにサーバーレス推論エンドポイントを作る"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「約 2,000 個」「同じコンテナで推論できる」「呼ばれる頻度が低い」「初回の遅延は許容」「エンドポイントを更新せずに追加」です。マルチモデルエンドポイントは、共有のサービングコンテナで多数のモデルを1つのエンドポイントにまとめる仕組みです。作成時に全モデルを読み込むのではなく、呼び出されたモデルを S3 から取得してメモリにキャッシュし、メモリが足りなくなると使われていないモデルを外します。そのため初回の呼び出しは遅くなりますが、頻繁に使われるモデルは低レイテンシーで応答できます。モデルの追加は S3 にアップロードして呼び出すだけで、エンドポイントの更新は要りません。",
+    "optionNotes": [
+      "2,000 個のエンドポイントがそれぞれ常時インスタンスを使うため、費用が最も高くなります。",
+      "マルチコンテナエンドポイントに載せられるコンテナは 15 個までで、2,000 個のモデルには使えません。",
+      "マルチモデルエンドポイントは同じコンテナで動く多数のモデルを動的に読み込み、S3 に置くだけでモデルを追加できます。",
+      "サーバーレス推論でもアイドル時の費用は抑えられますが、2,000 個のエンドポイントを作って管理し、顧客が増えるたびにエンドポイントを作る必要があり、要件に合いません。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Multi-model endpoints", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html" },
+      { "title": "Create a multi-container endpoint (Boto 3)", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/multi-container-create.html" }
+    ]
+  },
+  {
+    "id": "D3-005",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある小売企業は、需要予測(TensorFlow)、商品分類(PyTorch)、価格弾力性の推定(scikit-learn)の3つのモデルを運用しています。それぞれ別のフレームワークのコンテナを使い、どのモデルもトラフィックは少なく、現在は3つのリアルタイムエンドポイントがいずれも低い使用率で動いています。アプリケーションは用途に応じて各モデルを個別に呼び出します。インスタンスを共有して費用を減らしたいと考えています。この要件を満たす方法はどれですか。",
+    "options": [
+      "3つのコンテナを持つマルチコンテナエンドポイントを、InferenceExecutionConfig の Mode を Direct にして作り、呼び出し時に TargetContainerHostname でコンテナを指定する",
+      "マルチモデルエンドポイントを作り、3つのモデルの model.tar.gz を同じ S3 プレフィックスに置く",
+      "3つのコンテナを順番に呼び出すシリアル推論パイプラインとしてデプロイする",
+      "3つのエンドポイントはそのまま残し、それぞれのインスタンスを一つ小さいサイズに変える"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「別々のフレームワークのコンテナ」「各モデルを個別に呼び出す」「インスタンスを共有」です。マルチコンテナエンドポイントは、異なるコンテナを最大 15 個まで1つのエンドポイントに載せられます。CreateModel の Containers に各コンテナを ContainerHostname 付きで並べ、InferenceExecutionConfig の Mode を Direct にすると、InvokeEndpoint の TargetContainerHostname で呼び出すコンテナを選べます。Mode の既定値は Serial で、これはコンテナを順番に通すシリアル推論パイプラインになります。マルチモデルエンドポイントは1つの共有コンテナで多数のモデルを扱う仕組みなので、フレームワークの異なる3つのコンテナをまとめる用途には向きません。",
+    "optionNotes": [
+      "Direct モードのマルチコンテナエンドポイントなら、別々のフレームワークのコンテナを1つのエンドポイントで共有し、個別に呼び出せます。",
+      "マルチモデルエンドポイントは共有のサービングコンテナで多数のモデルを動かす仕組みで、フレームワークの異なるコンテナをまとめられません。",
+      "シリアル推論パイプラインは1回の呼び出しで全コンテナを順番に通すため、モデルを個別に呼び出す要件に合いません。",
+      "多少の費用は減りますが、3つのエンドポイントのインスタンスは共有されず、使用率の低さも解消しません。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Create a multi-container endpoint (Boto 3)", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/multi-container-create.html" },
+      { "title": "Invoke a multi-container endpoint with direct invocation", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/multi-container-direct.html" }
+    ]
+  },
+  {
+    "id": "D3-006",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある製造業の企業は、工場の生産ラインに置いた ARM プロセッサの組み込み機器で、製品の外観検査を行う画像分類モデルを動かしたいと考えています。工場のネットワークは外部と接続できないため、推論は機器の上で行う必要があります。機器のメモリと処理能力は限られており、PyTorch で学習したモデルをそのまま動かすと推論が遅すぎます。モデルを手作業で調整する時間はありません。この要件を最も満たす方法はどれですか。",
+    "options": [
+      "SageMaker AI のリアルタイムエンドポイントを ml.inf2 インスタンスで作り、機器から呼び出す",
+      "SageMaker Inference Recommender で最適なインスタンスタイプを選び、そのインスタンスでモデルをホストする",
+      "SageMaker Neo のコンパイルジョブで、機器のプロセッサと OS をターゲットにしてモデルをコンパイルし、Neo のランタイムとともに機器へ配置する",
+      "PyTorch のフレームワーク一式を機器にインストールし、学習時と同じモデルファイルを配置する"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「外部と接続できないので機器の上で推論」「メモリと処理能力が限られる」「手作業で調整する時間がない」です。SageMaker Neo は、各フレームワークで学習したモデルを読み込んでフレームワークに依存しない中間表現に変換し、最適化をかけたうえで、指定したターゲットのプロセッサと OS 向けのバイナリを生成します。機器では Neo のランタイム(DLR)がコンパイル済みのモデルを読み込んで推論します。Raspberry Pi や Jetson のようなエッジデバイスもターゲットにでき、手作業の調整なしに限られたハードウェアでの推論を速くできます。クラウドのエンドポイントを呼ぶ方法は、外部と接続できない工場では使えません。",
+    "optionNotes": [
+      "クラウドのエンドポイントを呼ぶには外部との通信が必要で、ネットワークが閉じた工場では使えません。",
+      "Inference Recommender はクラウドの SageMaker AI インスタンスの選定を助ける機能で、機器の上での推論には関係しません。",
+      "Neo はモデルをターゲットのハードウェア向けにコンパイルして最適化し、機器の上でランタイムから推論できるようにします。",
+      "フレームワーク一式をそのまま動かすのは、問題文にある遅すぎる状態そのもので、限られたメモリでの実行にも向きません。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Model performance optimization with SageMaker Neo", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/neo.html" },
+      { "title": "Edge Devices", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/neo-edge-devices.html" }
+    ]
+  },
+  {
+    "id": "D3-007",
+    "domain": 3,
+    "task": "3.1",
+    "type": "multi",
+    "question": "ある企業は、画像分類の PyTorch モデルを毎週 GPU のオンデマンドインスタンスで約 10 時間かけて学習し直しています。推論は GPU インスタンスのリアルタイムエンドポイントで、終日ほぼ一定のトラフィックを処理しています。経営陣から、推論のレイテンシーを悪化させずに、トレーニングと推論のコンピューティング費用を下げるよう求められました。学習ジョブが中断されて終了までの時間が多少延びることは許容されます。これらの要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "推論エンドポイントを、メモリサイズ 6144 MB のサーバーレス推論エンドポイントに移す",
+      "学習ジョブでマネージドスポットトレーニングを有効にし、チェックポイントを Amazon S3 に保存するよう設定する",
+      "学習ジョブのインスタンスを、バースト可能な ml.t3 インスタンスに変える",
+      "モデルを AWS Neuron SDK でコンパイルし、推論エンドポイントを AWS Inferentia2 を搭載した ml.inf2 インスタンスに移す",
+      "推論エンドポイントを ml.p4d インスタンスに変え、1台あたりの処理能力を上げて台数を減らす"
+    ],
+    "answer": [1, 3],
+    "explanation": "学習と推論で別々の手を打ちます。学習は「中断されて時間が延びるのは許容」が決め手です。マネージドスポットトレーニングは EC2 スポットインスタンスで学習ジョブを動かし、オンデマンドに比べて最大 90% 費用を下げられます。中断に備えてチェックポイントを設定すると、SageMaker AI がローカルのチェックポイントを S3 にコピーし、再開時に戻すので、最初からやり直さずに済みます。推論は「終日一定のトラフィック」「レイテンシーを悪化させない」が決め手です。Inf2 インスタンスは推論専用のアクセラレーター AWS Inferentia2 を搭載し、Neuron SDK で PyTorch などのモデルをコンパイルして動かします。深層学習の推論を低コストで処理する用途に向いています。",
+    "optionNotes": [
+      "サーバーレス推論は GPU を使えず、一定のトラフィックでは利点も小さいため、レイテンシーを保てません。",
+      "マネージドスポットトレーニングで学習費用を大きく下げ、チェックポイントで中断から再開できます。",
+      "バースト可能なインスタンスは継続的な高負荷に向かず、GPU もないため、画像モデルの学習時間が大きく延びます。",
+      "Inferentia2 は深層学習の推論向けの専用アクセラレーターで、Neuron SDK でコンパイルすると推論あたりの費用を下げられます。",
+      "p4d は大規模な学習向けの高価な GPU インスタンスで、一定のトラフィックの推論では費用が上がります。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon EC2"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Managed Spot Training in Amazon SageMaker AI", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html" },
+      { "title": "Recommended Inferentia Instances", "url": "https://docs.aws.amazon.com/dlami/latest/devguide/inferentia.html" }
+    ]
+  },
+  {
+    "id": "D3-008",
+    "domain": 3,
+    "task": "3.1",
+    "type": "match",
+    "question": "ある企業の ML チームは、次の各モデルを SageMaker AI でホストするときのコンテナの使い方を決めようとしています。各要件を最も少ない手間で満たすものを選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "表形式データの二値分類を SageMaker AI の XGBoost アルゴリズムで学習した。学習コードも推論コードも自分では書いていない",
+      "PyTorch で学習した画像分類モデルを、自作の推論スクリプト(inference.py)でホストする。必要なライブラリはすべて SageMaker AI のビルド済み PyTorch イメージに入っている",
+      "scikit-learn のモデルの推論スクリプトが、ビルド済みの scikit-learn イメージに入っていない PyPI のパッケージを1つ使う",
+      "PyTorch の推論スクリプトが、apt でインストールする OS のライブラリに依存していて、pip ではインストールできない",
+      "社内で Rust を使って書いた推論サーバーとモデルをホストする。SageMaker AI にはこの言語やフレームワークのビルド済みイメージがない"
+    ],
+    "options": [
+      "独自のコンテナを一から作り(BYOC)、Amazon ECR に push する",
+      "ビルド済みのコンテナを FROM に指定した Dockerfile でイメージを拡張し、Amazon ECR に push する",
+      "組み込みアルゴリズムのコンテナイメージをそのまま使う",
+      "ビルド済みのフレームワークコンテナに、推論スクリプトと requirements.txt を渡す",
+      "ビルド済みのフレームワークコンテナに、推論スクリプトだけを渡す"
+    ],
+    "answer": [2, 4, 3, 1, 0],
+    "explanation": "コンテナは、SageMaker AI が用意したものでどこまで足りるかで選びます。組み込みアルゴリズムで学習したモデルは、そのアルゴリズムのイメージでそのままホストできます。対応するフレームワーク(PyTorch、TensorFlow、scikit-learn など)の自作モデルは、ビルド済みのフレームワークイメージに推論スクリプトを渡すだけで動きます。足りない Python のパッケージは、PyTorch や scikit-learn などのイメージなら requirements.txt で実行時に入れられます。pip で入らない OS のライブラリのように requirements.txt で足りない依存関係は、ビルド済みのイメージを拡張します。ビルド済みのイメージがない言語やフレームワークは、独自のコンテナを作り、ポート 8080 の /invocations と /ping に応答するようにします。",
+    "optionNotes": [
+      "5つ目に合います。ビルド済みのイメージがない言語の推論サーバーは、独自のコンテナとして作るしかありません。",
+      "4つ目に合います。apt で入れる OS のライブラリは requirements.txt では入らないため、ビルド済みのイメージを拡張します。",
+      "1つ目に合います。組み込みアルゴリズムで学習したモデルは、そのアルゴリズムのイメージでホストでき、コードもコンテナも用意せずに済みます。",
+      "3つ目に合います。足りない PyPI のパッケージは requirements.txt に書けば実行時に入り、イメージを作り直さずに済みます。",
+      "2つ目に合います。必要なものがすべてイメージに入っているので、推論スクリプトを渡すだけで動きます。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon ECR"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Docker containers for training and deploying models", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/docker-containers.html" },
+      { "title": "Extend a Pre-built Container", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/prebuilt-containers-extend.html" },
+      { "title": "Custom Inference Code with Hosting Services", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html" }
+    ]
+  },
+  {
+    "id": "D3-009",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業は、Amazon EC2 上に自前で構築した Apache Airflow で、データの取り込みと変換を行う数十の DAG を運用しています。Airflow のバージョンアップやスケーリングの作業に手間がかかっていることが課題です。今後は、変換後のデータを使う SageMaker AI のトレーニングジョブとモデルのデプロイを、既存の DAG の後続タスクとして組み込みたいと考えています。既存の DAG の書き直しは最小限にしたいと考えています。運用負荷を最も小さくできる方法はどれですか。",
+    "options": [
+      "すべての DAG を SageMaker Pipelines のパイプラインに書き直し、データの取り込みと変換も Pipelines のステップで実行する",
+      "DAG を Amazon Managed Workflows for Apache Airflow (Amazon MWAA) に移し、Amazon プロバイダーパッケージの SageMaker 用オペレーターでトレーニングとデプロイのタスクを追加する",
+      "EC2 上の Airflow はそのままにし、トレーニングとデプロイは cron で起動するスクリプトとして別に実行する",
+      "すべての DAG を AWS Step Functions のステートマシンに書き直す"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「Airflow のインフラ運用に手間がかかっている」「既存の DAG の後続にトレーニングとデプロイを組み込みたい」「書き直しは最小限」です。Amazon MWAA は Apache Airflow のマネージドサービスで、スケーリング、可用性、セキュリティのためのインフラを管理せずに、既存の Airflow のワークフローを動かせます。Airflow の Amazon プロバイダーパッケージには SageMakerTrainingOperator や SageMakerEndpointOperator などのオペレーターがあり、DAG にトレーニングやデプロイのタスクを追加できます。デプロイのオーケストレーターは、既存のワークフローの資産と運用の負担を合わせて選びます。SageMaker Pipelines や Step Functions は優れた選択肢ですが、数十の DAG の書き直しが必要になります。",
+    "optionNotes": [
+      "SageMaker Pipelines は ML のワークフロー向けですが、数十の DAG をすべて書き直す必要があり、書き直しを最小限にする要件に合いません。",
+      "MWAA でインフラの運用をなくし、既存の DAG にそのまま SageMaker のオペレーターでタスクを足せます。",
+      "Airflow のインフラ運用の負担が残り、DAG と別の仕組みになるため、後続タスクとして依存関係を管理できません。",
+      "Step Functions でも SageMaker を呼べますが、数十の DAG の書き直しが必要です。"
+    ],
+    "services": ["Amazon MWAA", "Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "What Is Amazon Managed Workflows for Apache Airflow?", "url": "https://docs.aws.amazon.com/mwaa/latest/userguide/what-is-mwaa.html" },
+      { "title": "Orchestrate XGBoost ML Pipelines with Amazon Managed Workflows for Apache Airflow", "url": "https://aws.amazon.com/blogs/machine-learning/orchestrate-xgboost-ml-pipelines-with-amazon-managed-workflows-for-apache-airflow/" }
+    ]
+  },
+  {
+    "id": "D3-010",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業は、SageMaker AI のリアルタイムエンドポイントでホストしている商品推薦モデルを、提携先のモバイルアプリから呼べるようにしたいと考えています。提携先ごとに API キーを発行し、リクエスト数の上限(スロットリング)を設定する必要があります。アプリは JSON で商品 ID を送りますが、モデルは特徴量を並べた CSV を入力に取るため、呼び出しの前に変換が必要です。サーバーの管理は避けたいと考えています。これらの要件を最も運用負荷が小さく満たす構成はどれですか。",
+    "options": [
+      "提携先ごとに IAM ユーザーを作ってアクセスキーを配布し、アプリから直接 InvokeEndpoint を呼び出してもらう",
+      "Amazon EC2 の Auto Scaling グループで Flask のプロキシサーバーを動かし、変換とエンドポイントの呼び出しを行う",
+      "認証なし(AuthType を NONE)の Lambda 関数 URL を公開し、関数の中で JSON を CSV に変換してエンドポイントを呼び出す",
+      "Amazon API Gateway の REST API に使用量プランと API キーを設定し、統合先の AWS Lambda 関数で JSON を CSV に変換してから InvokeEndpoint を呼び出す"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「提携先ごとの API キー」「スロットリング」「呼び出し前の変換」「サーバーを管理しない」です。API Gateway の REST API では、使用量プランと API キーを組み合わせて、どの顧客がどの API を呼べるかを決め、定めた上限でリクエストを絞れます。統合先の Lambda 関数がリクエストの JSON を CSV に変換し、SageMaker AI Runtime の InvokeEndpoint でエンドポイントを呼び出して、結果を返します。どちらもサーバーレスなので、インスタンスの管理は要りません。エンドポイントの前に Lambda を置くと、モデルのコンテナを変えずに前処理や後処理を足せる点も利点です。",
+    "optionNotes": [
+      "モバイルアプリに長期のアクセスキーを埋め込むのは安全でなく、提携先ごとのスロットリングもできず、変換も行えません。",
+      "動きはしますが、EC2 のインスタンスとプロキシの運用が必要で、サーバーを管理しない要件に合いません。",
+      "変換はできますが、認証がなく、提携先ごとの API キーと使用量プランによるスロットリングを設定できません。",
+      "使用量プランと API キーで提携先ごとの制限をかけ、Lambda で変換してからエンドポイントを呼ぶ、サーバーレスの構成です。"
+    ],
+    "services": ["Amazon API Gateway", "AWS Lambda", "Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Usage plans and API keys for REST APIs in API Gateway", "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-usage-plans.html" },
+      { "title": "Call an Amazon SageMaker model endpoint using Amazon API Gateway and AWS Lambda", "url": "https://aws.amazon.com/blogs/machine-learning/call-an-amazon-sagemaker-model-endpoint-using-amazon-api-gateway-and-aws-lambda/" }
+    ]
+  },
+  {
+    "id": "D3-011",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "question": "ある金融機関は、SageMaker AI のリアルタイムエンドポイントで与信モデルをホストします。モデルのコンテナは推論のたびに、VPC のプライベートサブネットにある社内の特徴量 API を呼び出す必要があります。エンドポイントを呼び出すアプリケーションは同じ VPC のプライベートサブネットの EC2 インスタンスで動き、この VPC にはインターネットゲートウェイも NAT ゲートウェイもありません。通信をインターネットに出さないことが求められています。これらの要件を満たす設定はどれですか。（2 つ選択）",
+    "options": [
+      "CreateModel の VpcConfig に、異なるアベイラビリティーゾーンにある複数のプライベートサブネットと、特徴量 API への通信を許可するセキュリティグループを指定する",
+      "CreateModel で EnableNetworkIsolation を True にする",
+      "SageMaker AI Runtime(com.amazonaws.<リージョン>.sagemaker.runtime)のインターフェイス VPC エンドポイントを作り、プライベート DNS を有効にする",
+      "SageMaker AI Runtime 用のゲートウェイ VPC エンドポイントを作り、ルートテーブルに関連付ける",
+      "パブリックサブネットに NAT ゲートウェイを作り、EC2 インスタンスからエンドポイントへの通信を NAT ゲートウェイ経由にする"
+    ],
+    "answer": [0, 2],
+    "explanation": "通信は2方向あり、それぞれに設定が要ります。1つ目はモデルのコンテナから VPC 内の特徴量 API への通信です。CreateModel の VpcConfig にサブネットとセキュリティグループを指定すると、SageMaker AI がネットワークインターフェイスを作ってコンテナに付け、VPC 内のリソースに接続できるようになります。ホストするインスタンスが1台でも、異なるアベイラビリティーゾーンに少なくとも2つのサブネットが必要です。2つ目はアプリケーションからエンドポイントの呼び出しです。SageMaker AI Runtime のインターフェイス VPC エンドポイント(AWS PrivateLink)を作ると、インターネットゲートウェイや NAT なしで InvokeEndpoint を呼べます。プライベート DNS を有効にすれば、既定のホスト名がこの VPC エンドポイントに解決されます。",
+    "optionNotes": [
+      "VpcConfig でコンテナに VPC 内のネットワークインターフェイスが付き、プライベートサブネットの特徴量 API に接続できます。",
+      "ネットワーク分離を有効にすると、コンテナは VPC 内のリソースも含めて外部への通信が一切できなくなり、特徴量 API を呼べません。",
+      "インターフェイス VPC エンドポイントで、インターネットを通らずに VPC 内から SageMaker AI Runtime を呼び出せます。",
+      "ゲートウェイ VPC エンドポイントは Amazon S3 と DynamoDB 向けのもので、SageMaker AI Runtime には使えません。",
+      "NAT ゲートウェイ経由の通信はインターネットゲートウェイを通って公開のエンドポイントに出るため、通信をインターネットに出さない要件に合いません。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon VPC", "AWS PrivateLink"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Give SageMaker AI Hosted Endpoints Access to Resources in Your Amazon VPC", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/host-vpc.html" },
+      { "title": "Connect to SageMaker AI Within your VPC", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/interface-vpc-endpoint.html" },
+      { "title": "Run Training and Inference Containers in Internet-Free Mode", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/mkt-algo-model-internet-free.html" }
+    ]
+  },
+  {
+    "id": "D3-012",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "question": "ある ML エンジニアは、独自の C++ ライブラリに依存する推論コードを SageMaker AI のリアルタイムエンドポイントでホストする必要があります。SageMaker AI が提供するビルド済みのコンテナには、このライブラリが含まれていません。モデルの重みは、学習ジョブが出力した model.tar.gz として Amazon S3 にあります。独自のコンテナを SageMaker AI のホスティングで動かすために必要なことはどれですか。（2 つ選択）",
+    "options": [
+      "コンテナの Web サーバーがポート 443 で HTTPS を待ち受け、/predict と /health に応答するようにする",
+      "コンテナの Web サーバーがポート 8080 で待ち受け、/invocations と /ping へのリクエストに応答するようにする",
+      "docker save で書き出したイメージの tar ファイルを S3 に置き、CreateModel の ModelDataUrl に指定する",
+      "イメージを Amazon ECR のリポジトリに push し、CreateModel のコンテナ定義の Image にそのイメージの URI を、ModelDataUrl に model.tar.gz の S3 URI を指定する",
+      "SageMaker AI は model.tar.gz を読み込めないため、モデルの重みをコンテナイメージの中に含める"
+    ],
+    "answer": [1, 3],
+    "explanation": "独自のコンテナ(BYOC)を SageMaker AI のホスティングで使うには、コンテナの約束事を守り、イメージをモデルの定義から参照できる場所に置きます。コンテナはポート 8080 で Web サーバーを動かし、推論の /invocations とヘルスチェックの /ping に応答する必要があります。NGINX、Gunicorn、Flask のような組み合わせでも、この条件を満たせば構いません。イメージは Amazon ECR に push し、CreateModel のコンテナ定義の Image に URI を指定します。ModelDataUrl に model.tar.gz を指定すると、SageMaker AI がモデルを取得してコンテナの /opt/ml/model に置くので、重みをイメージに焼き込む必要はありません。重みとイメージを分けておくと、モデルを学習し直してもイメージを作り直さずに済みます。",
+    "optionNotes": [
+      "SageMaker AI のホスティングが呼び出すのはポート 8080 の /invocations と /ping で、このポートとパスでは応答できません。",
+      "ポート 8080 での待ち受けと、/invocations と /ping への応答が、ホスティング用コンテナの必須条件です。",
+      "ModelDataUrl はモデルのアーティファクトを指定する項目で、コンテナイメージを置く場所ではありません。",
+      "イメージを ECR に置いて Image に指定し、重みは ModelDataUrl で渡すのが標準の構成です。",
+      "SageMaker AI は ModelDataUrl の model.tar.gz を /opt/ml/model に置くので、重みをイメージに含める必要はありません。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon ECR", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Adapt your own inference container for Amazon SageMaker AI", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/adapt-inference-container.html" },
+      { "title": "Custom Inference Code with Hosting Services", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html" }
+    ]
+  },
+  {
+    "id": "D3-013",
+    "domain": 3,
+    "task": "3.2",
+    "type": "order",
+    "question": "ある ML エンジニアは、SageMaker Python SDK の Model.deploy() でモデルをリアルタイムエンドポイントにデプロイしています。障害を調べるため、deploy() が内部で行う処理を、低レベルの API で同じように再現したいと考えています。学習済みのモデルは model.tar.gz として Amazon S3 にあり、推論コンテナのイメージは Amazon ECR にあります。次の候補から 4 つを選び、正しい順序に並べてください。",
+    "options": [
+      "CreateEndpointConfig で、モデル名、インスタンスタイプ、インスタンス数を本番バリアントとして指定する",
+      "CreateModel で、ECR のイメージ URI、model.tar.gz の S3 URI、実行ロールを指定する",
+      "CreateEndpoint で、エンドポイント設定を指定してエンドポイントを作成する",
+      "エンドポイントが InService になってから、SageMaker AI Runtime の InvokeEndpoint で推論を要求する",
+      "CreateTransformJob で、モデルと入力データの S3 の場所を指定する"
+    ],
+    "answer": [1, 0, 2, 3],
+    "explanation": "リアルタイムエンドポイントは、モデル、エンドポイント設定、エンドポイントの3つのリソースを順に作ってできあがります。順番は前のリソースが次のリソースの入力になることで決まります。最初に CreateModel でコンテナのイメージ、モデルのアーティファクト、実行ロールをまとめたモデルを作ります。次に CreateEndpointConfig で、そのモデル名を参照する本番バリアントにインスタンスタイプと台数を指定します。続いて CreateEndpoint でエンドポイント設定を指定すると、SageMaker AI がインスタンスを用意してコンテナを起動します。最後に、状態が InService になってから SageMaker AI Runtime の InvokeEndpoint で推論を呼びます。Model.deploy() はこの流れをまとめて実行しています。",
+    "optionNotes": [
+      "2番目です。エンドポイント設定は、先に作ったモデルの名前を本番バリアントで参照します。",
+      "最初です。イメージ、model.tar.gz、実行ロールを束ねたモデルが、後の手順の入力になります。",
+      "3番目です。エンドポイントはエンドポイント設定を指定して作ります。",
+      "最後です。エンドポイントが InService になって初めて推論を受け付けます。",
+      "使いません。CreateTransformJob はバッチ変換のジョブで、リアルタイムエンドポイントのデプロイには含まれません。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Deploy models for real-time inference", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints-deploy-models.html" },
+      { "title": "Create a multi-container endpoint (Boto 3)", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/multi-container-create.html" }
+    ]
+  },
+  {
+    "id": "D3-014",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業では、ネットワークチームが VPC、サブネット、セキュリティグループを AWS CloudFormation のスタックで管理しています。ML チームは別のスタックで、VPC 内に SageMaker AI のエンドポイントを作成します。どちらのスタックも同じアカウントの同じリージョンにあります。ML チームのスタックはネットワークチームのスタックのサブネット ID とセキュリティグループ ID を参照する必要があり、参照されている間は、ネットワークチームが誤ってその値を消せないようにしたいと考えています。この要件を満たす方法はどれですか。",
+    "options": [
+      "ML チームのスタックで Fn::GetStackOutput を使い、ネットワークチームのスタックの出力を参照する",
+      "ネットワークチームのスタックを、ML チームのスタックのネストされたスタックとして組み込む",
+      "ネットワークチームのスタックの Outputs で値に Export を付け、ML チームのスタックで Fn::ImportValue を使って参照する",
+      "サブネット ID とセキュリティグループ ID を ML チームのスタックのパラメータにし、デプロイのたびに手で入力する"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「別のチームが管理する別のスタック」「同じアカウント、同じリージョン」「参照されている間は値を消せないようにする」です。CloudFormation のスタック間参照では、出力する側のスタックの Outputs に Export を付け、使う側のスタックで Fn::ImportValue を使います。この参照は強い参照で、どこかのスタックがインポートしている間は、出力する側のスタックでそのエクスポートを消すことも変えることもできません。Fn::GetStackOutput もスタックの出力を参照できますが、デプロイ時に解決される弱い参照で、参照の整合性は保証されません。AWS CDK でも、同じ環境の別スタックのリソースを参照すると、このエクスポートとインポートが自動で作られます。",
+    "optionNotes": [
+      "Fn::GetStackOutput はエクスポートなしで参照できる弱い参照で、出力する側の値の削除を防げません。",
+      "ネストされたスタックにすると、ネットワークのリソースが ML チームのスタックのライフサイクルに組み込まれ、別のチームが別に管理する形になりません。",
+      "Export と Fn::ImportValue による強い参照で、インポートされている間はエクスポートを削除も変更もできません。",
+      "手入力は誤りが入りやすく、値が消されることも防げません。"
+    ],
+    "services": ["AWS CloudFormation", "AWS CDK"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Get exported outputs from a deployed CloudFormation stack", "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-exports.html" },
+      { "title": "Fn::ImportValue", "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-importvalue.html" }
+    ]
+  },
+  {
+    "id": "D3-015",
+    "domain": 3,
+    "task": "3.2",
+    "type": "match",
+    "question": "ある ML エンジニアは、SageMaker AI のエンドポイントのスケーリング方法を要件ごとに選んでいます。各要件に最も合うものを選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "毎朝9時に始まることが分かっているピークの前に、インスタンスの最小数を増やしておきたい",
+      "インスタンス1台あたりの1分間の呼び出し回数(InvocationsPerInstance)を 70 前後に保ちたい",
+      "CloudWatch アラームのしきい値を超えた幅に応じて、追加するインスタンス数を段階的に変えたい",
+      "推論コンポーネントをホストし、インスタンスが0台まで縮小したエンドポイントを、リクエストの到着に合わせて再びスケールアウトさせたい",
+      "サーバーレス推論エンドポイントで、毎日決まった時間帯のコールドスタートをなくしたい"
+    ],
+    "options": [
+      "ステップスケーリングポリシー",
+      "サーバーレス推論のプロビジョニングされた同時実行",
+      "スケジュールに基づくスケーリング",
+      "サーバーレス推論の MaxConcurrency を上げる",
+      "ターゲット追跡スケーリングポリシー"
+    ],
+    "answer": [2, 4, 0, 0, 1],
+    "explanation": "予測できる時刻の変化には、Application Auto Scaling のスケジュールされたアクションで、指定した時刻に最小容量や最大容量を変えます。指標を目標値に保つならターゲット追跡で、多くの場合に推奨されます。InvocationsPerInstance は事前定義の指標として指定できます。アラームの超過幅に応じて増やす台数を変えるといった細かい設定にはステップスケーリングを使い、推論コンポーネントをホストするエンドポイントを0台からスケールアウトさせる場合も、ステップスケーリングポリシーを CloudWatch アラームに割り当てて使います。サーバーレス推論のコールドスタートは、プロビジョニングされた同時実行でエンドポイントを温めておくと抑えられ、その量もスケジュールで変えられます。",
+    "optionNotes": [
+      "超過幅に応じた段階的な追加と、0台からのスケールアウトの2つの要件に合います。",
+      "サーバーレス推論のコールドスタートをなくす要件に合います。",
+      "毎朝9時のような予測できるピークの前に容量を増やす要件に合います。",
+      "MaxConcurrency は同時に処理できる呼び出しの上限で、計算資源を温めておく設定ではないため、コールドスタートは減らず、どの要件にも合いません。",
+      "InvocationsPerInstance を目標値の 70 前後に保つ要件に合います。"
+    ],
+    "services": ["Amazon SageMaker AI", "AWS Auto Scaling"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Auto scaling policy overview", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/endpoint-auto-scaling-policy.html" },
+      { "title": "Scale an endpoint to zero instances", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/endpoint-auto-scaling-zero-instances.html" },
+      { "title": "Automatically scale Provisioned Concurrency for a serverless endpoint", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints-autoscale.html" }
+    ]
+  },
+  {
+    "id": "D3-016",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある会計ソフトウェアの企業は、問い合わせの分類モデルを SageMaker AI のサーバーレス推論エンドポイントで提供しています。普段は呼び出しが少なく、コールドスタートも許容されています。ところが毎年3月の確定申告の期限前の2週間は、平日の10時から17時に呼び出しが急増し、その時間帯はコールドスタートによる遅延が問題になっています。それ以外の時期の費用は今のまま低く抑えたいと考えています。これらの要件を最もコスト効率良く満たす方法はどれですか。",
+    "options": [
+      "エンドポイントにプロビジョニングされた同時実行を設定し、Application Auto Scaling のスケジュールされたアクションで、繁忙期の時間帯だけ DesiredProvisionedConcurrency を増やす",
+      "エンドポイントをリアルタイムエンドポイントに変え、繁忙期の最大負荷に合わせた台数を1年中動かす",
+      "サーバーレス推論エンドポイントのメモリサイズを 6144 MB に上げる",
+      "サーバーレス推論エンドポイントの MaxConcurrency を上限の 200 に上げる"
+    ],
+    "answer": [0],
+    "explanation": "これはオンデマンドとプロビジョンドの使い分けの問題です。決め手は「予測できる時期と時間帯にだけ」コールドスタートが問題になり、「それ以外の時期は費用を低く」したい点です。サーバーレス推論のプロビジョニングされた同時実行を使うと、割り当てた同時実行の分だけ SageMaker AI がエンドポイントを温めておき、ミリ秒単位で応答できます。その量は Application Auto Scaling で調整でき、PutScheduledAction で ScalableDimension を sagemaker:variant:DesiredProvisionedConcurrency にすれば、cron 式で指定した時間帯だけ増やせます。繁忙期以外はオンデマンドのまま使えるので、費用は今と変わりません。",
+    "optionNotes": [
+      "繁忙期の時間帯だけプロビジョニングされた同時実行を確保し、それ以外はオンデマンドで使えるので、遅延と費用の両方の要件を満たします。",
+      "ピークに合わせた台数を1年中動かすと、呼び出しが少ない時期の費用が大きく増えます。",
+      "コールドスタートの時間はモデルのサイズ、ダウンロード、コンテナの起動にかかる時間で決まり、メモリを増やしてもなくなりません。",
+      "MaxConcurrency は同時に処理できる上限で、計算資源を温めておく設定ではないため、コールドスタートは減りません。"
+    ],
+    "services": ["Amazon SageMaker AI", "AWS Auto Scaling"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Automatically scale Provisioned Concurrency for a serverless endpoint", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints-autoscale.html" },
+      { "title": "Deploy models with Amazon SageMaker Serverless Inference", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html" }
+    ]
+  },
+  {
+    "id": "D3-017",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "case": "C3",
+    "question": "この会社は、エンドポイントのインスタンス数を需要に合わせて調整したいと考えています。平日9時の急増には遅れずに対応し、キャンペーン時の予測できない増加にも追従しつつ、夜間と週末の費用を抑える必要があります。これらの要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "Application Auto Scaling のスケジュールされたアクションで、平日の8時45分に最小インスタンス数を引き上げ、18時過ぎに元に戻す",
+      "最小インスタンス数と最大インスタンス数を、どちらも平日のピークに必要な台数に固定する",
+      "エンドポイントをサーバーレス推論エンドポイントに移し、インスタンスの管理をなくす",
+      "SageMakerVariantInvocationsPerInstance を指標とするターゲット追跡スケーリングポリシーを設定する",
+      "エンドポイントを非同期推論エンドポイントに変え、急増したリクエストをキューにためて処理する"
+    ],
+    "answer": [0, 3],
+    "explanation": "予測できる変化と予測できない変化の両方に備えるため、2種類のスケーリングを組み合わせます。9時の急増は毎日の決まった変化なので、スケジュールされたアクションで直前に最小容量を引き上げておけば、指標が上がってから台数を増やすのを待たずに済みます。キャンペーン時の突発的な増加には、InvocationsPerInstance を目標値に保つターゲット追跡スケーリングポリシーで追従します。Application Auto Scaling では、スケジュールされたアクションの実行後もスケーリングポリシーが容量を判断し続けるので、両者を併用できます。夜間は最小容量を戻し、ターゲット追跡が台数を減らすので、費用も抑えられます。",
+    "optionNotes": [
+      "毎日決まった時刻の急増に先回りして容量を確保でき、18時過ぎに戻せば夜間の費用も増えません。",
+      "ピークの台数を常に動かすことになり、夜間と週末の費用を抑える要件に合いません。",
+      "サーバーレス推論は VPC の設定に対応していないため、VPC 内の社内 API を呼ぶこのモデルには使えません。",
+      "呼び出し数に合わせて台数を自動で増減し、予測できない増加にも追従できます。",
+      "非同期推論は結果を後から受け取る方式で、数百ミリ秒以内に同期で応答する要件に合いません。"
+    ],
+    "services": ["Amazon SageMaker AI", "AWS Auto Scaling"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Scheduled scaling for Application Auto Scaling", "url": "https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html" },
+      { "title": "Define a scaling policy", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/endpoint-auto-scaling-add-code-define.html" },
+      { "title": "Deploy models with Amazon SageMaker Serverless Inference", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html" }
+    ]
+  },
+  {
+    "id": "D3-018",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある ML チームは、学習コードと推論コードを GitHub のリポジトリで管理し、AWS CodePipeline で学習パイプラインの更新とモデルのデプロイを自動化しています。リポジトリには docs/ フォルダの文書もあり、文書だけを変えたコミットでもパイプラインが動いて、費用と待ち時間が無駄になっています。パイプラインは、main ブランチへのプッシュのうち src/ または pipelines/ の下のファイルが変わったときだけ起動するようにしたいと考えています。この要件を最も運用負荷が小さく満たす方法はどれですか。",
+    "options": [
+      "パイプラインの最初の AWS CodeBuild アクションで git diff を調べ、src/ と pipelines/ に変更がなければビルドを失敗させて後続を止める",
+      "AWS Lambda 関数を5分ごとに起動して GitHub の API でコミットを調べ、条件に合うときだけ StartPipelineExecution を呼び出す",
+      "ソースアクションの BranchName に main を指定し、変更検出を有効にしたままにする",
+      "パイプラインを V2 タイプにし、GitHub への接続を使うソースアクションに、ブランチ main とファイルパス src/** と pipelines/** を条件とするプッシュのトリガーを設定する"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「main へのプッシュのうち、特定のフォルダが変わったときだけ起動」です。CodePipeline のトリガーでは、プッシュをブランチ、ファイルパス、Git タグで、プルリクエストをブランチとファイルパスで絞り込めます。トリガーは V2 タイプのパイプラインでしか使えず、GitHub のような外部のリポジトリには接続を使うソースアクションでつなぎます。ブランチとファイルパスの条件を組み合わせれば、文書だけのコミットではパイプラインが起動しなくなります。GitHub Flow のように main へのマージを本番への起点にする運用でも、どのフォルダの変更でどのパイプラインを動かすかをこの条件で表せます。",
+    "optionNotes": [
+      "パイプライン自体は毎回起動するので費用と待ち時間は残り、失敗の実行が増えて本当の失敗を見分けにくくなります。",
+      "動きはしますが、関数のコードと定期実行を自分で保守する必要があり、最大5分の遅れも出ます。",
+      "BranchName だけではファイルパスで絞り込めず、文書だけの変更でもパイプラインが起動します。",
+      "V2 パイプラインのプッシュのトリガーでブランチとファイルパスを絞り込めば、追加のコードなしに条件に合うときだけ起動できます。"
+    ],
+    "services": ["AWS CodePipeline", "AWS CodeBuild"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Add trigger with code push or pull request event types", "url": "https://docs.aws.amazon.com/codepipeline/latest/userguide/pipelines-filter.html" },
+      { "title": "Automate starting pipelines using triggers and filtering", "url": "https://docs.aws.amazon.com/codepipeline/latest/userguide/pipelines-triggers.html" }
+    ]
+  },
+  {
+    "id": "D3-019",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業は、SageMaker Pipelines で学習したモデルを、SageMaker Model Registry に PendingManualApproval の状態で登録しています。担当者がモデルパッケージを Approved に変えたら、すぐにステージング環境へのデプロイを行う AWS CodePipeline のパイプラインを自動で起動したいと考えています。追加のコードやサーバーの管理はできるだけ避けたいと考えています。この要件を満たす方法はどれですか。",
+    "options": [
+      "5分ごとに AWS Lambda 関数を起動し、ListModelPackages で承認の状態を調べて、新しく承認されたものがあればパイプラインを起動する",
+      "CodePipeline のパイプラインを毎日決まった時刻に起動し、最初のステージで承認済みのモデルパッケージがあるかを調べる",
+      "SageMaker Pipelines の最後に承認されるまで待ち続ける Lambda ステップを追加し、承認されたらパイプラインを起動する",
+      "Amazon EventBridge で、source が aws.sagemaker、detail-type が SageMaker Model Package State Change、detail の ModelApprovalStatus が Approved のイベントに一致するルールを作り、ターゲットに CodePipeline のパイプラインを指定する"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「承認したらすぐに」「追加のコードやサーバーを避ける」です。SageMaker AI は、モデルパッケージの状態が変わると SageMaker Model Package State Change というイベントを EventBridge に送ります。イベントには ModelPackageGroupName や ModelApprovalStatus が含まれるので、イベントパターンで Approved に変わったものだけに絞り込めます。ルールのターゲットに CodePipeline のパイプラインを指定すれば、承認と同時にデプロイが始まり、ポーリングのためのコードは要りません。Model Registry の承認状態を CI/CD の起点にする使い方は公式ドキュメントでも想定されていて、SageMaker AI のプロジェクトテンプレートでも、Approved への変更でデプロイが始まります。",
+    "optionNotes": [
+      "動きはしますが、関数のコードを保守する必要があり、承認から起動まで最大5分遅れます。",
+      "承認から最大1日遅れるため、すぐにデプロイする要件に合いません。",
+      "承認は人が行うので待ち時間が読めず、パイプラインの実行を止めたまま待ち続ける作りになり、追加のコードも要ります。",
+      "モデルパッケージの状態変化のイベントで直接パイプラインを起動でき、追加のコードもサーバーも要りません。"
+    ],
+    "services": ["Amazon EventBridge", "Amazon SageMaker AI", "AWS CodePipeline"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Events that Amazon SageMaker AI sends to Amazon EventBridge", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/automating-sagemaker-with-eventbridge.html" },
+      { "title": "Update the Approval Status of a Model", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry-approve.html" }
+    ]
+  },
+  {
+    "id": "D3-020",
+    "domain": 3,
+    "task": "3.3",
+    "type": "order",
+    "question": "ある ML エンジニアは、SageMaker Pipelines でモデル構築のパイプラインを定義しています。パイプラインでは生データを前処理してから学習し、テストデータでの評価指標が基準を満たしたときだけ、モデルを SageMaker Model Registry に登録します。次の候補から 5 つを選び、正しい順序に並べてください。",
+    "options": [
+      "TrainingStep で、前処理の出力を入力にしてトレーニングジョブを実行する",
+      "ConditionStep で、評価結果の指標(AUC など)がしきい値以上かを判定する",
+      "ProcessingStep で生データを前処理し、学習用、検証用、テスト用のデータを出力する",
+      "ModelStep で、モデルを Model Registry のモデルパッケージグループに登録する",
+      "ProcessingStep で学習済みモデルをテストデータで評価し、指標を evaluation.json に書き出して PropertyFile として参照できるようにする",
+      "TransformStep で本番のリアルタイムエンドポイントを作成し、モデルをデプロイする"
+    ],
+    "answer": [2, 0, 4, 1, 3],
+    "explanation": "SageMaker Pipelines は、ステップどうしのデータの依存関係から DAG を組み立てます。順番は、前のステップの出力が次のステップの入力になることで決まります。前処理の ProcessingStep が出力したデータを TrainingStep が入力に取り、学習したモデルのアーティファクトを評価の ProcessingStep がテストデータと合わせて使います。評価の結果を evaluation.json に書き出して PropertyFile にすると、ConditionStep がその指標を読み取って分岐できます。条件を満たしたときの分岐に ModelStep を置けば、基準を満たしたモデルだけが Model Registry に登録されます。登録したモデルのデプロイは、承認を経て別の仕組みで行うのが一般的です。",
+    "optionNotes": [
+      "2番目です。前処理が出力した学習用と検証用のデータを入力に取ります。",
+      "4番目です。評価の ProcessingStep が書き出した指標を読み取って分岐します。",
+      "最初です。生データを前処理し、後続のステップが使うデータを出力します。",
+      "最後です。ConditionStep で条件を満たしたときの分岐で、モデルを登録します。",
+      "3番目です。学習済みモデルを評価し、ConditionStep が参照する指標を出力します。",
+      "使いません。TransformStep はバッチ変換のジョブを実行するステップで、リアルタイムエンドポイントは作りません。"
+    ],
+    "services": ["Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Pipelines steps", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/build-and-manage-steps.html" },
+      { "title": "Define a pipeline", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/define-pipeline.html" }
+    ]
+  },
+  {
+    "id": "D3-021",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業は、軽量な異常検知モデルを AWS Lambda 関数に組み込んで提供しています。関数は AWS CodePipeline と AWS CodeDeploy でデプロイしており、エイリアス live を通じて呼び出されています。新しいバージョンを出すときは、まずトラフィックの 10% だけを新しいバージョンに送り、10 分間問題がなければ残りの 90% を一度に移したいと考えています。その間に関数のエラーが増えた場合は、自動で元のバージョンに戻す必要があります。この要件を満たす CodeDeploy の設定はどれですか。",
+    "options": [
+      "デプロイ設定に CodeDeployDefault.LambdaLinear10PercentEvery10Minutes を指定する",
+      "デプロイ設定に CodeDeployDefault.LambdaAllAtOnce を指定し、デプロイ後に担当者が CloudWatch のメトリクスを確認する",
+      "デプロイ設定に CodeDeployDefault.LambdaCanary10Percent10Minutes を指定し、デプロイグループに関数のエラーを監視する CloudWatch アラームを設定して、アラーム発生時の自動ロールバックを有効にする",
+      "Lambda の加重エイリアスで新しいバージョンに 10% を割り当て、10 分後に担当者がエイリアスの重みを 100% に変える"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「最初に 10%」「10 分後に残りの 90% を一度に」「エラーが増えたら自動で戻す」です。CodeDeploy の Lambda 向けのデプロイ設定には、Canary、線形、一括の3種類があります。Canary はトラフィックを2回に分けて移す方式で、LambdaCanary10Percent10Minutes は最初に 10% を移し、10 分後に残りの 90% を移します。線形は同じ割合ずつ等間隔に移す方式で、LambdaLinear10PercentEvery10Minutes では 10 分ごとに 10% ずつ移るため、移行が終わるまで 100 分かかります。デプロイグループに CloudWatch アラームを設定して自動ロールバックを有効にすると、しきい値を超えたときに、最後に正常だったリビジョンが自動で再デプロイされます。",
+    "optionNotes": [
+      "線形の設定では 10 分ごとに 10% ずつ移るので、10 分後に残りを一度に移す要件と合いません。",
+      "最初から全トラフィックが新しいバージョンに移り、戻すのも手作業になります。",
+      "Canary の設定が求める移し方と一致し、アラームによる自動ロールバックでエラーの増加にも対応できます。",
+      "移し方は再現できますが、重みの変更も戻す作業も人に頼るため、自動で戻す要件を満たしません。"
+    ],
+    "services": ["AWS CodeDeploy", "AWS Lambda", "Amazon CloudWatch"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Working with deployment configurations in CodeDeploy", "url": "https://docs.aws.amazon.com/codedeploy/latest/userguide/deployment-configurations.html" },
+      { "title": "Redeploy and roll back a deployment with CodeDeploy", "url": "https://docs.aws.amazon.com/codedeploy/latest/userguide/deployments-rollback-and-redeploy.html" }
+    ]
+  },
+  {
+    "id": "D3-022",
+    "domain": 3,
+    "task": "3.3",
+    "type": "match",
+    "question": "ある企業は、SageMaker AI のリアルタイムエンドポイントで動くモデルの更新方法を、状況ごとに選ぼうとしています。各状況に最も合う方法を選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "新しいフリートに全トラフィックを一度に移し、ベイキング期間中に CloudWatch アラームが鳴らなければ古いフリートを終了する",
+      "まずトラフィックの一部だけを新しいフリートに移して様子を見て、問題がなければ残りをまとめて移す",
+      "トラフィックを等しい割合ずつ、何段階にも分けて新しいフリートに移す",
+      "需要の多い GPU インスタンスを多数使っていて、新旧のフリートを同時に全台確保する余裕がない。指定したバッチサイズずつインスタンスを入れ替えたい",
+      "新しいモデルに本番のリクエストのコピーを送ってレイテンシーとエラー率を比べたいが、利用者への応答は今のモデルが返すようにしたい"
+    ],
+    "options": [
+      "シャドウテスト",
+      "ブルー/グリーンデプロイ(線形のトラフィック移行)",
+      "ローリングデプロイ",
+      "ブルー/グリーンデプロイ(一括のトラフィック移行)",
+      "ブルー/グリーンデプロイ(Canary のトラフィック移行)"
+    ],
+    "answer": [3, 4, 1, 2, 0],
+    "explanation": "SageMaker AI のデプロイガードレールには、ブルー/グリーンデプロイとローリングデプロイがあります。ブルー/グリーンには3つのトラフィック移行の方式があり、一括は全トラフィックを一度に移してベイキング期間中にアラームを監視します。Canary は小さな一部を先に移して確かめてから残りを移す2段階、線形はそれを n 段階に広げたものです。ローリングデプロイは指定したバッチサイズずつ容量を入れ替え、古いフリートを段階的に片付けるので、追加で必要なインスタンスが少なく、需要の多いアクセラレーターのインスタンスや大きなエンドポイントに向いています。シャドウテストはリクエストのコピーをシャドウバリアントに送り、応答は本番バリアントだけが返します。",
+    "optionNotes": [
+      "リクエストのコピーで新しいモデルを比べ、応答は今のモデルが返す状況に合います。",
+      "等しい割合ずつ何段階にも分けて移す状況に合います。",
+      "新旧のフリートを全台同時に用意せず、バッチサイズずつ入れ替える状況に合います。",
+      "全トラフィックを一度に移し、ベイキング期間中にアラームを監視する状況に合います。",
+      "一部を先に移して確かめ、残りをまとめて移す状況に合います。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon CloudWatch"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Deployment guardrails for updating models in production", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails.html" },
+      { "title": "Use rolling deployments", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails-rolling.html" },
+      { "title": "Shadow tests", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests.html" }
+    ]
+  },
+  {
+    "id": "D3-023",
+    "domain": 3,
+    "task": "3.3",
+    "type": "multi",
+    "question": "ある ML チームは、AWS CodePipeline で前処理コードと推論コードのビルドからモデルのデプロイまでを自動化しています。パイプラインは、ソース、ビルド、ステージング環境へのデプロイ、手動承認、本番環境へのデプロイのステージで構成されています。チームは、前処理の関数の単体テストに失敗したらその時点でパイプラインを止め、テストの結果を一覧で確認できるようにしたいと考えています。また、本番に進む前に、デプロイしたステージングのエンドポイントが実際のリクエストの形式で正しく応答することを自動で確かめたいと考えています。これらの要件を満たす方法はどれですか。（2 つ選択）",
+    "options": [
+      "ビルドステージの AWS CodeBuild の buildspec で pytest を実行して JUnit XML を出力し、reports セクションでレポートグループに送る。テストに失敗するとコマンドが0以外で終わり、ビルドのアクションが失敗してパイプラインが止まる",
+      "本番環境へのデプロイの後に単体テストを実行し、失敗したら手作業でロールバックする",
+      "AWS CodeDeploy の AppSpec のライフサイクルフックで、SageMaker AI のエンドポイントに単体テストを実行させる",
+      "ステージング環境へのデプロイの後に CodeBuild のテストアクションを置き、サンプルのリクエストでステージングのエンドポイントを呼び出して、応答の形式と値を検証する。失敗したら手動承認に進まないようにする",
+      "手動承認のステージで、承認者がテストを行ったことを書くコメントを必須にする"
+    ],
+    "answer": [0, 3],
+    "explanation": "テストは種類ごとに、パイプラインの適切な位置に置きます。単体テストはビルドの段階で実行します。CodeBuild の buildspec に reports セクションを書くと、JUnit XML などのテスト結果のファイルからテストレポートが作られ、ビルドごとの成功と失敗を一覧で確認できます。テストのコマンドが失敗すればビルドのアクションが失敗し、後続のステージには進みません。統合テストやエンドツーエンドのテストは、ステージングへのデプロイの後に置きます。実際のリクエスト形式でステージングのエンドポイントを呼び出して応答を検証するテストアクションを手動承認の前に置けば、確かめたものだけが承認と本番デプロイに進みます。",
+    "optionNotes": [
+      "ビルドの段階で単体テストを実行し、レポートグループで結果を一覧でき、失敗すればそこでパイプラインが止まります。",
+      "本番に出た後のテストでは、失敗したコードが利用者に届いてしまい、その時点で止める要件に合いません。",
+      "CodeDeploy のデプロイ先は EC2 とオンプレミス、Lambda、ECS で、SageMaker AI のエンドポイントは対象ではありません。",
+      "ステージングのエンドポイントを実際のリクエスト形式で呼んで検証し、本番の前に自動で確かめられます。",
+      "人の確認に頼るもので、テストを自動化する要件を満たしません。"
+    ],
+    "services": ["AWS CodePipeline", "AWS CodeBuild", "AWS CodeDeploy"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Test reports in AWS CodeBuild", "url": "https://docs.aws.amazon.com/codebuild/latest/userguide/test-reporting.html" },
+      { "title": "Create test reports", "url": "https://docs.aws.amazon.com/codebuild/latest/userguide/report-create.html" },
+      { "title": "CodeDeploy primary components", "url": "https://docs.aws.amazon.com/codedeploy/latest/userguide/primary-components.html" }
+    ]
+  },
+  {
+    "id": "D3-024",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業は、ラベル付けが終わった新しい学習データを、不定期に Amazon S3 バケットの labeled/ プレフィックスへアップロードしています。データのアップロードが終わると、最後にマニフェストファイル(manifest.json)が置かれます。マニフェストファイルが置かれたら、再トレーニング用の SageMaker Pipelines のパイプラインを自動で起動したいと考えています。運用負荷を最も小さくできる方法はどれですか。",
+    "options": [
+      "バケットで Amazon EventBridge への通知を有効にし、Object Created イベントのうちキーが labeled/ の下の manifest.json に一致するものを選ぶルールを作って、ターゲットに SageMaker Pipelines のパイプラインを指定する",
+      "Amazon EventBridge のスケジュールで5分ごとに AWS Lambda 関数を起動し、新しいマニフェストファイルがあればパイプラインを起動する",
+      "Amazon MWAA の環境を作り、S3 のキーを監視するセンサーを含む DAG からパイプラインを起動する",
+      "Amazon EC2 インスタンスで cron を動かし、aws s3 ls の結果を前回と比べて、新しいファイルがあればパイプラインを起動する"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「不定期に届く」「マニフェストが置かれたら」「運用負荷を最小に」です。SageMaker Pipelines は EventBridge のターゲットとしてサポートされていて、イベントに応じて StartPipelineExecution を自動で実行できます。S3 バケットで EventBridge への通知を有効にすると、オブジェクトの作成が Object Created イベントとして届きます。イベントパターンでバケット名とオブジェクトのキーを条件にすれば(プレフィックスやワイルドカードで絞り込めます)、マニフェストが置かれたときだけパイプラインが起動します。データの到着をきっかけに再トレーニングを始める仕組みを、コードもサーバーもなしに作れます。",
+    "optionNotes": [
+      "S3 のイベントを EventBridge で受けてパイプラインを直接起動するので、追加のコードもサーバーも要らず、届いた直後に起動できます。",
+      "動きはしますが、関数のコードを保守する必要があり、最大5分の遅れと無駄な起動が出ます。",
+      "動きはしますが、この用途のためだけに Airflow の環境と DAG を持つことになり、運用負荷が大きくなります。",
+      "EC2 インスタンスとスクリプトの管理が必要で、運用負荷が最も大きくなります。"
+    ],
+    "services": ["Amazon EventBridge", "Amazon S3", "Amazon SageMaker AI"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Schedule Pipeline Runs", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/pipeline-eventbridge.html" },
+      { "title": "Enabling Amazon EventBridge", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-event-notifications-eventbridge.html" }
+    ]
+  },
+  {
+    "id": "D3-025",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "case": "C3",
+    "question": "この会社は、承認された新しいモデルを本番エンドポイントに反映する方法を決めようとしています。切り替えの際には、まず一部のトラフィックだけを新しいモデルで処理し、Invocation5XXErrors やモデルのレイテンシーが悪化したら、人手を介さずに元のモデルへ戻す必要があります。この要件を最も満たす方法はどれですか。",
+    "options": [
+      "新しいエンドポイント設定を指定して、デプロイ設定なしで UpdateEndpoint を呼ぶ。問題があれば担当者が古いエンドポイント設定で UpdateEndpoint を呼び直す",
+      "UpdateEndpoint のデプロイ設定で Canary のトラフィック移行を使うブルー/グリーンデプロイを指定し、エラーとレイテンシーの CloudWatch アラームを AutoRollbackConfiguration に設定する",
+      "UpdateEndpoint のデプロイ設定で一括のトラフィック移行を使うブルー/グリーンデプロイを指定し、ベイキング期間を長めに取る",
+      "新しいモデルをシャドウバリアントとしてデプロイし、本番のリクエストのコピーで応答を比べる"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「まず一部のトラフィックだけ」と「人手を介さずに戻す」です。SageMaker AI のデプロイガードレールでは、UpdateEndpoint の DeploymentConfig でブルー/グリーンデプロイの方式を指定できます。Canary のトラフィック移行では、まず小さな一部(インスタンス数か容量の割合で指定)を新しいフリートに移し、待ち時間の間に問題がなければ残りを移してから古いフリートを終了します。AutoRollbackConfiguration に Invocation5XXErrors やレイテンシーの CloudWatch アラームを指定しておくと、移行中にアラームが鳴ったときに全トラフィックが古いフリートに戻ります。影響を一部の請求にとどめ、元のモデルへの戻しも自動になります。",
+    "optionNotes": [
+      "全トラフィックが一度に切り替わり、戻すのも人の作業になるため、どちらの要件も満たしません。",
+      "Canary で影響を一部にとどめ、アラームによる自動ロールバックで人手を介さずに元のモデルへ戻せます。",
+      "アラームで自動ロールバックはできますが、全トラフィックが一度に移るため、問題があればすべての請求が影響を受けます。",
+      "シャドウテストでは応答を返すのは今のモデルだけで、新しいモデルへの切り替えそのものは行いません。"
+    ],
+    "services": ["Amazon SageMaker AI", "Amazon CloudWatch"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Deployment guardrails for updating models in production", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails.html" },
+      { "title": "Blue/Green Deployments", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/deployment-guardrails-blue-green.html" }
+    ]
+  },
+  {
+    "id": "D3-026",
+    "domain": 3,
+    "task": "3.3",
+    "type": "order",
+    "case": "C3",
+    "question": "この会社は、学習コードの変更から本番エンドポイントの更新までの流れを自動化しようとしています。次の候補から 5 つを選び、正しい順序に並べてください。",
+    "options": [
+      "リスク管理チームが評価結果を確認し、SageMaker Model Registry でモデルパッケージの状態を Approved に変える",
+      "開発者が学習コードの変更を GitHub の main ブランチにマージし、AWS CodePipeline のパイプラインが起動する",
+      "Amazon EventBridge のルールが SageMaker Model Package State Change イベントを受け取り、デプロイ用のパイプラインを起動して本番エンドポイントを更新する",
+      "SageMaker Pipelines が学習と評価を行い、基準を満たしたモデルを PendingManualApproval の状態で Model Registry に登録する",
+      "AWS CodeBuild が SageMaker Pipelines のパイプライン定義を更新し、パイプラインの実行を開始する",
+      "SageMaker Neo で、モデルをエッジデバイス向けにコンパイルする"
+    ],
+    "answer": [1, 4, 3, 0, 2],
+    "explanation": "この流れは、コードの変更を起点にするモデル構築と、承認を起点にするデプロイの2つに分かれます。順番は、前の段階が次の段階の起点を作ることで決まります。main へのマージで CodePipeline が起動し、CodeBuild が変更されたパイプライン定義を SageMaker Pipelines に反映して実行を始めます。パイプラインは学習と評価を行い、基準を満たしたモデルを PendingManualApproval で Model Registry に登録します。ここで承認を待つ状態になり、リスク管理チームが Approved に変えると、モデルパッケージの状態変化のイベントが EventBridge に届き、ルールがデプロイ用のパイプラインを起動します。承認前に本番が更新されることはありません。",
+    "optionNotes": [
+      "4番目です。登録されたモデルを承認することで、デプロイの起点になる状態変化が起きます。",
+      "最初です。コードの変更が CodePipeline を起動し、流れ全体の起点になります。",
+      "最後です。Approved への状態変化のイベントを受けて、本番エンドポイントを更新します。",
+      "3番目です。CodeBuild が始めたパイプラインの実行で、承認待ちのモデルが登録されます。",
+      "2番目です。CodePipeline のビルドの段階で、パイプライン定義を更新して実行を始めます。",
+      "使いません。このモデルは VPC 内のリアルタイムエンドポイントでホストしており、エッジデバイス向けのコンパイルは要りません。"
+    ],
+    "services": ["AWS CodePipeline", "AWS CodeBuild", "Amazon SageMaker AI", "Amazon EventBridge"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Update the Approval Status of a Model", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry-approve.html" },
+      { "title": "Events that Amazon SageMaker AI sends to Amazon EventBridge", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/automating-sagemaker-with-eventbridge.html" }
+    ]
+  }
+]

@@ -1,0 +1,51 @@
+{
+  "id": "aws-mla-c01",
+  "title": "MLA-C01 問題集",
+  "brand": "MLA 問題集",
+  "tag": "C01",
+  "examName": "AWS Certified Machine Learning Engineer - Associate (MLA-C01)",
+  "examSize": 65,
+  "guide": "https://d1.awsstatic.com/ja_JP/training-and-certification/docs-machine-learning-engineer-associate/AWS-Certified-Machine-Learning-Engineer-Associate_Exam-Guide.pdf",
+  "artifact": "",
+  "tutorNote": "AWS の仕様で自信がないことは、そう書いたうえで公式ドキュメントで確かめるよう伝えます。出題範囲は日本語で受けられる MLA-C01 で、MLA-C02 で足された RAG、ナレッジベース、エージェントの話は範囲外と伝えます。",
+  "genNote": "2026年時点の AWS の仕様で確実に言えることだけで作る。MLA-C01 の範囲に収め、RAG、Bedrock のナレッジベース、エージェントを問う問題は作らない。",
+  "searchChip": "SageMaker の問題を探して",
+  "domains": {
+    "1": {
+      "name": "ML のためのデータ準備",
+      "weight": 28,
+      "tasks": {
+        "1.1": "データの取り込みと保存",
+        "1.2": "データ変換と特徴量エンジニアリング",
+        "1.3": "データの完全性の確保とモデリングに向けた準備"
+      }
+    },
+    "2": {
+      "name": "ML モデルの開発",
+      "weight": 26,
+      "tasks": {
+        "2.1": "モデリングアプローチの選択",
+        "2.2": "モデルのトレーニングと改良",
+        "2.3": "モデルのパフォーマンスの分析"
+      }
+    },
+    "3": {
+      "name": "ML ワークフローのデプロイとオーケストレーション",
+      "weight": 22,
+      "tasks": {
+        "3.1": "デプロイインフラストラクチャの選択",
+        "3.2": "インフラストラクチャの作成とスクリプト化",
+        "3.3": "自動オーケストレーションツールによる CI/CD パイプライン"
+      }
+    },
+    "4": {
+      "name": "ML ソリューションのモニタリング、保守、セキュリティ",
+      "weight": 24,
+      "tasks": {
+        "4.1": "モデル推論のモニタリング",
+        "4.2": "インフラストラクチャとコストのモニタリングと最適化",
+        "4.3": "AWS リソースのセキュリティ確保"
+      }
+    }
+  }
+}

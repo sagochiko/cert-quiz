@@ -1,0 +1,1195 @@
+[
+  {
+    "id": "D4-001",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある小売企業は、毎月1回 Amazon SageMaker AI のバッチ変換ジョブで全顧客の解約確率を推論しています。入力は CSV ファイルで、モデルの学習に使ったデータセットは Amazon S3 に残っています。ML エンジニアは、毎月の推論の入力データが学習時のデータから統計的にずれていないかを自動で確かめ、ずれていれば Amazon CloudWatch で検知できるようにしたいと考えています。独自のコードは最小限にする必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "モデルをリアルタイムエンドポイントにもデプロイしてデータキャプチャを有効にし、エンドポイントに対して SageMaker Model Monitor のデータ品質モニタリングを設定する。",
+      "AWS Glue Data Quality で入力ファイルの各列の値の範囲を手書きのルールとして定義し、毎月のバッチ変換の前にルールを評価する。",
+      "バッチ変換ジョブでデータキャプチャを有効にし、学習データセットからベースラインを作成したうえで、batch_transform_input を指定した SageMaker Model Monitor のデータ品質モニタリングスケジュールを作成する。",
+      "毎月のバッチ変換の後に SageMaker Clarify の処理ジョブを実行し、入力データに対する SHAP 値のレポートを Amazon S3 に出力する。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "SageMaker Model Monitor はリアルタイムエンドポイントだけでなく、定期的に実行するバッチ変換ジョブも監視できます。バッチ変換ジョブの作成時にデータキャプチャの設定を入れると、入力と出力が Amazon S3 に記録されます。学習データセットからベースラインジョブを実行して統計と制約を作り、DefaultModelMonitor の create_monitoring_schedule に batch_transform_input を渡せば、組み込みのコンテナがキャプチャしたデータを制約と比べ、違反を CloudWatch メトリクスとして出します。独自のコードが要らない点が決め手です。なお、SageMaker Model Monitor は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "監視のためだけにリアルタイムエンドポイントを常時動かすことになり、コストと運用の手間が増えます。バッチ変換はそのまま監視できます。",
+      "ルールを列ごとに手で書いて保守する必要があり、学習データの統計を基準にしたずれの検出にはなりません。",
+      "バッチ変換のデータキャプチャ、学習データからのベースライン、Model Monitor のスケジュールを組み合わせ、独自のコードなしで統計的なずれを CloudWatch に出せます。",
+      "SHAP 値は特徴量の寄与を説明するもので、入力データの分布が学習時からずれたかどうかを制約と比べて判定する仕組みではありません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "SageMaker Model Monitor",
+      "Amazon CloudWatch"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Schedule data quality monitoring jobs",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-schedule-data-monitor.html"
+      },
+      {
+        "title": "Data capture",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-data-capture.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-002",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある食品メーカーは、店舗ごとの翌日の販売数を予測する回帰モデルを Amazon SageMaker AI のリアルタイムエンドポイントで提供しています。実際の販売数は7日後に確定し、社内のシステムから取り出せます。ML エンジニアは、予測と実績の差が広がったとき(RMSE が悪化したとき)に通知を受け取りたいと考えています。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "エンドポイントでデータキャプチャを有効にして呼び出し時に inferenceId を付け、確定した販売数を inferenceId 付きの Ground Truth レコードとして Amazon S3 にアップロードし、SageMaker Model Monitor のモデル品質モニタリングで rmse に Amazon CloudWatch アラームを設定する。",
+      "エンドポイントでデータキャプチャを有効にし、SageMaker Model Monitor のデータ品質モニタリングで入力特徴量の分布の変化に Amazon CloudWatch アラームを設定する。",
+      "SageMaker Clarify のバイアスドリフトモニタリングを設定し、店舗の地域ごとの予測値の差に Amazon CloudWatch アラームを設定する。",
+      "エンドポイントの ModelLatency メトリクスに Amazon CloudWatch アラームを設定し、閾値を超えたら Amazon SNS で通知する。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "予測の当たり外れを測るには、予測と実際のラベル(Ground Truth)を突き合わせる必要があります。SageMaker Model Monitor のモデル品質モニタリングは、キャプチャした予測と、Amazon S3 にアップロードした Ground Truth を merge し、問題の種類に応じた指標(回帰なら mse や rmse など)を計算して CloudWatch に出します。突き合わせには、呼び出し時に付けた inferenceId か、自動で付く eventId を使います。ラベルが7日遅れて届いても、ラベルを集めた日付のパスに置けば突き合わせられます。なお、SageMaker Model Monitor は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "予測と遅れて届く実績を ID で突き合わせ、RMSE の悪化をアラームで検知できます。",
+      "入力の分布の変化は検知できますが、予測と実績の差(精度)は測れません。",
+      "バイアスドリフトはグループ間の偏りを見るもので、予測の誤差の大きさを測る仕組みではありません。",
+      "ModelLatency は推論にかかった時間で、予測の正しさとは関係がありません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "SageMaker Model Monitor",
+      "Amazon CloudWatch"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Model quality",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-model-quality.html"
+      },
+      {
+        "title": "Ingest Ground Truth labels and merge them with predictions",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-model-quality-merge.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-003",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある金融機関は、ローン審査のモデルを Amazon SageMaker AI のエンドポイントで運用しています。規制当局への説明のため、どの特徴量が予測に大きく寄与しているかが本番環境で学習時から大きく変わったときに、すぐに気づける必要があります。ML エンジニアはどの仕組みを設定すべきですか。",
+    "options": [
+      "SageMaker Model Monitor のデータ品質モニタリングで、各特徴量の平均と標準偏差の変化を監視する。",
+      "SageMaker Model Monitor のモデル品質モニタリングで、正解ラベルと突き合わせた AUC の低下を監視する。",
+      "SageMaker Debugger の組み込みルールをエンドポイントに設定し、特徴量の重要度の変化を監視する。",
+      "SHAP のベースラインを作成し、SageMaker Clarify による特徴量属性ドリフトのモニタリングをスケジュールして、違反を Amazon CloudWatch で通知する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "決め手は「どの特徴量が予測に寄与しているか」の変化です。SageMaker Clarify の特徴量属性ドリフトのモニタリングは、学習データで作った SHAP のベースラインと、本番のデータで計算した SHAP 値を比べます。比べ方には NDCG を使い、特徴量の順位の入れ替わりと、元の寄与の大きさの両方を反映します。NDCG が 0.9 を下回ると違反が記録され、CloudWatch のアラームで通知できます。なお、SageMaker Clarify と SageMaker Model Monitor は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "入力の分布の変化は分かりますが、モデルがどの特徴量に頼って予測しているかの変化は分かりません。",
+      "精度の低下は分かりますが、寄与する特徴量の変化は分かりません。また正解ラベルが必要です。",
+      "SageMaker Debugger はトレーニングジョブの監視に使う機能で、エンドポイントの本番推論を監視する仕組みではありません。",
+      "SHAP 値の順位と大きさを NDCG で比べ、寄与する特徴量の変化を違反として通知できます。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "SageMaker Clarify",
+      "SageMaker Model Monitor"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Feature attribution drift for models in production",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-model-monitor-feature-attribution-drift.html"
+      },
+      {
+        "title": "Model Feature Attribution Drift Violations",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-model-monitor-model-attribution-drift-violations.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-004",
+    "domain": 4,
+    "task": "4.1",
+    "type": "multi",
+    "question": "ある EC サイトは、商品推薦モデルの新しいバージョンを本番で試したいと考えています。まず全リクエストの10%だけを新しいモデルに送り、利用者のクリック率と Amazon CloudWatch のメトリクスを古いモデルと比べます。結果が良ければ、エンドポイントを止めずに新しいモデルへの割合を段階的に増やします。これらの要件を満たすために ML エンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "古いモデルと新しいモデルをそれぞれ本番バリアント(production variant)とするエンドポイント設定を作り、重みを 9 対 1 にする。",
+      "新しいモデルをシャドウバリアントとして追加し、リクエストの10%を複製して送る。",
+      "2つのモデルを1つのマルチモデルエンドポイントに置き、アプリケーションから TargetModel を指定して呼び出す。",
+      "UpdateEndpointWeightsAndCapacities を呼び出し、バリアントの重みを変えて新しいモデルへの割合を増やす。",
+      "新しいモデル用に別のエンドポイント設定を作り、UpdateEndpoint で新しい設定に一度に切り替える。"
+    ],
+    "answer": [
+      0,
+      3
+    ],
+    "explanation": "SageMaker AI では、1つのエンドポイントに複数の本番バリアントを置き、エンドポイント設定のバリアントごとの重みでトラフィックを分けられます。重みを 9 対 1 にすると新しいモデルに約10%が届き、応答にも処理したバリアント名が入るので、利用者の行動と結び付けて比べられます。CloudWatch のメトリクスもバリアントごとに出ます。割合を変えるときは UpdateEndpointWeightsAndCapacities を使うと、エンドポイントを更新せずにトラフィックの配分だけを変えられます。A/B テストの準備と段階的な切り替えを、この2つが受け持ちます。",
+    "optionNotes": [
+      "本番バリアントの重みでトラフィックを 9 対 1 に分け、利用者に新しいモデルの応答を返して比べられます。",
+      "シャドウバリアントの応答は呼び出し元に返らないため、利用者のクリック率を比べる A/B テストにはなりません。",
+      "マルチモデルエンドポイントには割合でトラフィックを分ける仕組みがなく、振り分けをアプリケーションで作り込む必要があります。",
+      "エンドポイントを更新せずにバリアントの重みだけを変えられ、段階的な切り替えに合います。",
+      "一度に全トラフィックが新しいモデルに移るため、10%から試して段階的に増やすという要件に合いません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "Amazon CloudWatch"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Testing models with production variants",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-ab-testing.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-005",
+    "domain": 4,
+    "task": "4.1",
+    "type": "order",
+    "question": "ML エンジニアは、Amazon SageMaker AI のリアルタイムエンドポイントの入力データの品質を SageMaker Model Monitor で監視し、制約の違反が出たら通知を受け取りたいと考えています。エンドポイントのデータキャプチャはすでに有効になっています。次の候補から 3 つを選び、正しい順序に並べてください。",
+    "options": [
+      "ベースラインを指定してモニタリングスケジュールを作成し、Amazon CloudWatch へのメトリクスの出力を有効にする。",
+      "確定した正解ラベルを Ground Truth レコードとして Amazon S3 にアップロードする。",
+      "学習データセットを入力にしてベースラインジョブを実行し、statistics.json と constraints.json を作る。",
+      "モニタリングジョブが出したメトリクスに Amazon CloudWatch アラームを設定し、Amazon SNS トピックに通知する。",
+      "SHAP のベースラインを作成し、特徴量属性ドリフトのモニタリングジョブを定義する。"
+    ],
+    "answer": [
+      2,
+      0,
+      3
+    ],
+    "explanation": "データ品質の監視は、基準を作り、その基準でスケジュールを動かし、出てきた結果に通知を付ける順で進みます。まずベースラインジョブで学習データの統計(statistics.json)と制約(constraints.json)を作ります。モニタリングスケジュールはこの2つを参照して作るので、ベースラインより後になります。スケジュールのジョブが実行されて初めて CloudWatch にメトリクスが出るため、そのメトリクスに付けるアラームは最後です。なお、SageMaker Model Monitor は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "2番目です。スケジュールはベースラインの統計と制約を参照するため、ベースラインの後に作ります。",
+      "使いません。正解ラベルが必要なのはモデル品質の監視で、データ品質の監視には要りません。",
+      "最初です。監視の基準となる統計と制約をここで作ります。",
+      "最後です。スケジュールのジョブが出したメトリクスに対してアラームを設定します。",
+      "使いません。特徴量の寄与の変化を見る別の監視で、入力データの品質の監視には要りません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "SageMaker Model Monitor",
+      "Amazon CloudWatch"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Create a Baseline",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-create-baseline.html"
+      },
+      {
+        "title": "Schedule data quality monitoring jobs",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-schedule-data-monitor.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-006",
+    "domain": 4,
+    "task": "4.1",
+    "type": "match",
+    "question": "ある保険会社は、本番環境のモデルで起きている次の問題を検知したいと考えています。各問題の検知に最も合う監視の種類を選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "入力される年収の列の欠損率と平均値が、学習時のデータから大きく変わった",
+      "数か月後に確定した実際の請求の有無と比べると、予測の精度が下がっている",
+      "特定の年齢層に対する承認の予測の割合が、ほかの年齢層との差を広げている",
+      "予測に最も寄与する特徴量が、学習時の「過去の請求回数」から「居住地域」に入れ替わった"
+    ],
+    "options": [
+      "SageMaker Clarify のバイアスドリフトモニタリング",
+      "SageMaker Inference Recommender の推論レコメンデーションジョブ",
+      "SageMaker Model Monitor のデータ品質モニタリング",
+      "SageMaker Clarify の特徴量属性ドリフトモニタリング",
+      "SageMaker Model Monitor のモデル品質モニタリング"
+    ],
+    "answer": [
+      2,
+      4,
+      0,
+      3
+    ],
+    "explanation": "SageMaker AI のモデル監視は4種類に分かれ、見ているものが違います。入力の欠損率や平均値のような統計の変化はデータ品質、正解ラベルと突き合わせた精度の低下はモデル品質、グループ間の予測の偏り(DPPL など)の変化はバイアスドリフト、SHAP 値で見た特徴量の寄与の順位の変化は特徴量属性ドリフトで検知します。正解ラベルが要るのはモデル品質だけです。Inference Recommender はインスタンス選びのためのロードテストで、モデルの劣化の監視には使いません。なお、SageMaker Model Monitor と SageMaker Clarify は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "3つ目の問題に合います。年齢層のような属性ごとのバイアス指標の変化を監視します。",
+      "どれにも合いません。デプロイ前にインスタンスタイプを選ぶためのロードテストで、本番のモデルの劣化は検知しません。",
+      "1つ目の問題に合います。入力の統計をベースラインの制約と比べます。",
+      "4つ目の問題に合います。SHAP 値の順位と大きさの変化を NDCG で判定します。",
+      "2つ目の問題に合います。予測と遅れて届く正解ラベルを突き合わせて精度を計算します。"
+    ],
+    "services": [
+      "SageMaker Model Monitor",
+      "SageMaker Clarify"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Bias drift for models in production",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-model-monitor-bias-drift.html"
+      },
+      {
+        "title": "Model quality",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-model-quality.html"
+      },
+      {
+        "title": "Feature attribution drift for models in production",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-model-monitor-feature-attribution-drift.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-007",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある物流企業は、毎晩 SageMaker Pipelines で前処理、推論、後処理を順に実行しています。ときどきパイプラインの実行が失敗しても翌朝まで誰も気づかず、配車計画が古い予測のまま作られてしまいます。ML エンジニアは、実行が失敗したら数分以内に担当者へメールで通知したいと考えています。運用の手間が最も少ない方法はどれですか。",
+    "options": [
+      "AWS Lambda 関数を5分ごとに実行して ListPipelineExecutions で状態を確かめ、失敗があれば Amazon SNS に発行する。",
+      "Amazon EventBridge のルールで、SageMaker Model Building Pipeline Execution Status Change イベントのうち currentPipelineExecutionStatus が Failed のものを捕まえ、Amazon SNS トピックに送る。",
+      "AWS CloudTrail の証跡を作成し、毎朝 Amazon Athena でパイプラインの API 呼び出しを検索して失敗を探す。",
+      "パイプラインの推論ステップの出力に SageMaker Model Monitor のデータ品質モニタリングを設定し、違反が出たら通知する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "SageMaker AI は、パイプラインの実行状態が変わるたびに Amazon EventBridge へイベントを送ります。イベントの detail には currentPipelineExecutionStatus が入り、値は Executing、Succeeded、Failed、Stopping、Stopped のいずれかです。EventBridge のルールのイベントパターンで Failed だけを捕まえ、ターゲットに Amazon SNS のトピックを指定すれば、失敗した直後にメールが届きます。ポーリングのコードや定期的な検索を作らずに済むので、運用の手間が最も少なくなります。",
+    "optionNotes": [
+      "動きはしますが、Lambda 関数のコードとスケジュールを保守する必要があり、最大5分の遅れも出ます。",
+      "状態変化のイベントを EventBridge で捕まえて SNS に送るだけで済み、数分以内の通知を独自のコードなしで実現できます。",
+      "毎朝の検索では失敗に気づくのが翌朝になり、数分以内という要件に合いません。",
+      "データ品質の監視は入力の統計の変化を見るもので、パイプラインの実行の失敗は検知しません。"
+    ],
+    "services": [
+      "SageMaker Pipelines",
+      "Amazon EventBridge",
+      "Amazon SNS"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Events that Amazon SageMaker AI sends to Amazon EventBridge",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/automating-sagemaker-with-eventbridge.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-008",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある動画配信サービスは、Amazon SageMaker AI のリアルタイムエンドポイントで動いている推薦モデルを、新しい推論コンテナとインスタンスタイプに載せ替えたいと考えています。オフラインの評価は済んでいますが、本番のリクエストを流したときのレイテンシーとエラー率を確かめてから切り替えたいと考えています。この確認の間、利用者に返す応答は今のモデルのものだけにする必要があります。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "新しい構成を2つ目の本番バリアントとして追加し、重みを調整してリクエストの5%を送る。",
+      "SageMaker Inference Recommender の Advanced ジョブで、新しい構成に対して合成したトラフィックでロードテストを行う。",
+      "SageMaker AI のシャドウテストを作成し、新しい構成をシャドウバリアントにして本番のリクエストの一部を複製して送る。",
+      "過去1週間の推論リクエストのログを使い、新しい構成でバッチ変換ジョブを実行して処理時間を測る。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "シャドウテストでは、本番バリアントがすべてのリクエストに応答し続け、シャドウバリアントには本番のリクエストの一部(トラフィックサンプリングの割合で指定)が複製されて届きます。シャドウバリアントの応答は呼び出し元に返らないので、利用者への影響はありません。コンソールのダッシュボードで、2つのバリアントのレイテンシーやエラー率を並べて比べられ、良ければシャドウバリアントを本番に昇格できます。「本番のリクエストで確かめる」と「応答は今のモデルだけ」の2つを同時に満たすのはシャドウテストです。",
+    "optionNotes": [
+      "5%の利用者には新しい構成の応答が返るため、応答を今のモデルだけにするという要件に合いません。",
+      "合成したトラフィックでのテストで、本番のリクエストで確かめるという要件に合いません。",
+      "本番のリクエストを複製して新しい構成に送り、応答は本番バリアントのものだけを返すので、要件を両方満たします。",
+      "バッチ変換はリアルタイムのエンドポイントとは処理の仕方が違い、本番のエンドポイントでのレイテンシーやエラー率を確かめられません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Shadow tests",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests.html"
+      },
+      {
+        "title": "Create a shadow test",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests-create.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-009",
+    "domain": 4,
+    "task": "4.1",
+    "type": "order",
+    "question": "ある企業は、SageMaker Model Monitor が入力データのドリフトを検知したら、SageMaker Pipelines の再トレーニングのパイプラインを人手を介さずに開始したいと考えています。モニタリングスケジュールは CloudWatch メトリクスを出すように設定済みです。ドリフトの検知から再トレーニングの開始までに起きる処理として、次の候補から 4 つを選び、正しい順序に並べてください。",
+    "options": [
+      "Amazon EventBridge のルールが CloudWatch Alarm State Change イベントに一致する。",
+      "モニタリングジョブが制約の違反を検知し、Amazon CloudWatch にメトリクスを出す。",
+      "AWS CloudTrail の証跡が CreateMonitoringSchedule の呼び出しを記録する。",
+      "ルールのターゲットとして SageMaker Pipelines のパイプラインの実行が開始される。",
+      "メトリクスが閾値を超え、Amazon CloudWatch アラームが ALARM 状態に変わる。"
+    ],
+    "answer": [
+      1,
+      4,
+      0,
+      3
+    ],
+    "explanation": "この連携は、前の処理が出したものを次の処理が受け取る形でつながっています。まずモニタリングジョブが違反を検知して CloudWatch にメトリクスを出します。そのメトリクスを見ているアラームが閾値を超えて ALARM に変わると、CloudWatch は CloudWatch Alarm State Change イベントを EventBridge に送ります。EventBridge のルールはこのイベントに一致し、ターゲットに指定した SageMaker AI のパイプラインの実行を開始します。EventBridge のターゲットではパイプラインのパラメータも渡せます。なお、SageMaker Model Monitor は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "3番目です。アラームの状態変化のイベントを受けて、ルールが一致します。",
+      "最初です。違反の検知とメトリクスの出力が、後に続く処理すべての起点になります。",
+      "使いません。スケジュールを作ったときの API の記録で、ドリフトの検知から再トレーニングまでの流れには入りません。",
+      "最後です。EventBridge のルールのターゲットとしてパイプラインが起動します。",
+      "2番目です。モニタリングジョブが出したメトリクスを受けてアラームの状態が変わります。"
+    ],
+    "services": [
+      "SageMaker Model Monitor",
+      "Amazon CloudWatch",
+      "Amazon EventBridge",
+      "SageMaker Pipelines"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Alarm events and EventBridge",
+        "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch-and-eventbridge.html"
+      },
+      {
+        "title": "Amazon CloudWatch events",
+        "url": "https://docs.aws.amazon.com/eventbridge/latest/ref/events-ref-cloudwatch.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-010",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "case": "C4",
+    "question": "この会社は、入力される特徴量の分布が学習時からずれていないかを継続して確かめ、ずれていれば通知を受け取りたいと考えています。運用の手間が最も少ない方法はどれですか。",
+    "options": [
+      "エンドポイントでデータキャプチャを有効にし、学習データから SageMaker Model Monitor のベースラインを作成して、データ品質モニタリングを1時間ごとにスケジュールし、違反のメトリクスに Amazon CloudWatch アラームを設定する。",
+      "エンドポイントでデータキャプチャを有効にし、SageMaker Model Monitor のモデル品質モニタリングをスケジュールして、精度の低下に Amazon CloudWatch アラームを設定する。",
+      "決済アプリケーションで入力をすべて Amazon S3 に書き出し、毎日 AWS Glue のジョブで学習データとの統計の差を計算するスクリプトを作る。",
+      "エンドポイントの Invocation4XXErrors メトリクスに Amazon CloudWatch アラームを設定し、入力の形式が変わったら通知する。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "分布のずれを、正解ラベルなしで見たいという点が決め手です。SageMaker Model Monitor のデータ品質モニタリングは、学習データから作ったベースラインの統計と制約を、データキャプチャで記録した本番の入力と比べます。比べる処理は組み込みのコンテナが行い、違反は CloudWatch メトリクスとして出るので、アラームを付ければ通知まで自動になります。モデル品質の監視は正解ラベルが要るため、ラベルの確定に数週間かかるこの会社では、すぐにずれを知る手段になりません。なお、SageMaker Model Monitor は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "optionNotes": [
+      "正解ラベルなしで入力の分布のずれを検知でき、比べる処理も組み込みなので運用の手間が最も少なくなります。",
+      "モデル品質の監視には正解ラベルが必要で、ラベルの確定に数週間かかるため、ずれにすぐ気づけません。",
+      "アプリケーションの改修と統計を計算するスクリプトの保守が必要になり、運用の手間が増えます。",
+      "形式の誤りによるエラーは分かりますが、形式が正しいまま値の分布が変わった場合は検知できません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "SageMaker Model Monitor",
+      "Amazon CloudWatch"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Data capture",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-data-capture.html"
+      },
+      {
+        "title": "Create a Baseline",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-create-baseline.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-011",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業は、新しい画像分類モデルを Amazon SageMaker AI のリアルタイムエンドポイントにデプロイする前に、インスタンスタイプを決めたいと考えています。本番では朝に急増する独自のトラフィックパターンがあり、ピーク時に毎秒300リクエストで P99 レイテンシー 100 ミリ秒以内を満たす必要があります。この条件を満たすなかで最もコスト効率の良い構成を選ぶには、どうすればよいですか。",
+    "options": [
+      "SageMaker Inference Recommender の Default ジョブを実行し、モデルパッケージの ARN だけを渡して推奨されたインスタンスタイプを使う。",
+      "SageMaker Inference Recommender の Advanced ジョブで、候補のインスタンスタイプ、独自のトラフィックパターン、レイテンシーとスループットの要件を指定してロードテストを行う。",
+      "モデルを汎用インスタンスにデプロイして1か月運用し、AWS Compute Optimizer の推奨を待ってインスタンスタイプを変える。",
+      "最も大きい GPU インスタンスにデプロイし、自動スケーリングで台数を調整する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "SageMaker Inference Recommender には2種類のジョブがあります。Default ジョブはモデルパッケージの ARN だけで始められ、推奨インスタンスに対する一通りのロードテストを45分以内に行う予備的な推奨です。Advanced ジョブは、候補のインスタンス、独自のトラフィックパターン、レイテンシーとスループットの要件を指定して行う独自のロードテストで、平均2時間ほどかかります。本番に近いトラフィックで P99 レイテンシーと毎秒のリクエスト数を満たす構成を、コストと並べて比べたいので Advanced ジョブが合います。",
+    "optionNotes": [
+      "独自のトラフィックパターンやレイテンシーの要件を指定できないため、条件を満たすかを確かめられません。",
+      "独自のトラフィックパターンと要件でロードテストを行い、各構成のコスト、スループット、レイテンシーを比べて選べます。",
+      "Compute Optimizer は SageMaker AI のエンドポイントも対象にしますが、動いているリソースの使用率の履歴から推奨を出すもので、デプロイ前に決める要件にも、P99 レイテンシーを満たすかの確認にも使えません。",
+      "要件を満たすか確かめておらず、過大なインスタンスを選ぶとコスト効率が悪くなります。"
+    ],
+    "services": [
+      "SageMaker Inference Recommender",
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Recommendation jobs with Amazon SageMaker Inference Recommender",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/inference-recommender-recommendation-jobs.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-012",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある企業は、社内向けの文書分類モデルを Amazon SageMaker AI のサーバーレスエンドポイント(メモリ 4096 MB、MaxConcurrency 5)で提供しています。始業直後の最初のリクエストが数秒かかることと、昼の会議前に利用が集中すると ThrottlingException が返ることが問題になっています。応答はリアルタイムで返す必要があります。これらの問題を解決するために ML エンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "MemorySizeInMB を 10240 に増やす。",
+      "サーバーレスの設定に ProvisionedConcurrency を追加し、始業時間帯に必要な分を割り当てる。",
+      "エンドポイントを非同期推論に切り替え、リクエストを内部のキューにためる。",
+      "MaxConcurrency を同時に来るリクエスト数に見合う値に引き上げる。",
+      "エンドポイントでデータキャプチャを有効にし、遅いリクエストを記録する。"
+    ],
+    "answer": [
+      1,
+      3
+    ],
+    "explanation": "サーバーレスエンドポイントは、しばらくリクエストがないとコンピューティングを手放すため、次のリクエストでコールドスタートが起きます。ProvisionedConcurrency を割り当てると、その分のエンドポイントが温まった状態に保たれ、ミリ秒単位で応答できます。ProvisionedConcurrency は MaxConcurrency 以下で指定し、Application Auto Scaling で時間帯に合わせて調整することもできます。同時実行数が MaxConcurrency を超えたリクエストはスロットリングされるので、集中時の同時リクエスト数に見合うよう MaxConcurrency を引き上げます(上限は 200)。前者がコールドスタート、後者がスロットリングを受け持ちます。",
+    "optionNotes": [
+      "サーバーレスエンドポイントのメモリは 1024 MB から 6144 MB までで、10240 MB は指定できません。",
+      "割り当てた分のエンドポイントを温めておけるので、始業直後のコールドスタートを抑えられます。",
+      "非同期推論は結果をあとで受け取る方式で、リアルタイムで返すという要件に合いません。",
+      "同時に処理できる数が増え、集中時のスロットリングを減らせます。",
+      "記録はできますが、コールドスタートもスロットリングも解決しません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "ProductionVariantServerlessConfig",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_ProductionVariantServerlessConfig.html"
+      },
+      {
+        "title": "Deploy models with Amazon SageMaker Serverless Inference",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-013",
+    "domain": 4,
+    "task": "4.2",
+    "type": "order",
+    "question": "ある企業では、3つのチームが同じ AWS アカウントで Amazon SageMaker AI のトレーニングジョブとエンドポイントを使っています。財務部門は、SageMaker AI の費用をチームごとに AWS Cost Explorer で見たいと考えています。タグキーには team を使うと決めました。次の候補から 3 つを選び、正しい順序に並べてください。",
+    "options": [
+      "AWS Billing and Cost Management コンソールの「コスト配分タグ」で、ユーザー定義のタグキー team を有効にする。",
+      "AWS Compute Optimizer にオプトインし、SageMaker AI のリソースの推奨を表示する。",
+      "各チームの SageMaker AI のトレーニングジョブやエンドポイントに team タグを付ける。",
+      "AWS Cost Explorer で SageMaker AI の費用を team タグでグループ化して表示する。",
+      "AWS CloudTrail の証跡を作り、各チームの API 呼び出しを記録する。"
+    ],
+    "answer": [
+      2,
+      0,
+      3
+    ],
+    "explanation": "ユーザー定義のコスト配分タグは、まずリソースにタグを付けることから始まります。タグを付けてから最大24時間ほどで、そのタグキーが「コスト配分タグ」のページに現れ、有効にできるようになります。つまり、タグが付いていないうちは有効にする対象が出てきません。有効にしてからさらに最大24時間ほどで、Cost Explorer やコストと使用状況のレポートでそのタグを使えるようになります。そのため、タグ付け、有効化、Cost Explorer での表示の順になります。",
+    "optionNotes": [
+      "2番目です。リソースに付けたタグキーがページに現れてから有効にします。",
+      "使いません。リソースのサイズの推奨を出す機能で、チームごとの費用の配分には関係しません。",
+      "最初です。タグを付けないと、コスト配分タグのページにタグキーが現れません。",
+      "最後です。有効にしたタグが反映されてから、タグでグループ化して表示できます。",
+      "使いません。API 呼び出しの記録で、費用をチームごとに分ける仕組みではありません。"
+    ],
+    "services": [
+      "AWS Billing and Cost Management",
+      "AWS Cost Explorer",
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Activating user-defined cost allocation tags",
+        "url": "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/activating-tags.html"
+      },
+      {
+        "title": "Cost Explorer",
+        "url": "https://docs.aws.amazon.com/help-panel/cost-management/latest/console/hp-ce-home.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-014",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある研究チームは、Amazon SageMaker AI で深層学習モデルを週に1回トレーニングしています。1回のトレーニングにはオンデマンドインスタンスで約20時間かかります。完了が数時間遅れるのは構いませんが、中断のたびに最初からやり直すことは避けたいと考えています。トレーニングのコストを最も下げるために ML エンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "トレーニングジョブで EnableManagedSpotTraining を true にし、MaxWaitTimeInSeconds を MaxRuntimeInSeconds より大きくする。",
+      "AWS の Compute Savings Plans を購入し、トレーニングのインスタンス料金に割引を適用する。",
+      "トレーニングジョブにチェックポイントの保存先の Amazon S3 URI を指定し、トレーニングスクリプトがローカルのチェックポイントのパスに定期的に保存して、再開時に読み込むようにする。",
+      "MaxWaitTimeInSeconds を MaxRuntimeInSeconds より小さくし、スポットの空きを待つ時間を短くする。",
+      "トレーニングのインスタンス数を増やし、1回あたりの実行時間を短くする。"
+    ],
+    "answer": [
+      0,
+      2
+    ],
+    "explanation": "マネージドスポットトレーニングを使うと、オンデマンドより最大90%安く学習できます。有効にするには EnableManagedSpotTraining を true にし、スポットの空きを待つ時間を含めた MaxWaitTimeInSeconds を MaxRuntimeInSeconds より大きくします。スポットは中断されることがあるので、チェックポイントを設定します。SageMaker AI はローカルのパスのチェックポイントを Amazon S3 にコピーし、再開時に S3 から戻すので、最後のチェックポイントから続きを実行できます。すぐに終わらないジョブではチェックポイントの併用が推奨されています。",
+    "optionNotes": [
+      "スポットインスタンスで学習するための設定で、コストを大きく下げられます。",
+      "Compute Savings Plans の対象は Amazon EC2、AWS Fargate、AWS Lambda で、SageMaker AI の料金には適用されません。",
+      "中断されても最後のチェックポイントから再開でき、最初からやり直さずに済みます。",
+      "MaxWaitTimeInSeconds は MaxRuntimeInSeconds より大きくする必要があり、この設定はできません。",
+      "台数を増やせば時間は短くなりますが、料金の単価は下がらず、コストを最も下げる方法にはなりません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Managed Spot Training in Amazon SageMaker AI",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html"
+      },
+      {
+        "title": "Compute Savings Plans",
+        "url": "https://aws.amazon.com/savingsplans/compute-pricing/"
+      }
+    ]
+  },
+  {
+    "id": "D4-015",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業は、Amazon SageMaker AI のリアルタイムエンドポイント、定期的なトレーニングジョブ、SageMaker Studio のノートブックを、今後3年にわたって安定した量で使い続ける見込みです。途中で新しいインスタンスファミリーへの移行や、別のリージョンでの運用も検討しています。この使い方の費用を最も下げられる購入方法はどれですか。",
+    "options": [
+      "AWS の Compute Savings Plans を購入する。",
+      "EC2 Instance Savings Plans を購入する。",
+      "すべてオンデマンドのまま使い、エンドポイントの自動スケーリングで夜間の台数を減らす。",
+      "SageMaker Savings Plans を購入する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "SageMaker Savings Plans は、1時間あたりの利用額を1年か3年で約束する代わりに、SageMaker AI の ML インスタンスの料金を割り引く購入方法です。割引はインスタンスファミリー、サイズ、リージョン、コンポーネント(トレーニング、リアルタイム推論、ノートブックなど)を問わず自動で適用されます。安定した量の利用と、ファミリーやリージョンを変える可能性の両方に合います。Compute Savings Plans と EC2 Instance Savings Plans は Amazon EC2 などが対象で、SageMaker AI の料金には適用されません。",
+    "optionNotes": [
+      "対象は Amazon EC2、AWS Fargate、AWS Lambda の利用で、SageMaker AI のインスタンス料金は割り引かれません。",
+      "特定のリージョンの EC2 インスタンスファミリーが対象で、SageMaker AI の料金には適用されません。",
+      "夜間の無駄は減りますが、3年にわたる安定した利用分に割引がかからず、費用を最も下げる方法にはなりません。",
+      "ファミリー、サイズ、リージョン、コンポーネントを問わず SageMaker AI の利用に割引が自動で適用されます。"
+    ],
+    "services": [
+      "SageMaker Savings Plans",
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "What are Savings Plans?",
+        "url": "https://docs.aws.amazon.com/savingsplans/latest/userguide/what-is-savings-plans.html"
+      },
+      {
+        "title": "Compute Savings Plans",
+        "url": "https://aws.amazon.com/savingsplans/compute-pricing/"
+      }
+    ]
+  },
+  {
+    "id": "D4-016",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある製薬会社の監査部門は、ML 基盤について次の2点を求めています。1つ目は、誰がいつ再トレーニングのトレーニングジョブを開始したか(CreateTrainingJob の呼び出し)を、少なくとも1年分さかのぼれること。2つ目は、本番の Amazon SageMaker AI エンドポイントをどの IAM プリンシパルが呼び出したか(InvokeEndpoint の呼び出し)を記録することです。これらの要件を満たすために ML エンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "追加の設定はせず、AWS CloudTrail のイベント履歴を監査に使う。",
+      "ログファイルを Amazon S3 バケットに送る AWS CloudTrail の証跡を作成し、管理イベントを記録する。",
+      "エンドポイントのコンテナが出力する Amazon CloudWatch Logs のロググループを、保持期間を無期限にして保存する。",
+      "エンドポイントで SageMaker Model Monitor のデータキャプチャを有効にし、リクエストとレスポンスを Amazon S3 に保存する。",
+      "AWS CloudTrail の証跡で、リソースタイプ AWS::SageMaker::Endpoint のデータイベントの記録を有効にする。"
+    ],
+    "answer": [
+      1,
+      4
+    ],
+    "explanation": "CloudTrail のイベント履歴は既定で有効ですが、さかのぼれるのは90日分だけです。1年以上残すには、ログファイルを Amazon S3 に送る証跡を作成します。CreateTrainingJob は管理イベントとして記録されます。一方 InvokeEndpoint はデータイベントで、CloudTrail は既定ではデータイベントを記録せず、イベント履歴にも出ません。証跡でリソースタイプ AWS::SageMaker::Endpoint のデータイベントを有効にすると、呼び出した IAM プリンシパルが記録されます(リクエストのパラメータは記録されません)。データイベントには追加の料金がかかります。",
+    "optionNotes": [
+      "イベント履歴は90日分しか残らず、データイベントの InvokeEndpoint も記録されません。",
+      "証跡で S3 に送ることで、CreateTrainingJob を含む管理イベントを1年以上残せます。",
+      "コンテナのログには推論処理の出力が入りますが、呼び出した IAM プリンシパルの記録にはなりません。",
+      "リクエストとレスポンスの中身は残りますが、誰が呼び出したかの監査記録にはなりません。",
+      "InvokeEndpoint はデータイベントなので、これを有効にすると呼び出した IAM プリンシパルが記録されます。"
+    ],
+    "services": [
+      "AWS CloudTrail",
+      "Amazon SageMaker AI",
+      "Amazon S3"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Logging Amazon SageMaker AI API calls using AWS CloudTrail",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/logging-using-cloudtrail.html"
+      },
+      {
+        "title": "ACCT.07 Deliver CloudTrail logs to a protected Amazon S3 bucket",
+        "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/aws-startup-security-baseline/acct-07.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-017",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業では、Amazon API Gateway から呼び出される AWS Lambda 関数が特徴量の前処理を行い、そのあと Amazon SageMaker AI のエンドポイントを呼び出しています。ときどき全体のレイテンシーが悪化しますが、エンドポイントの ModelLatency は安定しています。ML エンジニアは、Lambda 関数の呼び出しごとの CPU 時間、メモリ使用量、コールドスタートの発生を調べたいと考えています。最も適したツールはどれですか。",
+    "options": [
+      "Lambda 関数で Amazon CloudWatch Lambda Insights を有効にする。",
+      "VPC フローログを有効にし、Lambda 関数のネットワークインターフェイスの通信を記録する。",
+      "AWS CloudTrail の証跡で Lambda 関数のデータイベントを記録する。",
+      "AWS Trusted Advisor のコスト最適化のチェックを確認する。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "CloudWatch Lambda Insights は、Lambda レイヤーとして提供される拡張機能を関数に追加して使います。呼び出しごとに1件のパフォーマンスログを出し、CPU 時間、メモリ、ディスク、ネットワークの使用量に加えて、コールドスタートや Lambda ワーカーのシャットダウンといった診断情報を集計します。エンドポイント側の ModelLatency が安定していることから、前処理の Lambda 関数が疑わしいので、その内部の資源の使い方を見られる Lambda Insights が合います。サービスをまたいだ時間の内訳を見たい場合は、AWS X-Ray のトレースを併せて使えます。",
+    "optionNotes": [
+      "呼び出しごとの CPU 時間、メモリ使用量、コールドスタートを集計でき、要件に合います。",
+      "通信の送信元と宛先は分かりますが、関数の CPU やメモリの使い方は分かりません。",
+      "誰が関数を呼び出したかの記録で、関数の性能の指標は得られません。",
+      "使われていないリソースの洗い出しなどに使うもので、レイテンシーの原因調査には向きません。"
+    ],
+    "services": [
+      "Amazon CloudWatch Lambda Insights",
+      "AWS Lambda",
+      "AWS X-Ray"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Monitor Event Function performance with Amazon CloudWatch Lambda Insights",
+        "url": "https://docs.aws.amazon.com/lambda/latest/dg/monitoring-insights.html"
+      },
+      {
+        "title": "Amazon SageMaker AI metrics in Amazon CloudWatch",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/monitoring-cloudwatch.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-018",
+    "domain": 4,
+    "task": "4.2",
+    "type": "match",
+    "question": "ある企業の ML チームは、コストとリソースの最適化について次の要件を持っています。各要件に最も合うサービスを選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "過去12か月の SageMaker AI の費用をコスト配分タグごとに表示し、今後の費用の予測も見たい",
+      "当月の費用が設定した額の80%に達すると予測されたら、担当者に通知したい",
+      "使用率の低い Amazon EC2 インスタンスや、関連付けられていない Elastic IP アドレスを、用意されたチェックで洗い出したい",
+      "Amazon EC2 で動かしている自前の推論サーバーについて、使用率の履歴からインスタンスタイプの推奨を受けたい",
+      "新しいモデルをデプロイする前に、SageMaker AI のエンドポイントのインスタンスタイプをロードテストで選びたい"
+    ],
+    "options": [
+      "AWS Compute Optimizer",
+      "AWS Cost Explorer",
+      "Amazon CloudWatch Logs Insights",
+      "SageMaker Inference Recommender",
+      "AWS Budgets",
+      "AWS Trusted Advisor"
+    ],
+    "answer": [
+      1,
+      4,
+      5,
+      0,
+      3
+    ],
+    "explanation": "コスト管理のツールは役割で選びます。Cost Explorer は費用をタグやサービスでフィルターやグループ化して表示し、履歴から将来の費用を予測します。Budgets は費用や使用量の予算を決め、実績か予測が閾値を超えたら通知し、アクションも設定できます。Trusted Advisor はコスト最適化のチェックで、使用率の低い EC2 インスタンスや関連付けのない Elastic IP アドレスを洗い出します。Compute Optimizer は動いているリソースの使用率の履歴から EC2 インスタンスなどのサイズを推奨します。SageMaker AI のエンドポイントも対象ですが、推奨には稼働中の使用率の履歴が要るので、デプロイ前のエンドポイントの選定は、ロードテストを行う Inference Recommender の役割です。",
+    "optionNotes": [
+      "4つ目に合います。動いている EC2 インスタンスの使用率の履歴から推奨を出します。5つ目はデプロイ前の選定なので、使用率の履歴がなく使えません。",
+      "1つ目に合います。タグでグループ化した費用の表示と予測ができます。",
+      "どれにも合いません。ログを検索して分析するツールで、費用の表示、予算、リソースの推奨には使いません。",
+      "5つ目に合います。デプロイ前のロードテストでエンドポイントのインスタンスタイプを選べます。",
+      "2つ目に合います。予測が閾値を超えたときに通知できます。",
+      "3つ目に合います。コスト最適化のチェックで低使用率のリソースを洗い出します。"
+    ],
+    "services": [
+      "AWS Cost Explorer",
+      "AWS Budgets",
+      "AWS Trusted Advisor",
+      "AWS Compute Optimizer",
+      "SageMaker Inference Recommender"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Best practices for AWS Budgets",
+        "url": "https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-best-practices.html"
+      },
+      {
+        "title": "What is AWS Compute Optimizer?",
+        "url": "https://docs.aws.amazon.com/compute-optimizer/latest/ug/what-is-compute-optimizer.html"
+      },
+      {
+        "title": "Cost optimization (AWS Trusted Advisor check reference)",
+        "url": "https://docs.aws.amazon.com/awssupport/latest/user/cost-optimization-checks.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-019",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "case": "C4",
+    "question": "この会社は、セールの日のレイテンシーの悪化を解消しつつ、平常時の無駄な費用を抑えたいと考えています。運用の手間が最も少ない方法はどれですか。",
+    "options": [
+      "インスタンスタイプを ml.c5.4xlarge に変え、台数は2台のまま固定する。",
+      "セールの前日に担当者が手作業でエンドポイント設定を更新し、台数を10台に増やし、終わったら戻す。",
+      "Application Auto Scaling でエンドポイントのバリアントをスケーラブルターゲットに登録し、最小2台、最大10台として、SageMakerVariantInvocationsPerInstance を目標値にしたターゲット追跡スケーリングポリシーを設定する。",
+      "サーバーレスエンドポイントに切り替え、MaxConcurrency を最大にする。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "リクエスト数に応じて台数を増減させるには、エンドポイントの自動スケーリングを使います。バリアントを Application Auto Scaling のスケーラブルターゲットとして登録し、最小と最大の台数を決めたうえで、ターゲット追跡スケーリングポリシーを設定します。メトリクスには、1台あたり1分間の平均呼び出し回数を表す SageMakerVariantInvocationsPerInstance が推奨されています。セールの日はリクエストの増加に合わせて台数が増え、平常時は最小の2台に戻るので、レイテンシーと費用の両方に応えられます。目標値はロードテストで決めます。",
+    "optionNotes": [
+      "セールの日には足りるかもしれませんが、平常時も大きなインスタンスの料金がかかり続けます。",
+      "毎回の手作業が必要で、予定外の急増にも対応できず、運用の手間が多くなります。",
+      "リクエスト数に合わせて台数が自動で増減し、セールの日の性能と平常時の費用の両方を満たします。",
+      "サーバーレス推論は、リクエストのない時間があってコールドスタートを許容できるワークロード向けで、低レイテンシーが求められる決済ではコールドスタートの遅延が問題になります。エンドポイントあたりの同時実行数も最大 200 で、データキャプチャや Model Monitor にも対応していません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "Application Auto Scaling"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Define a scaling policy",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/endpoint-auto-scaling-add-code-define.html"
+      },
+      {
+        "title": "Deploy models with Amazon SageMaker Serverless Inference",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-020",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業は、Amazon SageMaker AI のエンドポイント(ml.g5.xlarge)に、最小2台、最大10台の自動スケーリングを設定しています。負荷が高まっても台数が4台より増えず、レイテンシーが悪化しました。スケーリングのアクティビティには「The account-level service limit 'ml.g5.xlarge for endpoint usage' is 4 Instances」というメッセージが出ています。この問題を解決する方法はどれですか。",
+    "options": [
+      "スケーラブルターゲットの最大台数を10台から20台に引き上げる。",
+      "エンドポイント設定に ProvisionedConcurrency を追加する。",
+      "ターゲット追跡スケーリングポリシーの目標値を下げ、早めにスケールアウトさせる。",
+      "Service Quotas コンソールで、Amazon SageMaker の ml.g5.xlarge for endpoint usage のクォータの引き上げをリクエストする。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "メッセージは、アカウントで使える ml.g5.xlarge のエンドポイント用インスタンスの数(サービスクォータ)が4台であることを示しています。クォータはアカウント、リージョン、使い方の種類ごとに決まっていて、これを超える台数は自動スケーリングの設定に関係なく起動できません。Service Quotas コンソールで Amazon SageMaker の該当するクォータを選び、引き上げをリクエストします。小さな引き上げは通常自動で承認され、大きなものは AWS サポートが審査します。スケーリングの設定をいくら変えても、クォータの上限は超えられません。",
+    "optionNotes": [
+      "台数を止めているのはアカウントのクォータで、最大台数の設定を上げても4台を超えて起動できません。",
+      "ProvisionedConcurrency はサーバーレスエンドポイントの設定で、インスタンスを使うエンドポイントには使いません。",
+      "スケールアウトの判断が早まるだけで、クォータの上限の4台は超えられません。",
+      "アカウントのクォータを引き上げれば、設定した最大10台までスケールアウトできるようになります。"
+    ],
+    "services": [
+      "Service Quotas",
+      "Amazon SageMaker AI",
+      "Application Auto Scaling"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Requesting a quota increase",
+        "url": "https://docs.aws.amazon.com/servicequotas/latest/userguide/request-quota-increase.html"
+      },
+      {
+        "title": "Amazon SageMaker AI endpoints and quotas",
+        "url": "https://docs.aws.amazon.com/general/latest/gr/sagemaker.html"
+      },
+      {
+        "title": "How do I troubleshoot the \"ResourceLimitExceeded\" error in SageMaker?",
+        "url": "https://repost.aws/knowledge-center/sagemaker-resource-limit-exceeded-error"
+      }
+    ]
+  },
+  {
+    "id": "D4-021",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "question": "ある企業の Amazon SageMaker AI のトレーニングジョブは、実行ロールに AmazonS3FullAccess ポリシーが付いています。ジョブが読むのは s3://ml-data-bucket/train/ の下の学習データだけで、書き込むのは s3://ml-data-bucket/models/ の下のモデルアーティファクトだけです。セキュリティチームは、実行ロールを最小権限にするよう求めています。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "AmazonS3FullAccess を外し、AmazonSageMakerFullAccess ポリシーを付ける。",
+      "AmazonS3FullAccess はそのままにし、ml-data-bucket で S3 のブロックパブリックアクセスを有効にする。",
+      "ml-data-bucket のバケットポリシーで、アカウント内のすべてのプリンシパルに s3:GetObject と s3:PutObject を許可する。",
+      "AmazonS3FullAccess を外し、train/ の下への s3:GetObject と prefix 条件付きの s3:ListBucket、models/ の下への s3:PutObject だけを許可するカスタマー管理ポリシーを付ける。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "最小権限は、必要な操作を、必要なリソースに対してだけ許可することです。このジョブは train/ の下を読み、models/ の下に書くだけなので、操作を s3:GetObject、s3:ListBucket、s3:PutObject に絞り、リソースの ARN をそれぞれのプレフィックスに限ります。ListBucket はバケットに対する操作なので、s3:prefix の条件で train/ に絞ります。AWS 管理ポリシーは始めやすい反面、広い権限を含むので、使い方に合わせたカスタマー管理ポリシーに置き換えるのが推奨されています。",
+    "optionNotes": [
+      "SageMaker AI の多くの操作を含む広い権限で、最小権限になりません。",
+      "外部への公開は防げますが、ロールがすべてのバケットに何でもできる状態は変わりません。",
+      "アカウント内のすべてのプリンシパルに権限が広がり、最小権限とは逆の方向です。",
+      "操作とリソースを、ジョブが実際に読むプレフィックスと書くプレフィックスに絞れます。"
+    ],
+    "services": [
+      "AWS Identity and Access Management (IAM)",
+      "Amazon S3",
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Amazon SageMaker AI identity-based policy examples",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/security_iam_id-based-policy-examples.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-022",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "question": "ある銀行は、外部の開発会社が作ったモデルのコンテナを使って Amazon SageMaker AI でトレーニングジョブを実行します。コンテナの中身を十分に確かめられないため、コンテナが学習データを外部へ送り出せないようにする必要があります。コンテナから Amazon S3 を含むあらゆるサービスへの通信を止めたうえで、学習データの読み込みとモデルアーティファクトの書き出しは行えるようにする必要があります。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "トレーニングジョブを VPC のプライベートサブネットで実行し、Amazon S3 のゲートウェイエンドポイントを作成する。",
+      "CreateTrainingJob で EnableNetworkIsolation を true にする。",
+      "トレーニングジョブを VPC で実行し、セキュリティグループのアウトバウンドルールをすべて削除する。",
+      "Amazon S3 のゲートウェイエンドポイントのポリシーで、学習データのバケット以外へのアクセスを拒否する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "ネットワーク分離を有効にすると、トレーニングや推論のコンテナは Amazon S3 を含むどのサービスにも外向きの通信ができず、コンテナに AWS の認証情報も渡されません。複数インスタンスの学習では、コンテナどうしの通信だけが許されます。学習データのダウンロードとモデルアーティファクトのアップロードは、コンテナとは別に SageMaker AI が実行ロールを使って行うので、学習は普通に進みます。VPC と組み合わせた場合も、データの出し入れは VPC を通り、コンテナ自体は分離されたままです。",
+    "optionNotes": [
+      "インターネットへの経路はなくなりますが、コンテナは S3 や VPC 内のリソースに通信でき、データを送り出せる余地が残ります。",
+      "コンテナからの通信をすべて止めつつ、データの出し入れは SageMaker AI が行うので、要件を両方満たします。",
+      "VPC で実行するジョブの S3 との通信も VPC 内のネットワークインターフェイスを通るため、アウトバウンドを全部止めると学習データの読み込みとモデルの書き出しもできなくなり、学習が進みません。",
+      "許可したバケットへはコンテナが自由に読み書きでき、あらゆる通信を止めるという要件に合いません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "Amazon VPC"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Run Training and Inference Containers in Internet-Free Mode",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/mkt-algo-model-internet-free.html"
+      },
+      {
+        "title": "Give SageMaker AI Training Jobs Access to Resources in Your Amazon VPC",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/train-vpc.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-023",
+    "domain": 4,
+    "task": "4.3",
+    "type": "multi",
+    "question": "ある企業は、SageMaker AI のドメインを VPC 専用モード(VPC only)で作成しました。ドメインのサブネットはプライベートサブネットで、インターネットへの経路はなく、今後も置かない方針です。SageMaker Studio の JupyterLab から、トレーニングジョブを作成しようとすると SageMaker AI の API の呼び出しがタイムアウトし、Amazon S3 のデータセットも読めません。これらの問題を解決するために ML エンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "パブリックサブネットに NAT ゲートウェイを置き、プライベートサブネットのルートテーブルに追加する。",
+      "ドメインのネットワークアクセスの種類をパブリックインターネットのみに変更する。",
+      "サービス名 com.amazonaws.region.sagemaker.api のインターフェイス VPC エンドポイントを作成し、ポート 443 のインバウンドを許可するセキュリティグループを関連付ける。",
+      "サービス名 com.amazonaws.region.sagemaker.runtime のインターフェイス VPC エンドポイントだけを作成する。",
+      "Amazon S3 のゲートウェイ VPC エンドポイントを作成し、ドメインのサブネットのルートテーブルに関連付ける。"
+    ],
+    "answer": [
+      2,
+      4
+    ],
+    "explanation": "VPC 専用モードでは、Studio からの通信はすべてドメインの VPC を通るので、インターネットへの経路がなければ AWS のサービスに届きません。トレーニングジョブの作成のような SageMaker AI の API の呼び出しには、com.amazonaws.region.sagemaker.api のインターフェイスエンドポイントが要ります。エンドポイントに付けるセキュリティグループでは、ポート 443 のインバウンドを許可します。Amazon S3 にはゲートウェイエンドポイントを作り、ルートテーブルに関連付けます。前者が API のタイムアウト、後者が S3 の読み込みを受け持ちます。",
+    "optionNotes": [
+      "通信は通るようになりますが、インターネットへの経路を置かないという方針に反します。",
+      "インターネット経由の通信になり、VPC の中に閉じるという方針に反します。",
+      "SageMaker AI の API の呼び出しを VPC の中で受けられるようになり、トレーニングジョブを作成できます。",
+      "runtime のエンドポイントは推論の呼び出しなどに使うもので、トレーニングジョブの作成に使う SageMaker AI の API には届きません。",
+      "インターネットを通らずに S3 のデータセットを読めるようになります。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "SageMaker Studio",
+      "Amazon VPC",
+      "AWS PrivateLink"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Connect Studio notebooks in a VPC to external resources",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/studio-notebooks-and-internet-access.html"
+      },
+      {
+        "title": "Connect to SageMaker AI Within your VPC",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/interface-vpc-endpoint.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-024",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "question": "ある企業の Amazon SageMaker AI のトレーニングジョブが、Amazon S3 の学習データを読む段階で AccessDenied で失敗しました。実行ロールには、学習データのプレフィックスに対する s3:GetObject と s3:ListBucket が許可されています。学習データは AWS KMS のカスタマー管理キーによるサーバー側の暗号化(SSE-KMS)で保存されています。最も可能性の高い原因と対処はどれですか。",
+    "options": [
+      "バケットポリシーにサービスプリンシパル sagemaker.amazonaws.com を追加し、s3:GetObject を許可する。",
+      "トレーニングジョブの入力モードを File から Pipe に変える。",
+      "実行ロールに、そのカスタマー管理キーに対する kms:Decrypt を許可し、キーポリシーでもその実行ロールの利用を許可する。",
+      "学習データのバケットで S3 バケットキーを有効にする。"
+    ],
+    "answer": [
+      2
+    ],
+    "explanation": "SSE-KMS で暗号化されたオブジェクトを読むには、S3 の権限に加えて、暗号化に使った KMS キーで復号する権限が必要です。トレーニングジョブは実行ロールで S3 を読むので、実行ロールの IAM ポリシーで kms:Decrypt を許可し、さらに KMS のキーポリシーがその実行ロール(またはアカウントの IAM ポリシーによる委任)を許可している必要があります。ストレージボリュームの暗号化に KMS キーを指定した場合は、kms:CreateGrant も要ります。S3 の権限が揃っているのに AccessDenied になる場合は、まず KMS の権限を疑います。",
+    "optionNotes": [
+      "トレーニングジョブは実行ロールの権限で S3 を読むため、サービスプリンシパルを許可しても KMS の復号の権限は得られません。",
+      "入力モードを変えてもデータの読み方が変わるだけで、復号の権限がない問題は解決しません。",
+      "復号の権限が揃うので、暗号化された学習データを読めるようになります。",
+      "KMS へのリクエストを減らしてコストを下げる機能で、権限の不足は解決しません。"
+    ],
+    "services": [
+      "AWS Key Management Service (AWS KMS)",
+      "Amazon S3",
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Using server-side encryption with AWS KMS keys (SSE-KMS)",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html"
+      },
+      {
+        "title": "Default key policy",
+        "url": "https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-default.html"
+      },
+      {
+        "title": "How do I resolve Amazon S3 AccessDenied errors in SageMaker AI training jobs?",
+        "url": "https://repost.aws/knowledge-center/sagemaker-s3-accessdenied-training"
+      }
+    ]
+  },
+  {
+    "id": "D4-025",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "question": "ある医療機関は、Amazon SageMaker AI で複数のインスタンスを使う分散トレーニングを行っています。コンプライアンスの規程により、トレーニング中にインスタンス間でやり取りされるデータもすべて暗号化する必要があります。これらの要件を満たす設定はどれですか。",
+    "options": [
+      "トレーニングジョブで EnableInterContainerTrafficEncryption を true にし、セキュリティグループで UDP ポート 500 と ESP(プロトコル 50)の通信を許可する。",
+      "トレーニングジョブの OutputDataConfig に KMS キーを指定し、モデルアーティファクトを暗号化する。",
+      "トレーニングジョブの ResourceConfig に VolumeKmsKeyId を指定し、ストレージボリュームを暗号化する。",
+      "トレーニングジョブで EnableNetworkIsolation を true にする。"
+    ],
+    "answer": [
+      0
+    ],
+    "explanation": "分散トレーニングでは、フレームワークによってはインスタンス間で係数などの共有の状態を平文でやり取りします。インスタンス間のトラフィックの暗号化を有効にすると、SageMaker AI がノード間の通信を暗号化したトンネルで送り、アルゴリズム側で暗号化や復号を作り込む必要がありません。有効にするには EnableInterContainerTrafficEncryption を true にし、VPC のセキュリティグループで、同じセキュリティグループからの UDP ポート 500 と ESP(プロトコル 50)の通信を許可します。通信量によっては学習が遅くなる点に注意が必要です。",
+    "optionNotes": [
+      "インスタンス間の通信そのものを暗号化する設定で、要件に合います。",
+      "保存されるモデルアーティファクトの暗号化で、インスタンス間の通信は暗号化されません。",
+      "ストレージボリュームに保存されるデータの暗号化で、転送中のデータは対象外です。",
+      "外部への通信を止める設定で、コンテナどうしの通信は許されたまま暗号化もされません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Protect Communications Between ML Compute Instances in a Distributed Training Job",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/train-encrypt.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-026",
+    "domain": 4,
+    "task": "4.3",
+    "type": "match",
+    "question": "ある企業のセキュリティチームは、ML システムについて次の要件を持っています。各要件に最も合う仕組みを選んでください。同じものを複数回選ぶことも、選ばないものがあることもあります。",
+    "prompts": [
+      "トレーニングジョブのネットワークインターフェイスへの通信を、同じセキュリティグループに属するリソースからのものだけに限りたい",
+      "インターフェイス VPC エンドポイントを通して呼び出せる SageMaker AI のエンドポイントを、特定の1つだけに限りたい",
+      "トレーニングジョブのストレージボリュームを、自社で管理し、ローテーションできるキーで暗号化したい",
+      "誰がいつエンドポイント設定を削除したかを、あとから調べられるようにしたい",
+      "学習データのバケットへの、TLS を使わないリクエストを拒否したい"
+    ],
+    "options": [
+      "Amazon S3 のバケットポリシー",
+      "AWS KMS のカスタマー管理キー",
+      "ネットワーク ACL",
+      "セキュリティグループ",
+      "AWS CloudTrail",
+      "VPC エンドポイントポリシー"
+    ],
+    "answer": [
+      3,
+      5,
+      1,
+      4,
+      0
+    ],
+    "explanation": "セキュリティグループはネットワークインターフェイスに付けるステートフルなファイアウォールで、送信元に別のセキュリティグループを指定できます。VPC エンドポイントポリシーは、そのエンドポイントを通して実行できる操作とリソースを絞れ、InvokeEndpoint の対象を特定のエンドポイントの ARN に限れます。ストレージボリュームは VolumeKmsKeyId に KMS のカスタマー管理キーを指定して暗号化します。削除のような管理操作は CloudTrail に管理イベントとして記録されます。TLS を使わないリクエストは、バケットポリシーで aws:SecureTransport が false のときに拒否します。",
+    "optionNotes": [
+      "5つ目に合います。aws:SecureTransport の条件で TLS を使わないリクエストを拒否できます。",
+      "3つ目に合います。自社でキーポリシーとローテーションを管理でき、ボリュームの暗号化に指定できます。",
+      "どれにも合いません。サブネット単位のステートレスなフィルターで、送信元は CIDR で指定し、セキュリティグループを指定できません。",
+      "1つ目に合います。送信元に同じセキュリティグループを指定して通信を許可できます。",
+      "4つ目に合います。エンドポイント設定の削除のような API 呼び出しを記録します。",
+      "2つ目に合います。エンドポイントを通して呼び出せるリソースを特定の ARN に絞れます。"
+    ],
+    "services": [
+      "Amazon VPC",
+      "AWS KMS",
+      "AWS CloudTrail",
+      "Amazon S3"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Connect to SageMaker AI Within your VPC",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/interface-vpc-endpoint.html"
+      },
+      {
+        "title": "Examples of Amazon S3 bucket policies",
+        "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-bucket-policies.html"
+      },
+      {
+        "title": "Network ACL rules",
+        "url": "https://docs.aws.amazon.com/vpc/latest/userguide/nacl-rules.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-027",
+    "domain": 4,
+    "task": "4.3",
+    "type": "multi",
+    "question": "ある企業は、AWS CodePipeline と AWS CodeBuild で ML の CI/CD パイプラインを動かしています。CodeBuild のプロジェクトは推論コンテナのイメージを Amazon ECR に push し、SageMaker Pipelines の実行を開始します。セキュリティ監査で、外部のデータベースのパスワードが buildspec の env/variables に平文で書かれていることと、CodeBuild のサービスロールに AdministratorAccess が付いていることが指摘されました。これらの指摘に対処するために ML エンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "パスワードを Base64 でエンコードしてから、buildspec の env/variables に書く。",
+      "パスワードを AWS Secrets Manager に保存し、buildspec の env/secrets-manager で参照する。",
+      "サービスロールを、対象の ECR リポジトリへの push と、対象のパイプラインの sagemaker:StartPipelineExecution など、ビルドに必要な操作だけを許可するロールに置き換える。",
+      "AdministratorAccess を持つ IAM ユーザーのアクセスキーを発行し、ソースリポジトリの設定ファイルに保存して CodeBuild から使う。",
+      "CodeBuild のビルドログの出力を無効にし、パスワードがログに残らないようにする。"
+    ],
+    "answer": [
+      1,
+      2
+    ],
+    "explanation": "env/variables に書いた環境変数は CodeBuild のコンソールや AWS CLI で平文のまま表示できるため、機密の値の保存には使わないよう案内されています。AWS Secrets Manager に保存して env/secrets-manager で参照すれば、値は実行時に取り出され、ビルドログでも隠されます。サービスロールの AdministratorAccess は最小権限に反するので、ECR リポジトリへの push や対象のパイプラインの開始など、ビルドが実際に使う操作とリソースだけを許可するロールに置き換えます。前者がパスワードの指摘、後者が権限の指摘を受け持ちます。",
+    "optionNotes": [
+      "Base64 は暗号化ではなく、誰でも元に戻せます。平文で表示される問題も変わりません。",
+      "パスワードを平文の環境変数から外し、実行時に取り出す形にできます。",
+      "ビルドに必要な操作とリソースだけを許可し、最小権限にできます。",
+      "長期の認証情報をリポジトリに置くことになり、漏えいの危険がむしろ増えます。",
+      "ログに残らなくなっても、buildspec とコンソールでパスワードが見える問題は残り、ロールの権限の問題も解決しません。"
+    ],
+    "services": [
+      "AWS CodeBuild",
+      "AWS Secrets Manager",
+      "AWS Identity and Access Management (IAM)"
+    ],
+    "difficulty": 1,
+    "refs": [
+      {
+        "title": "Build specification reference for CodeBuild",
+        "url": "https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html"
+      },
+      {
+        "title": "EnvironmentVariable",
+        "url": "https://docs.aws.amazon.com/codebuild/latest/APIReference/API_EnvironmentVariable.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-028",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "question": "ある企業のセキュリティチームは、データサイエンティストが Amazon SageMaker AI のトレーニングジョブを作成するとき、承認済みのプライベートサブネットとセキュリティグループを必ず指定させたいと考えています。指定がない場合や、ほかのサブネットを指定した場合は、ジョブの作成を拒否する必要があります。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "データサイエンティストの IAM ポリシーで、sagemaker:CreateTrainingJob を aws:SourceVpc が社内の VPC の場合だけ許可する。",
+      "SCP で ec2:CreateNetworkInterface を拒否し、VPC の外にネットワークインターフェイスを作れないようにする。",
+      "データサイエンティストの IAM ポリシーで、sagemaker:CreateTrainingJob を sagemaker:NetworkIsolation が true の場合だけ許可する。",
+      "データサイエンティストの IAM ポリシーで、sagemaker:CreateTrainingJob を sagemaker:VpcSubnets と sagemaker:VpcSecurityGroupIds が承認済みの値に一致し、かつどちらも Null でない場合だけ許可する。"
+    ],
+    "answer": [
+      3
+    ],
+    "explanation": "SageMaker AI には、リソースの作成時のパラメータを条件にできる独自の条件キーがあります。sagemaker:VpcSubnets と sagemaker:VpcSecurityGroupIds は、CreateTrainingJob の VpcConfig に指定されたサブネットとセキュリティグループを表します。ForAllValues:StringEquals で承認済みの値に限り、さらに Null 条件を false にすると、VpcConfig を省いたリクエストも許可されなくなります。条件キーで作成時の設定を強制するのは、SageMaker AI の公式の例にもある方法です。",
+    "optionNotes": [
+      "API を呼び出した場所を限る条件で、ジョブにどのサブネットを指定したかは確かめられません。",
+      "SageMaker AI が VPC 内にネットワークインターフェイスを作る動作まで妨げるおそれがあり、承認済みのサブネットを強制する仕組みにもなりません。",
+      "ネットワーク分離を強制する条件で、承認済みのサブネットやセキュリティグループの指定は強制できません。",
+      "指定されたサブネットとセキュリティグループを条件で確かめ、省略も拒否できるので要件を満たします。"
+    ],
+    "services": [
+      "AWS Identity and Access Management (IAM)",
+      "Amazon SageMaker AI",
+      "Amazon VPC"
+    ],
+    "difficulty": 3,
+    "refs": [
+      {
+        "title": "Amazon SageMaker AI identity-based policy examples",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/security_iam_id-based-policy-examples.html"
+      }
+    ]
+  },
+  {
+    "id": "D4-029",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "case": "C4",
+    "question": "この会社は、決済アプリケーションからエンドポイントを呼び出す通信をインターネットに出さず、かつ監査部門の求めどおり、呼び出しを社内の VPC からのものに限りたいと考えています。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "パブリックサブネットに NAT ゲートウェイを置き、決済アプリケーションのタスクから SageMaker AI のランタイムの公開エンドポイントを呼び出す。",
+      "サービス名 com.amazonaws.region.sagemaker.runtime のインターフェイス VPC エンドポイントを作成し、呼び出しに使う IAM ロールのポリシーで aws:SourceVpce がそのエンドポイントの場合だけ sagemaker:InvokeEndpoint を許可する。",
+      "サービス名 com.amazonaws.region.sagemaker.api のインターフェイス VPC エンドポイントを作成し、エンドポイントポリシーで sagemaker:CreateEndpoint を拒否する。",
+      "SageMaker AI のエンドポイントのセキュリティグループで、決済アプリケーションのタスクのセキュリティグループからの通信だけを許可する。"
+    ],
+    "answer": [
+      1
+    ],
+    "explanation": "InvokeEndpoint は SageMaker AI のランタイムの API なので、VPC の中から呼ぶには com.amazonaws.region.sagemaker.runtime のインターフェイス VPC エンドポイントを作ります。これで通信はインターネットに出ません。ただし、インターフェイスエンドポイントを作っても、VPC の外からインターネット経由でランタイムを呼べる状態は残ります。呼び出しを VPC からに限るには、IAM ポリシーで aws:SourceVpce(または aws:SourceVpc)の条件を付けます。エンドポイントポリシーで呼び出せるエンドポイントを絞ることも併せてできます。",
+    "optionNotes": [
+      "社内の規程で NAT ゲートウェイは置けず、通信もインターネットを通ります。",
+      "通信を VPC の中に閉じ、IAM の条件で VPC エンドポイント経由の呼び出しだけを許可できるので、両方の要件を満たします。",
+      "api のエンドポイントは管理用の API の通信に使うもので、InvokeEndpoint の通信はランタイムのエンドポイントを通ります。",
+      "SageMaker AI のエンドポイントは呼び出し元の VPC に置かれたリソースではないため、セキュリティグループで InvokeEndpoint の経路を限ることはできません。"
+    ],
+    "services": [
+      "Amazon SageMaker AI",
+      "AWS PrivateLink",
+      "AWS Identity and Access Management (IAM)"
+    ],
+    "difficulty": 2,
+    "refs": [
+      {
+        "title": "Connect to SageMaker AI Within your VPC",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/interface-vpc-endpoint.html"
+      },
+      {
+        "title": "Amazon SageMaker AI identity-based policy examples",
+        "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/security_iam_id-based-policy-examples.html"
+      }
+    ]
+  }
+]
