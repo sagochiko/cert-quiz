@@ -1,0 +1,441 @@
+[
+  {
+    "id": "D2-001",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は、モバイルアプリのクリックイベントを複数の分析チームに配信しています。イベント量はキャンペーンの有無で 10 倍以上変動し、事前に予測できません。下流の処理に障害が起きたとき、最大 5 日前までさかのぼってイベントを読み直せる必要があります。Apache Kafka の API との互換性は求められていません。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon MSK のプロビジョンドクラスターを作成し、ブローカー数をピーク時の量に合わせて固定し、トピックの保持期間を 5 日に設定する。",
+      "Amazon Kinesis Data Streams のデータストリームをオンデマンドモードで作成し、データ保持期間を 120 時間に延長する。",
+      "Amazon Kinesis Data Streams のデータストリームをプロビジョンドモードで作成し、シャード数を平常時の量に合わせ、既定の保持期間のまま使う。",
+      "Amazon SQS の標準キューにイベントを送り、メッセージ保持期間を 5 日に設定して、各分析チームが同じキューからメッセージを受信する。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「量が予測できない」「5 日前までさかのぼって読み直す」「最小の運用負荷」の 3 点です。Kinesis Data Streams のオンデマンドモードは容量計画が不要で、シャード数をサービスが自動で調整し、実際に使ったスループットに対して課金されます。保持期間は既定で 24 時間ですが、IncreaseStreamRetentionPeriod で最大 8,760 時間(365 日)まで延ばせるため、120 時間にすれば 5 日分を読み直せます。複数の分析チームはそれぞれのコンシューマーとして同じストリームを独立に読めます。Kafka 互換が不要なので、ブローカーの台数やストレージを考える必要がある MSK のプロビジョンドクラスターを選ぶ理由はありません。",
+    "optionNotes": [
+      "保持期間の要件は満たせますが、ピークに合わせてブローカーを固定すると平常時に余剰コストが出て、容量の見直しも人手になります。Kafka 互換も求められていません。",
+      "正解です。オンデマンドモードはシャードを自動で増減し、保持期間を 120 時間に延ばせば 5 日前まで読み直せます。",
+      "平常時の量に合わせたシャード数ではピーク時にスロットリングが起き、既定の保持期間 24 時間では 5 日前まで読み直せません。",
+      "SQS は受信して削除したメッセージを読み直せず、1 つのキューを複数のチームで読むとメッセージを取り合います。リプレイと複数チームへの配信の要件に合いません。"
+    ],
+    "services": ["Amazon Kinesis Data Streams", "Amazon MSK"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Change the data retention period", "url": "https://docs.aws.amazon.com/streams/latest/dev/kinesis-extended-retention.html" },
+      { "title": "Amazon Kinesis Data Streams terminology and concepts", "url": "https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html" }
+    ]
+  },
+  {
+    "id": "D2-002",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は、注文データを Amazon DynamoDB のテーブルに保存しています。テーブルのパーティションキーは order_id です。新しい画面で「特定の顧客の注文を、注文日時の新しい順に取得する」処理が 1 秒に数千回呼ばれるようになりました。現在はこの処理を Scan とフィルター式で実装しており、読み込みキャパシティの消費とレイテンシーが問題になっています。最も効率良くこのアクセスパターンに対応する方法はどれですか。",
+    "options": [
+      "テーブルに customer_id を属性として持たせたまま、Scan の FilterExpression を customer_id の条件に絞り込み、Limit を小さくする。",
+      "テーブルのパーティションキーを customer_id に変更するため、既存テーブルの ALTER 操作でキースキーマを更新する。",
+      "customer_id をパーティションキー、order_date をソートキーとするローカルセカンダリインデックスを既存テーブルに追加する。",
+      "customer_id をパーティションキー、order_date をソートキーとするグローバルセカンダリインデックスを作成し、ScanIndexForward を false にして Query する。"
+    ],
+    "answer": [3],
+    "explanation": "ベーステーブルとは別の属性で絞り込み、別の属性で並べたいときは、グローバルセカンダリインデックス(GSI)を使います。customer_id をパーティションキー、order_date をソートキーにした GSI を Query すれば、特定の顧客の項目だけを読み、ソートキーの降順(ScanIndexForward=false)で取得できます。Scan はテーブル全体を読んでからフィルターをかけるため、フィルターで捨てた項目の分も読み込みキャパシティを消費します。GSI はベーステーブルの書き込みに合わせて非同期に更新される結果整合のインデックスで、既存のテーブルにも後から追加できます。一覧画面の用途なら、ごく短い反映の遅れは許容できることがほとんどです。",
+    "optionNotes": [
+      "FilterExpression は読み込んだ後に適用されるため、消費する読み込みキャパシティは減りません。Limit を小さくしてもページングが増えるだけです。",
+      "DynamoDB では既存テーブルのキースキーマを変更できません。新しいテーブルを作ってデータを移すことになり、手間が大きくなります。",
+      "ローカルセカンダリインデックスはベーステーブルと同じパーティションキーを使い、テーブル作成時にしか定義できません。customer_id をパーティションキーにはできません。",
+      "正解です。GSI は別のパーティションキーとソートキーを持て、Query で特定の顧客の注文だけを新しい順に読めます。"
+    ],
+    "services": ["Amazon DynamoDB"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using Global Secondary Indexes in DynamoDB", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html" },
+      { "title": "Working with Local Secondary Indexes in DynamoDB AWS CLI", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/LCICli.html" }
+    ]
+  },
+  {
+    "id": "D2-003",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は、マイクロサービスのセッション情報とレート制限のカウンターをキーバリュー形式で保存しています。読み取りはマイクロ秒単位のレイテンシーが必要です。データはサービスの主なデータストアとして使い、ノード障害が起きても書き込み済みのデータを失ってはなりません。現在は Valkey 互換のキャッシュと別のデータベースを併用しており、二重管理の手間を減らしたいと考えています。これらの要件を満たすデータストアはどれですか。",
+    "options": [
+      "Amazon MemoryDB クラスターを作成し、Multi-AZ のトランザクションログで永続化されたプライマリデータベースとして使う。",
+      "Amazon DynamoDB テーブルをオンデマンドモードで作成し、アプリケーションから GetItem で読み取る。",
+      "Amazon RDS for PostgreSQL のマルチ AZ 配置を作成し、リードレプリカから読み取る。",
+      "Amazon S3 Express One Zone のディレクトリバケットにキーごとのオブジェクトとして保存する。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「マイクロ秒単位の読み取り」「主なデータストアとして使い、書き込み済みのデータを失わない」「キャッシュとデータベースの二重管理をやめたい」です。Amazon MemoryDB は Valkey と Redis OSS に互換の、耐久性のあるインメモリデータベースです。全データをメモリに持つためマイクロ秒の読み取りと 1 桁ミリ秒の書き込みを実現し、Multi-AZ のトランザクションログにデータを永続化するので、フェイルオーバーやノードの再起動でもデータを保てます。そのため、キャッシュと永続データベースを別々に管理せず、MemoryDB 1 つをプライマリデータベースとして使えます。既存の Valkey のデータ構造とコマンドもそのまま使えます。",
+    "optionNotes": [
+      "正解です。インメモリでマイクロ秒の読み取りを行い、Multi-AZ のトランザクションログで耐久性も確保できます。",
+      "DynamoDB は耐久性がありますが、通常の読み取りレイテンシーは 1 桁ミリ秒で、マイクロ秒の要件には DynamoDB Accelerator などの別のキャッシュ層が必要になります。",
+      "リレーショナルデータベースのディスクベースの読み取りではマイクロ秒のレイテンシーは出ません。キーバリューの用途にも過剰です。",
+      "S3 Express One Zone は低レイテンシーですが、1 桁ミリ秒のオブジェクトストレージで、カウンターの更新のような細かいキーバリュー操作には向きません。"
+    ],
+    "services": ["Amazon MemoryDB", "Amazon DynamoDB"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "What is MemoryDB", "url": "https://docs.aws.amazon.com/memorydb/latest/devguide/what-is-memorydb.html" },
+      { "title": "Features of MemoryDB", "url": "https://docs.aws.amazon.com/memorydb/latest/devguide/servicename-feature-overview.html" }
+    ]
+  },
+  {
+    "id": "D2-004",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある小売企業は、約 200 社の取引先から毎晩 CSV ファイルを受け取っています。取引先は SFTP クライアントでオンプレミスの SFTP サーバーにアップロードしており、接続先のホスト名や認証方法を変えずに移行したいと考えています。受け取ったファイルは Amazon S3 のデータレイクに置き、到着後に AWS Glue のジョブで処理します。サーバーの運用をなくしたい場合、最も適したソリューションはどれですか。",
+    "options": [
+      "Amazon EC2 インスタンスに OpenSSH の SFTP サーバーを構築し、cron で Amazon S3 へ aws s3 sync を実行する。",
+      "取引先に AWS CLI を配布し、IAM ユーザーのアクセスキーで Amazon S3 へ直接アップロードしてもらう。",
+      "AWS Transfer Family の SFTP 対応サーバーを作成してストレージに Amazon S3 を指定し、カスタムホスト名を既存のホスト名に向ける。",
+      "AWS DataSync のエージェントをオンプレミスの SFTP サーバーの隣に置き、SFTP サーバーのディレクトリを Amazon S3 へ定期的に転送する。"
+    ],
+    "answer": [2],
+    "explanation": "AWS Transfer Family は SFTP、FTPS、FTP、AS2 とブラウザでのファイル転送をフルマネージドで提供し、受け取ったファイルを Amazon S3 または Amazon EFS に直接保存します。既存のクライアント側の認証やアクセスの設定を保ったまま移行でき、取引先からのアップロードを受けてデータレイクに置く使い方が代表的な用途として挙げられています。カスタムホスト名を DNS で既存の名前に向ければ、取引先の接続先は変わりません。S3 に置かれたファイルは、S3 のイベント通知などから Glue のジョブを起動して処理できます。「サーバーの運用をなくしたい」「取引先の手順を変えない」が決め手です。",
+    "optionNotes": [
+      "要件は満たせますが、EC2 と SFTP サーバーのパッチ適用や可用性の管理が残り、サーバーの運用をなくせません。",
+      "取引先の手順と認証方法が変わり、多数の外部ユーザーに長期のアクセスキーを配ることになるため要件にもセキュリティ上も合いません。",
+      "正解です。マネージドな SFTP エンドポイントがファイルを S3 に直接保存し、取引先のクライアント設定もそのまま使えます。",
+      "オンプレミスの SFTP サーバーを残したままになるため、サーバーの運用はなくなりません。"
+    ],
+    "services": ["AWS Transfer Family", "Amazon S3", "AWS Glue"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "What is AWS Transfer Family?", "url": "https://docs.aws.amazon.com/transfer/latest/userguide/what-is-aws-transfer-family.html" }
+    ]
+  },
+  {
+    "id": "D2-005",
+    "domain": 2,
+    "task": "2.1",
+    "type": "multi",
+    "question": "ある企業は、Amazon Redshift をデータウェアハウスとして使っています。分析担当者は、Amazon Aurora PostgreSQL にある最新の在庫データと、Amazon S3 に Parquet 形式で置かれた過去 5 年分の販売履歴を、Redshift 内の顧客ディメンションと結合して分析したいと考えています。データを Redshift にロードする ETL パイプラインは新たに作りたくありません。これらの要件を満たすために組み合わせるべき機能はどれですか。（2 つ選択）",
+    "options": [
+      "Aurora PostgreSQL の在庫テーブルを毎時 UNLOAD して S3 に書き出し、Redshift の COPY コマンドで取り込む。",
+      "S3 の販売履歴を Redshift の COPY コマンドで毎日すべてロードし直す。",
+      "Aurora PostgreSQL の aws_s3 拡張機能を使い、Redshift から Aurora PostgreSQL のテーブルを S3 にエクスポートさせる。",
+      "Aurora PostgreSQL を参照する外部スキーマを CREATE EXTERNAL SCHEMA ... FROM POSTGRES で作成し、Amazon Redshift の連合クエリで在庫データを直接参照する。",
+      "AWS Glue Data Catalog の販売履歴のデータベースを参照する外部スキーマを CREATE EXTERNAL SCHEMA ... FROM DATA CATALOG で作成し、Amazon Redshift Spectrum で S3 の販売履歴を参照する。"
+    ],
+    "answer": [3, 4],
+    "explanation": "データを動かさずに外部のデータを Redshift から参照する方法が 2 つ問われています。Amazon Redshift の連合クエリは、Amazon RDS for PostgreSQL や Aurora PostgreSQL のデータベースを外部スキーマとして登録し、運用データベースの最新のデータをその場で SQL から参照する機能です。接続には AWS Secrets Manager のシークレットと IAM ロールを使います。Amazon Redshift Spectrum は、AWS Glue Data Catalog などの外部データカタログに定義されたテーブルを外部スキーマとして参照し、S3 上のファイルをロードせずにクエリします。どちらの外部テーブルも Redshift のローカルテーブルと同じクエリの中で結合できるため、ETL パイプラインを作らずに要件を満たせます。",
+    "optionNotes": [
+      "UNLOAD は Redshift から S3 へ書き出すコマンドで、Aurora のテーブルには使えません。毎時の取り込みでは最新の在庫も見られず、作りたくない ETL パイプラインそのものです。",
+      "5 年分を毎日ロードし直すとストレージと処理のコストがかさみ、ETL パイプラインを作らないという要件にも反します。",
+      "aws_s3 拡張機能は Aurora PostgreSQL の中で S3 とのインポートやエクスポートを行う関数で、Redshift から呼ぶものではありません。書き出した後の取り込みも別に必要です。",
+      "正解です。連合クエリで Aurora PostgreSQL の最新の在庫データを、ロードせずに参照できます。",
+      "正解です。Redshift Spectrum で S3 の Parquet をロードせずにクエリし、ローカルテーブルと結合できます。"
+    ],
+    "services": ["Amazon Redshift", "Amazon Redshift Spectrum", "Amazon Aurora", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Getting started with using federated queries to PostgreSQL", "url": "https://docs.aws.amazon.com/redshift/latest/dg/getting-started-federated.html" },
+      { "title": "External schemas in Amazon Redshift Spectrum", "url": "https://docs.aws.amazon.com/redshift/latest/dg/c-spectrum-external-schemas.html" }
+    ]
+  },
+  {
+    "id": "D2-006",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "データエンジニアは、Amazon Redshift の夜間バッチで sales テーブルへの INSERT が数時間たっても終わらないことに気づきました。調べると、分析担当者が BEGIN で開始したトランザクションを COMMIT しないまま席を外しており、同じテーブルのロックを保持し続けています。バッチをすぐに再開させたい場合、データエンジニアが取るべき対応はどれですか。",
+    "options": [
+      "STV_LOCKS システムテーブルでロックを保持しているセッションのプロセス ID を確認し、PG_TERMINATE_BACKEND にその ID を渡してセッションを終了する。",
+      "バッチ側のセッションで LOCK sales を実行し、分析担当者のセッションより強いロックを取得する。",
+      "分析担当者のクエリを CANCEL コマンドで取り消し、トランザクションを残したままロックだけを解放させる。",
+      "同時実行スケーリングを有効にし、バッチの INSERT を同時実行スケーリング用の追加の容量で実行させる。"
+    ],
+    "answer": [0],
+    "explanation": "Redshift では、同じテーブルのロックを複数のセッションが取り合っているとき、PG_TERMINATE_BACKEND で一方のセッションを終了できます。終了したセッションで実行中だったトランザクションはロールバックされ、保持していたロックがすべて解放されます。ロックを持っているセッションは STV_LOCKS(lock_owner_pid 列)や PG_LOCKS で確認します。CANCEL や PG_CANCEL_BACKEND はトランザクションブロック(BEGIN … END)の外のクエリを取り消すためのもので、トランザクションブロックの中にあるときはセッションを終了する必要があります。今回は COMMIT されていないトランザクションがロックを持ち続けているため、セッションの終了が正しい対応です。",
+    "optionNotes": [
+      "正解です。STV_LOCKS でロックの持ち主を特定し、PG_TERMINATE_BACKEND で終了するとトランザクションがロールバックされロックが解放されます。",
+      "LOCK は相手のロックを奪う操作ではなく、相手が解放するまで待つだけなので、バッチはさらに待たされます。",
+      "トランザクションブロック内のクエリは CANCEL で取り消せないとドキュメントにあります。トランザクションを残したままロックだけを解放する方法もありません。",
+      "同時実行スケーリングはキューで待つクエリに容量を足す機能です。ロックは同じテーブルに対して取られるため、別の容量で実行してもロックの待ちは解消しません。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "PG_TERMINATE_BACKEND", "url": "https://docs.aws.amazon.com/redshift/latest/dg/PG_TERMINATE_BACKEND.html" },
+      { "title": "PG_CANCEL_BACKEND", "url": "https://docs.aws.amazon.com/redshift/latest/dg/PG_CANCEL_BACKEND.html" }
+    ]
+  },
+  {
+    "id": "D2-007",
+    "domain": 2,
+    "task": "2.1",
+    "type": "multi",
+    "question": "ある企業は、Amazon S3 の汎用バケットに置いた Apache Iceberg テーブルを AWS Glue Data Catalog に登録し、Amazon Athena でクエリしています。数分ごとに小さなバッチで INSERT と MERGE を行うため、小さなデータファイルと削除ファイルが増え続け、クエリが遅くなっています。また、古いスナップショットが参照するファイルが残り、S3 のストレージ料金が増えています。データエンジニアは Athena の SQL だけでテーブルを保守したいと考えています。取るべき対応はどれですか。（2 つ選択）",
+    "options": [
+      "MSCK REPAIR TABLE を定期的に実行し、Iceberg テーブルのパーティションのメタデータを再構築する。",
+      "OPTIMIZE テーブル名 REWRITE DATA USING BIN_PACK を定期的に実行し、小さなファイルをまとめて削除ファイルをデータファイルに反映する。",
+      "S3 ライフサイクルルールで、テーブルの data/ プレフィックス配下にある作成から 5 日を過ぎたオブジェクトを削除する。",
+      "VACUUM テーブル名 を定期的に実行し、vacuum_max_snapshot_age_seconds より古いスナップショットを期限切れにして不要なファイルを削除する。",
+      "CREATE TABLE AS SELECT で毎日 CSV 形式の Hive テーブルを作り直し、クエリをそちらに向ける。"
+    ],
+    "answer": [1, 3],
+    "explanation": "Athena は Iceberg テーブルの保守のために 2 つの文を用意しています。OPTIMIZE ... REWRITE DATA USING BIN_PACK はコンパクションで、ファイルのサイズと関連する削除ファイルの数をもとに、小さなデータファイルを大きなファイルにまとめ直し、削除ファイルの内容も反映します。読むファイルが減るのでクエリが速くなります。VACUUM はスナップショットの期限切れと孤立ファイルの削除を行い、vacuum_max_snapshot_age_seconds(既定は 432000 秒、5 日)より古く、現在のテーブルの状態から参照されないファイルを消します。これでメタデータとストレージが減ります。Iceberg のファイルを Athena の外から直接消すと、まだスナップショットが参照するファイルまで消えてテーブルが壊れるおそれがあります。",
+    "optionNotes": [
+      "MSCK REPAIR TABLE は Hive 形式のテーブルのパーティションを追加する文で、パーティションをメタデータで管理する Iceberg テーブルには使いません。",
+      "正解です。BIN_PACK のコンパクションで小さなファイルと削除ファイルを整理し、クエリを速くします。",
+      "作成日だけでデータファイルを消すと、現在のスナップショットが参照しているファイルまで消え、テーブルが読めなくなります。",
+      "正解です。古いスナップショットを期限切れにし、参照されないファイルを削除してストレージを減らします。",
+      "Iceberg の利点である行レベルの更新やスナップショットを失い、CSV は Parquet よりスキャン量も増えます。保守の問題の解決になりません。"
+    ],
+    "services": ["Amazon Athena", "Amazon S3", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Optimize Iceberg tables", "url": "https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-data-optimization.html" }
+    ]
+  },
+  {
+    "id": "D2-008",
+    "domain": 2,
+    "task": "2.1",
+    "type": "single",
+    "question": "ある企業は、Amazon Aurora PostgreSQL の pgvector 拡張機能で、製品マニュアルの埋め込みベクトルに対する近似最近傍検索を行っています。マニュアルは毎日数千件ずつ追加と更新があり、検索の再現率を高く保ちながら低レイテンシーで応答する必要があります。インデックスを定期的に作り直す運用は避けたいと考えています。最も適したインデックスはどれですか。",
+    "options": [
+      "IVFFlat インデックスを作成し、データが増えるたびに lists の値を大きくする。",
+      "HNSW インデックスを作成する。",
+      "埋め込みベクトルの列に B-tree インデックスを作成する。",
+      "インデックスを作らず、すべての行との距離を計算する完全一致の k-NN 検索を行う。"
+    ],
+    "answer": [1],
+    "explanation": "pgvector は近似最近傍検索のインデックスとして IVFFlat と HNSW をサポートしています。IVFFlat は k-means でベクトルをクラスターに分け、クエリに近いクラスターの中だけを探す方式で、作成が速くメモリも少なく済みます。一方で、クラスターの中心(セントロイド)は作成時に固定されるため、作成後にデータが変わると新しいベクトルが既存のクラスターに合わなくなり、再現率が下がります。回復するにはインデックスを作り直す必要があります。HNSW は階層化したグラフで近傍を探す方式で、作成のコストとメモリは大きいものの、追加や更新が続くデータでも作り直さずに高い再現率と低いレイテンシーを保ちやすい方式です。「毎日追加と更新がある」「作り直しを避けたい」が決め手です。",
+    "optionNotes": [
+      "IVFFlat はセントロイドが作成時に固定されるため、データの変化に合わせるにはインデックスの作り直しが必要です。lists を変えるのも作り直しになります。",
+      "正解です。HNSW はグラフ型のインデックスで、データの追加や更新が続いても作り直さずに高い再現率を保ちやすい方式です。",
+      "B-tree は値の大小で並べるインデックスで、高次元ベクトルの距離による近傍検索には使えません。",
+      "再現率は 100% になりますが、全行との距離を計算するため、データが増えると低レイテンシーの要件を満たせません。"
+    ],
+    "services": ["Amazon Aurora"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Retrievers for RAG workflows", "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/retrieval-augmented-generation-options/rag-custom-retrievers.html" },
+      { "title": "Optimize generative AI applications with pgvector indexing: A deep dive into IVFFlat and HNSW techniques", "url": "https://aws.amazon.com/blogs/database/optimize-generative-ai-applications-with-pgvector-indexing-a-deep-dive-into-ivfflat-and-hnsw-techniques/" }
+    ]
+  },
+  {
+    "id": "D2-009",
+    "domain": 2,
+    "task": "2.1",
+    "type": "multi",
+    "question": "ある企業は、常時稼働の Amazon EMR on EC2 クラスターで Apache Spark の日次バッチを実行しています。入力と出力のデータはすべてクラスターの HDFS に保存しており、データ量の増加に合わせてコアノードを増やしてきました。バッチは 1 日に 2 時間しか動いていません。データエンジニアは、データを失わずにコストを下げたいと考えています。取るべき対応はどれですか。（2 つ選択）",
+    "options": [
+      "HDFS のレプリケーション係数を上げ、コアノードの障害に備える。",
+      "コアノードをすべてスポットインスタンスに置き換え、HDFS のデータを引き続きコアノードに保存する。",
+      "永続的に保持するデータを Amazon S3 に移し、Spark ジョブから S3 のパスを直接読み書きする。",
+      "マスターノードのインスタンスサイズを大きくし、コアノードの台数を減らす。",
+      "バッチの実行時だけクラスターを起動し、処理が終わったら終了する一時的なクラスターの運用に切り替える。"
+    ],
+    "answer": [2, 4],
+    "explanation": "HDFS はインスタンスの終了とともに消える一時的なストレージで、データを保存し続けるためにはクラスターを動かし続け、容量のためにコアノードを増やす必要があります。Amazon EMR から S3 を直接読み書きすれば(EMR 7.10.0 以降の既定のコネクタは S3A、それ以前は EMRFS)、ストレージとコンピューティングが分かれ、データの保存のためにコアノードを用意したり HDFS の複製分を払ったりする必要がなくなります。クラスターを止めてもデータは S3 に残るので、バッチの 2 時間だけクラスターを起動し、終わったら終了する運用にできます。この 2 つを組み合わせると、データを失わずにコンピューティングの費用を稼働時間分に抑えられます。",
+    "optionNotes": [
+      "レプリケーション係数を上げると必要なディスク容量が増え、コストはかえって上がります。",
+      "スポットインスタンスは中断されることがあり、HDFS のデータを保持するコアノードに使うとデータを失うおそれがあります。",
+      "正解です。データを S3 に置けばストレージとコンピューティングが分かれ、クラスターを終了してもデータが残ります。",
+      "マスターノードはデータを保存しないため、大きくしてもストレージの容量は増えず、コアノードを減らすと HDFS の容量が足りなくなります。",
+      "正解です。データを S3 に移した後なら、稼働時間だけクラスターを動かして費用を大きく下げられます。"
+    ],
+    "services": ["Amazon EMR", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Choosing the right storage", "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/amazon-emr-hardware/storage.html" },
+      { "title": "EMR File System (EMRFS)", "url": "https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-fs.html" }
+    ]
+  },
+  {
+    "id": "D2-010",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "ある企業は、AWS Glue のクローラーで Amazon S3 上の Parquet ファイルのスキーマを AWS Glue Data Catalog に登録済みです。マーケティング部門の分析担当者は、このデータに対して不定期に SQL でアドホックな分析を行いたいと考えています。分析のためのサーバーやクラスターは管理したくなく、データのコピーも作りたくありません。最も運用負荷の小さい方法はどれですか。",
+    "options": [
+      "Amazon EMR クラスターを起動して Hive メタストアを新たに構築し、テーブル定義を作り直してから Hive でクエリする。",
+      "Amazon Redshift のプロビジョンドクラスターを作成し、COPY コマンドで Parquet ファイルをすべてロードしてからクエリする。",
+      "クエリのたびに AWS Glue の ETL ジョブを実行し、結果を CSV で S3 に書き出す。",
+      "Amazon Athena で Data Catalog の AWS Glue データベースとテーブルを選び、そのまま SQL でクエリする。"
+    ],
+    "answer": [3],
+    "explanation": "Amazon Athena は AWS Glue Data Catalog を使って、テーブル名や列名などのメタデータを管理します。クローラーが Data Catalog に作ったデータベースとテーブルは、そのまま Athena のクエリエディタにデータベース、テーブルとして表示され、S3 上のデータを SQL で直接クエリできます。Athena はサーバーレスで、管理するサーバーやクラスターがなく、スキャンしたデータ量に応じて課金されます。データカタログを介してデータソースのデータをそのまま使う典型的な形で、「不定期」「サーバーを管理したくない」「コピーを作りたくない」という要件にそろって合います。",
+    "optionNotes": [
+      "クラスターの管理が必要になり、すでにある Data Catalog の定義を作り直す無駄も生じます。",
+      "クラスターの管理とデータのコピーが必要になり、不定期の分析には費用も割高です。",
+      "毎回 ETL ジョブを作って動かす手間がかかり、アドホックな SQL 分析になりません。",
+      "正解です。Athena は Data Catalog のテーブルをそのまま使い、サーバーレスで S3 のデータをクエリできます。"
+    ],
+    "services": ["Amazon Athena", "AWS Glue", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Use AWS Glue Data Catalog to connect to your data", "url": "https://docs.aws.amazon.com/athena/latest/ug/data-sources-glue.html" }
+    ]
+  },
+  {
+    "id": "D2-011",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "ある企業は、オンプレミスの Hadoop クラスターの Hive ジョブを Amazon EMR on EC2 に移行しています。移行後は、EMR クラスターを処理のたびに作成して終了する運用にします。テーブル定義はクラスターを終了しても残り、Amazon Athena や Amazon Redshift Spectrum からも同じテーブル定義で参照できる必要があります。メタストアの運用は最小にしたいと考えています。最も適した構成はどれですか。",
+    "options": [
+      "EMR クラスターのプライマリノードにある既定の Hive メタストアをそのまま使う。",
+      "Amazon RDS for MySQL に外部の Hive メタストアを構築し、各クラスターから接続する。",
+      "EMR クラスターの作成時に AWS Glue Data Catalog を Hive のテーブルメタデータに使う設定にする。",
+      "テーブル定義の DDL を S3 に保存し、クラスターの起動時にブートストラップアクションで毎回作り直す。"
+    ],
+    "answer": [2],
+    "explanation": "Amazon EMR では、AWS Glue Data Catalog を Hive の外部メタストアとして使えます。コンソールでは AWS Glue Data Catalog の設定で Use for Hive table metadata を選び、CLI や API では hive-site 分類の hive.metastore.client.factory.class に AWSGlueDataCatalogHiveClientFactory を指定します。Data Catalog はクラスターの外にあるマネージドなメタストアなので、クラスターを終了してもテーブル定義が残り、Athena や Redshift Spectrum も同じ Data Catalog を参照できます。データベースサーバーの管理も不要です。一時的なクラスターでメタデータを共有するには、これが最も運用負荷の小さい方法です。",
+    "optionNotes": [
+      "既定のメタストアはクラスター内に置かれるため、クラスターを終了するとテーブル定義が消えます。Athena からも参照できません。",
+      "定義は残せますが、RDS のデータベースを自分で運用する必要があります。Athena から使うにも Lambda 関数による Hive メタストアのコネクタを別に用意する必要があり、運用の負荷が最小になりません。",
+      "正解です。Glue Data Catalog をメタストアにすれば、マネージドで永続し、Athena や Redshift Spectrum と定義を共有できます。",
+      "毎回作り直すと起動が遅くなり、パーティションの追加などの変更も失われます。他のサービスとも共有できません。"
+    ],
+    "services": ["Amazon EMR", "AWS Glue", "Amazon Athena"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using the AWS Glue Data Catalog as the metastore for Hive", "url": "https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-hive-metastore-glue.html" },
+      { "title": "External schemas in Amazon Redshift Spectrum", "url": "https://docs.aws.amazon.com/redshift/latest/dg/c-spectrum-external-schemas.html" },
+      { "title": "Connect Athena to an Apache Hive metastore", "url": "https://docs.aws.amazon.com/athena/latest/ug/connect-to-data-source-hive-connecting-athena-to-an-apache-hive-metastore.html" }
+    ]
+  },
+  {
+    "id": "D2-012",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "データエンジニアは、s3://example-bucket/clickstream/ 配下に year=2025/ や year=2026/ の形で保存された JSON ファイルを AWS Glue のクローラーでカタログ化しました。ところが、2026 年からアプリが新しいフィールドを追加したため、クローラーは year_2025 と year_2026 という 2 つのテーブルを作ってしまいました。データの形式と圧縮方式は同じです。year をパーティションとする 1 つのテーブルにまとめたい場合、どうすればよいですか。",
+    "options": [
+      "クローラーの出力設定で「Create a single schema for each S3 path」を有効にして再実行する。",
+      "クローラーのスキーマ変更ポリシーで「Ignore the change and don't update the table」を選んで再実行する。",
+      "クローラーのテーブルしきい値を 1 に設定して再実行する。",
+      "year=2026/ のファイルを別のバケットに移し、別のクローラーでカタログ化する。"
+    ],
+    "answer": [0],
+    "explanation": "クローラーは既定で、データの互換性(形式、圧縮方式、S3 のパスの構造など)とスキーマの類似度の両方を見てテーブルを決めます。フィールドが増えてスキーマが十分に似ていないと判断されると、パーティションのフォルダごとに別々のテーブルを作ります。「Create a single schema for each S3 path」を有効にすると、データに互換性がある限りスキーマの類似度を無視して 1 つのテーブルを作り、各ファイルのフィールドを合わせたスキーマと、year のパーティションキーを持たせます。今回は形式と圧縮方式が同じなので、このオプションでまとめられます。データに互換性がない場合は、オプションを有効にしても複数のテーブルになる点に注意します。",
+    "optionNotes": [
+      "正解です。互換性のあるデータはスキーマが違っても 1 つのテーブルにまとめ、year をパーティションにします。",
+      "スキーマ変更ポリシーは既存のテーブルを更新するかどうかを決める設定で、テーブルを分けるかどうかの判断は変わりません。",
+      "テーブルしきい値は作成できるテーブル数の上限で、超えるとクローラーは失敗します。テーブルをまとめる設定ではありません。",
+      "テーブルがさらに分かれるだけで、year をパーティションとする 1 つのテーブルになりません。"
+    ],
+    "services": ["AWS Glue", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Creating a single schema for each Amazon S3 include path", "url": "https://docs.aws.amazon.com/glue/latest/dg/crawler-grouping-policy.html" },
+      { "title": "Customizing crawler behavior", "url": "https://docs.aws.amazon.com/glue/latest/dg/crawler-configuration.html" }
+    ]
+  },
+  {
+    "id": "D2-013",
+    "domain": 2,
+    "task": "2.2",
+    "type": "multi",
+    "question": "ある企業は、IoT センサーのデータを s3://example-bucket/sensor/dt=YYYY-MM-DD/hour=HH/ の形で毎時 Amazon S3 に書き込んでいます。データは AWS Glue の Spark ETL ジョブが書き出し、Amazon Athena でクエリします。現在は毎時クローラーを実行して新しいパーティションを AWS Glue Data Catalog に追加していますが、クローラーが終わるまで新しいデータがクエリに出てこないことが問題になっています。新しいパーティションをすぐにクエリできるようにする方法はどれですか。（2 つ選択）",
+    "options": [
+      "Athena のテーブルでパーティション射影を有効にし、dt を date 型、hour を integer 型として射影し、storage.location.template に S3 のパスの形を設定する。",
+      "クローラーのスキーマ変更ポリシーで、削除されたオブジェクトをテーブルから削除する設定にする。",
+      "Athena で毎時 MSCK REPAIR TABLE を実行するよう、クローラーの代わりにスケジュールする。",
+      "Glue ETL ジョブの S3 への書き出しで Data Catalog の更新オプションを有効にし、パーティションキーを指定して、書き込みと同時に新しいパーティションを Data Catalog に追加する。",
+      "Data Catalog のテーブルにパーティションインデックスを追加する。"
+    ],
+    "answer": [0, 3],
+    "explanation": "パーティション射影を使うと、Athena はテーブルのプロパティに書かれた範囲と形式からパーティションの値と S3 の場所を計算します。Data Catalog にパーティションを登録しなくても、新しい dt と hour のフォルダが S3 にできた時点でクエリできます。date 型には range と format、integer 型には range を指定し、storage.location.template にはすべてのパーティション列のプレースホルダーを入れます。もう 1 つは書き込む側で対応する方法です。Glue ETL ジョブで S3 を出力先にするとき、Data Catalog の更新オプションを選んでパーティションキーを指定すると、ジョブが新しいパーティションを書き込むと同時に Data Catalog に追加します。どちらもクローラーの完了を待つ必要がなくなります。",
+    "optionNotes": [
+      "正解です。パーティション射影なら Data Catalog への登録を待たず、S3 にデータができた時点でクエリできます。",
+      "削除の扱いを変えるだけで、新しいパーティションが追加されるまでの遅れは変わりません。",
+      "MSCK REPAIR TABLE もスケジュール実行である限り、次の実行まで新しいパーティションが見えません。パーティションが増えるほど実行時間も長くなります。",
+      "正解です。ジョブが書き込みと同時にパーティションを Data Catalog に追加するので、クローラーを待つ必要がありません。",
+      "パーティションインデックスは多数のパーティションから目的のものを探す速さを上げる機能で、未登録のパーティションを追加しません。"
+    ],
+    "services": ["Amazon Athena", "AWS Glue", "Amazon S3"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Use partition projection with Amazon Athena", "url": "https://docs.aws.amazon.com/athena/latest/ug/partition-projection.html" },
+      { "title": "Data Catalog update options", "url": "https://docs.aws.amazon.com/help-panel/glue/latest/console/data-target-node-S3-update-catalog-hp.html" }
+    ]
+  },
+  {
+    "id": "D2-014",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "データエンジニアは、プライベートサブネットにある Amazon RDS for MySQL のテーブルをカタログ化するため、AWS Glue の JDBC 接続を作成し、その接続を使うクローラーを設定しました。ところが接続テストがタイムアウトで失敗します。RDS のエンドポイントと認証情報は正しく、接続に指定したサブネットは RDS と同じ VPC にあります。最も可能性の高い原因と対処はどれですか。",
+    "options": [
+      "クローラーの IAM ロールに AmazonRDSFullAccess が付いていないため、ポリシーを追加する。",
+      "接続に指定したセキュリティグループに、同じセキュリティグループからの全 TCP ポートを許可する自己参照のインバウンドルールがないため、追加する。",
+      "RDS インスタンスをパブリックアクセス可能に変更し、Glue からインターネット経由で接続させる。",
+      "JDBC 接続ではなく Amazon S3 の接続タイプに変え、RDS のスナップショットをクロールさせる。"
+    ],
+    "answer": [1],
+    "explanation": "AWS Glue は VPC 内のデータストアに接続するとき、接続に指定したサブネットにプライベート IP アドレスを持つ Elastic Network Interface を作ります。Glue のコンポーネント同士が通信できるように、接続に関連付けるセキュリティグループのいずれかに、同じセキュリティグループを送信元とする全 TCP ポートの自己参照インバウンドルールが必要です。自己参照なので VPC を外部のネットワークに開くことにはなりません。あわせて、RDS 側のセキュリティグループが Glue のセキュリティグループからのデータベースのポートを許可していることも確かめます。認証情報とエンドポイントが正しくタイムアウトになる場合は、ネットワーク、とくにセキュリティグループを疑います。",
+    "optionNotes": [
+      "IAM ポリシーの不足はタイムアウトではなく権限エラーとして現れます。JDBC の接続自体にも RDS の管理 API の権限は不要です。",
+      "正解です。Glue の接続には自己参照のインバウンドルールを持つセキュリティグループが必要で、ないとタイムアウトします。",
+      "データベースをインターネットに公開するのはセキュリティ上望ましくなく、同じ VPC にあるので不要です。",
+      "S3 の接続タイプでは RDS のテーブルをクロールできません。スナップショットはそのままではクロールの対象になりません。"
+    ],
+    "services": ["AWS Glue", "Amazon RDS", "Amazon VPC"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Setting up Amazon VPC for JDBC connections to Amazon RDS data stores from AWS Glue", "url": "https://docs.aws.amazon.com/glue/latest/dg/setup-vpc-for-glue-access.html" }
+    ]
+  },
+  {
+    "id": "D2-015",
+    "domain": 2,
+    "task": "2.2",
+    "type": "single",
+    "question": "ある企業では、部門ごとに「売上」や「アクティブ顧客」の定義が異なり、データセットを探す人が意味を取り違える問題が起きています。データエンジニアは、技術的なメタデータは AWS Glue Data Catalog で管理したまま、業務上の用語の定義を組織で統一し、データ提供者がデータアセットを公開するときに承認済みの用語を必ず付けるようにしたいと考えています。利用者はアセットを検索し、アクセスを申請できる必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "AWS Glue Data Catalog のテーブルプロパティに用語の定義をキーと値で書き込み、AWS Lake Formation の LF タグでアクセスを管理する。",
+      "AWS Glue DataBrew のプロジェクトにデータセットを登録し、レシピの説明欄に用語の定義を書く。",
+      "Amazon SageMaker Catalog でビジネス用語集を作成し、公開時に用語集の用語を必須にするメタデータの適用ルールを設定して、アセットを公開する。",
+      "Amazon S3 にデータ辞書の CSV を置き、Amazon Athena でテーブルとして公開して利用者に検索してもらう。"
+    ],
+    "answer": [2],
+    "explanation": "Amazon SageMaker Catalog(Amazon SageMaker Unified Studio に含まれ、Amazon DataZone の機能を引き継ぐビジネスデータカタログ)は、AWS Glue Data Catalog や Amazon Redshift のアセットに、ビジネス名、説明、用語集の用語、メタデータフォームといった業務上の文脈を付けて公開できます。Business glossaries で組織共通の用語を定義し、公開時のメタデータ適用ルールで用語集の用語を必須にすると、データ提供者は承認済みの語彙を使わないとアセットを公開できません。公開されたアセットは利用者が検索でき、サブスクリプションの申請でアクセスを求めます。技術カタログの Glue Data Catalog と、業務向けのビジネスカタログを分けて使う構成です。",
+    "optionNotes": [
+      "テーブルプロパティは自由なキーと値で、用語の統一や公開時の必須化、利用者の検索と申請の仕組みがありません。",
+      "DataBrew はデータの準備のためのサービスで、ビジネスカタログの機能は持っていません。",
+      "正解です。ビジネス用語集と公開時の適用ルールで用語を統一し、利用者は検索とサブスクリプションの申請ができます。",
+      "データ辞書を別に置くだけでは、アセットとの結び付け、公開時の必須化、アクセスの申請を実現できません。"
+    ],
+    "services": ["Amazon SageMaker Catalog", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Create and manage business glossaries", "url": "https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/manage-business-glossaries.html" },
+      { "title": "Metadata enforcement rules for publishing", "url": "https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/metadata-rules-publishing.html" }
+    ]
+  },
+  {
+    "id": "D2-016",
+    "domain": 2,
+    "task": "2.2",
+    "type": "multi",
+    "question": "ある企業は、数十万のフォルダと数百万のオブジェクトがある Amazon S3 のデータレイクを、AWS Glue のクローラーで毎日カタログ化しています。新しいデータは日付のパーティションとして追加されるだけで、スキーマはほとんど変わりません。クローラーは毎回すべてのオブジェクトを一覧するため、実行に数時間かかり費用も増えています。クロールの時間と費用を減らす方法はどれですか。（2 つ選択）",
+    "options": [
+      "クローラーの実行間隔を毎日から毎時に短くし、1 回あたりの処理量を減らす。",
+      "クローラーの再クロールの設定を「Crawl new sub-folders only」にし、初回以降は新しいパーティションのフォルダだけを処理させる増分クロールにする。",
+      "S3 のイベント通知を Amazon SQS のキューに送り、クローラーを S3 イベントモード(CRAWL_EVENT_MODE)に設定して、イベントのあったフォルダだけを一覧させる。",
+      "クローラーのスキーマ変更ポリシーを「Update the table definition in the Data Catalog」に変える。",
+      "クローラーのテーブルしきい値を大きくし、1 回のクロールで作れるテーブルを増やす。"
+    ],
+    "answer": [1, 2],
+    "explanation": "増分クロールを設定すると、初回は全体をクロールしてスキーマと既存のパーティションを登録し、2 回目以降は前回以降に追加された新しいパーティションだけを処理します。データソース全体を毎回処理しないためクロールが速くなります。既存のパーティションの変更や削除は検出しないので、スキーマが安定したデータに向いています。S3 イベントモードでは、クローラーが SQS のキューから S3 のイベントを読み、イベントが発生したサブフォルダだけを一覧します。対象全体の一覧が不要になるため、再クロールの時間と費用が減り、キューにイベントがなければ費用もかかりません。今回は「パーティションが追加されるだけ」「スキーマがほとんど変わらない」ので、どちらも適しています。",
+    "optionNotes": [
+      "毎回全オブジェクトを一覧する動きは変わらないため、実行回数が増える分だけ合計の時間と費用はかえって増えます。",
+      "正解です。増分クロールは新しいパーティションだけを処理し、スキーマが安定したデータに向いています。",
+      "正解です。S3 イベントモードはイベントのあったフォルダだけを一覧するため、全体の一覧が不要になります。",
+      "スキーマの変更をテーブルに反映するかどうかの設定で、一覧するオブジェクトの量は変わりません。",
+      "テーブルしきい値は作成できるテーブル数の上限で、クロールの速さや費用には関係しません。"
+    ],
+    "services": ["AWS Glue", "Amazon S3", "Amazon SQS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Scheduling incremental crawls for adding new partitions", "url": "https://docs.aws.amazon.com/glue/latest/dg/incremental-crawls.html" },
+      { "title": "Accelerating crawls using Amazon S3 event notifications", "url": "https://docs.aws.amazon.com/glue/latest/dg/crawler-s3-event-notifications.html" }
+    ]
+  }
+]

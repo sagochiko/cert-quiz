@@ -1,0 +1,712 @@
+[
+  {
+    "id": "D3-001",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業は、AWS Step Functions のステートマシンでデータパイプラインを組んでいます。最初のステップで AWS Glue の ETL ジョブを実行し、ジョブが完了してから次のステップで Amazon Redshift へのロードを始める必要があります。Glue ジョブの実行時間は日によって 10 分から 90 分まで変わります。追加のコードを書かず、最小の運用負荷でこの要件を満たす方法はどれですか。",
+    "options": [
+      "Task ステートで arn:aws:states:::glue:startJobRun を呼び出し、続けて 90 分の Wait ステートを置いてから次のステップに進む。",
+      "Task ステートで arn:aws:states:::glue:startJobRun.sync を呼び出し、ジョブの完了を待ってから次のステップに進む。",
+      "Glue ジョブを起動する AWS Lambda 関数と、GetJobRun でジョブの状態を確認する Lambda 関数を作り、Choice ステートと Wait ステートでループさせる。",
+      "Task ステートで .waitForTaskToken を使って Glue ジョブを起動し、Glue ジョブのスクリプトの最後で SendTaskSuccess を呼び出す。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「ジョブが完了してから次へ」「追加のコードを書かず」「最小の運用負荷」です。Step Functions の AWS Glue との最適化された統合は、Run a Job (.sync) の統合パターンに対応しています。リソースに arn:aws:states:::glue:startJobRun.sync を指定すると、Step Functions がジョブ実行の完了まで待ち、成功すれば次のステートへ、失敗すればエラーとして扱います。実行時間がばらついても、待ち時間を見積もる必要はありません。ポーリング用の Lambda 関数やコールバックの実装も要りません。",
+    "optionNotes": [
+      "固定の Wait では、ジョブが 90 分を超えたときに未完了のまま進み、短く終わった日は無駄に待ちます。ジョブの失敗も検知できません。",
+      ".sync の統合パターンにより、Step Functions がジョブ完了まで待ち、成否で分岐できます。コードは不要です。",
+      "動きはしますが、Lambda 関数とループの実装と保守が必要で、.sync で済むところに余計な運用負荷がかかります。",
+      "コールバックのパターンは成り立ちますが、Glue スクリプトにタスクトークンを渡して SendTaskSuccess を呼ぶコードが必要で、要件に反します。"
+    ],
+    "services": ["AWS Step Functions", "AWS Glue", "Amazon Redshift"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Start an AWS Glue job with Step Functions", "url": "https://docs.aws.amazon.com/step-functions/latest/dg/connect-glue.html" }
+    ]
+  },
+  {
+    "id": "D3-002",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "あるデータエンジニアは、Amazon Managed Workflows for Apache Airflow (Amazon MWAA) の環境の S3 バケットの dags フォルダーに新しい DAG ファイルをアップロードしました。既存の DAG は正常に動いていますが、新しい DAG が Airflow の UI に表示されません。環境では CloudWatch Logs へのログの送信がタスクログだけ有効になっています。原因を調べるために最初に行うべきことはどれですか。",
+    "options": [
+      "AWS CloudTrail のイベント履歴で、DAG ファイルの PutObject が記録されているかを確認する。",
+      "環境クラスを一段大きくして環境を更新し、スケジューラーを再起動する。",
+      "ワーカーログを有効にし、airflow-環境名-Worker のロググループで DAG のタスクのエラーを確認する。",
+      "DAG 処理ログを有効にし、airflow-環境名-DAGProcessing のロググループで DAG ファイルの読み込みエラーを確認する。"
+    ],
+    "answer": [3],
+    "explanation": "UI に DAG が出ないのは、スケジューラーの DAG プロセッサーが DAG ファイルを解析できていないことが多く、構文エラーや import の失敗が典型です。Amazon MWAA は有効にしたログの種類ごとに airflow-環境名-ログ種別 のロググループを作ります。DAGProcessing は DAG ファイルを処理する DAG プロセッサーマネージャーのログで、解析時のエラーはここに出ます。この環境ではタスクログしか有効になっていないため、まず DAG 処理ログ(必要に応じてスケジューラーログも)を有効にして確認します。",
+    "optionNotes": [
+      "アップロードされたことは確かめられますが、既存の DAG と同じ手順で置いた以上、解析に失敗した理由は CloudTrail には出ません。",
+      "リソース不足の兆候はなく、既存の DAG は動いています。原因を確かめずに環境を大きくしても、解析エラーは直りません。",
+      "ワーカーはスケジュールされたタスクを実行します。UI に出ていない DAG はタスクが実行されないため、ワーカーログには手がかりが出ません。",
+      "DAG ファイルの解析エラーは DAG 処理ログに出ます。無効になっているので、まず有効にして確認します。"
+    ],
+    "services": ["Amazon MWAA", "Amazon CloudWatch"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Accessing Airflow logs in Amazon CloudWatch", "url": "https://docs.aws.amazon.com/mwaa/latest/userguide/monitoring-airflow.html" },
+      { "title": "LoggingConfigurationInput", "url": "https://docs.aws.amazon.com/mwaa/latest/API/API_LoggingConfigurationInput.html" }
+    ]
+  },
+  {
+    "id": "D3-003",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業は、S3 にファイルが届くと AWS Lambda 関数を起動し、Amazon Redshift Serverless で数分かかる集計 SQL を実行したいと考えています。Lambda 関数は VPC に接続しておらず、セキュリティ担当者はデータベースのパスワードをコードや環境変数に置くことを禁じています。データベースドライバーや接続の管理も避けたい場合、最も適した方法はどれですか。",
+    "options": [
+      "AWS SDK から Amazon Redshift Data API の ExecuteStatement を呼び出し、AWS Secrets Manager のシークレットか一時的な認証情報で認可し、DescribeStatement で完了を確認する。",
+      "JDBC ドライバーを Lambda レイヤーに入れ、Lambda 関数を Redshift と同じ VPC に接続して、接続プールを使って SQL を実行する。",
+      "Amazon Redshift Query Editor v2 に SQL を保存し、ファイルが届くたびに担当者が実行する。",
+      "psycopg2 を Lambda 関数に同梱し、パスワードを KMS で暗号化した環境変数に置いて接続する。"
+    ],
+    "answer": [0],
+    "explanation": "Amazon Redshift Data API は、データベースドライバー、接続、ネットワーク設定、認証情報の管理を不要にする HTTP エンドポイントです。永続的な接続を張らず、AWS SDK から SQL を実行できます。認可には Secrets Manager に保存した認証情報か一時的なデータベース認証情報を使い、API の呼び出しにパスワードを渡しません。呼び出しは非同期なので、数分かかる SQL でも Lambda 関数は ExecuteStatement の後に終わってよく、状態は DescribeStatement で、結果は GetStatementResult で後から取得できます。VPC の外の Lambda から使える点も要件に合います。",
+    "optionNotes": [
+      "Data API はドライバーと接続の管理が不要で、パスワードも渡さずに済みます。非同期なので長い SQL にも向きます。",
+      "ドライバーの同梱、VPC 接続、接続の管理がすべて必要になり、要件に反します。認証情報の扱いも別に考える必要があります。",
+      "手作業になるため、ファイルの到着をきっかけにした自動化になりません。",
+      "暗号化していても環境変数にパスワードを置くことになり、禁止事項に当たります。ドライバーの同梱も必要です。"
+    ],
+    "services": ["Amazon Redshift", "AWS Lambda", "AWS Secrets Manager"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using the Amazon Redshift Data API", "url": "https://docs.aws.amazon.com/redshift/latest/mgmt/data-api.html" }
+    ]
+  },
+  {
+    "id": "D3-004",
+    "domain": 3,
+    "task": "3.1",
+    "type": "multi",
+    "question": "ある企業は、AWS Step Functions のステートマシンを 2 つの条件で起動したいと考えています。1 つ目は、S3 バケットの landing/ プレフィックスに拡張子 .csv のファイルが置かれたときです。2 つ目は、月次の締め処理として毎月 1 日の日本時間 2:00 です。最小の運用負荷とコストで要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "S3 のイベント通知の送信先にステートマシンを直接指定し、プレフィックス landing/ とサフィックス .csv でフィルターする。",
+      "バケットで Amazon EventBridge への通知を有効にし、Object Created のイベントをプレフィックス landing/ とサフィックス .csv で絞り込む EventBridge ルールを作り、ステートマシンをターゲットにする。",
+      "EventBridge のスケジュールルールに cron(0 2 1 * ? *) を設定し、ステートマシンをターゲットにする。",
+      "Amazon EventBridge Scheduler で cron(0 2 1 * ? *) とタイムゾーン Asia/Tokyo を指定したスケジュールを作り、ステートマシンをターゲットにする。",
+      "1 分ごとに起動する AWS Lambda 関数で landing/ を一覧し、新しい .csv ファイルを見つけたらステートマシンを起動する。"
+    ],
+    "answer": [1, 3],
+    "explanation": "ファイル到着のほうは、バケットで EventBridge への送信を有効にし、Object Created イベントを key のプレフィックスとサフィックスで絞るルールを作れば、ステートマシンを直接ターゲットにできます。S3 のイベント通知の送信先は SNS、SQS、Lambda、EventBridge だけで、Step Functions は直接指定できません。月次のほうは、EventBridge Scheduler が IANA のタイムゾーンを指定した cron に対応しているので、Asia/Tokyo で毎月 1 日 2:00 を素直に書けます。EventBridge のスケジュールルールは UTC で評価されるため、同じ cron だと日本時間 11:00 に動きます。",
+    "optionNotes": [
+      "S3 のイベント通知の送信先は SNS、SQS、Lambda、EventBridge で、Step Functions は指定できません。",
+      "EventBridge 経由なら、キーのプレフィックスとサフィックスでイベントを絞り込み、ステートマシンを直接起動できます。",
+      "スケジュールルールの cron は UTC で評価されるため、この式では日本時間の 11:00 に起動してしまいます。",
+      "EventBridge Scheduler はタイムゾーンを指定した cron に対応しており、日本時間 2:00 をそのまま表せます。",
+      "動きはしますが、常時のポーリングと重複検知の実装が必要で、運用負荷とコストが増えます。"
+    ],
+    "services": ["Amazon EventBridge", "AWS Step Functions", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Event notification types and destinations", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-how-to-event-types-and-destinations.html" },
+      { "title": "Schedule types in EventBridge Scheduler", "url": "https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" }
+    ]
+  },
+  {
+    "id": "D3-005",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "あるデータエンジニアは、Amazon Athena で毎日実行する集計クエリの結果を、外部の取引先が読む S3 の場所に Parquet 形式で、日付ごとのフォルダーに分けて書き出す必要があります。書き出した結果を AWS Glue Data Catalog のテーブルとして登録する必要はありません。最も簡単な方法はどれですか。",
+    "options": [
+      "CREATE TABLE AS SELECT (CTAS) で format = 'PARQUET' と partitioned_by を指定し、実行後にテーブルを残しておく。",
+      "通常の SELECT を実行し、Athena がクエリ結果の場所に書き出した CSV ファイルを Lambda 関数で取引先の場所にコピーする。",
+      "UNLOAD 文で SELECT の結果を取引先の S3 の場所に書き出し、WITH 句で format = 'PARQUET' と partitioned_by を指定する。",
+      "取引先の場所を指す Parquet のテーブルを作っておき、INSERT INTO で毎日の結果を追加する。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「Parquet で」「日付ごとのフォルダーに分けて」「テーブルとして登録する必要はない」です。Athena の UNLOAD は SELECT の結果を指定した S3 の場所に書き出す文で、WITH 句で format に PARQUET などを、partitioned_by で分割に使う列を指定できます。CTAS と違い、Data Catalog にテーブルを作りません。なお、パーティションに分けない UNLOAD は書き出し先が空でないと書き込みませんが、partitioned_by でパーティションに書き出す場合はこの動きが異なり、同じ場所に毎日のパーティションを足していけます。",
+    "optionNotes": [
+      "同じ形式で書き出せますが、毎回カタログにテーブルが作られます。テーブルが不要という要件では UNLOAD のほうが簡単です。",
+      "クエリ結果の場所に書かれるのは CSV で、Parquet と日付ごとの分割の要件を満たしません。",
+      "UNLOAD はカタログにテーブルを作らずに、Parquet で、列ごとに分割して書き出せます。",
+      "事前のテーブル作成と保守が必要で、テーブル不要という要件に対して手間が増えます。"
+    ],
+    "services": ["Amazon Athena", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "UNLOAD", "url": "https://docs.aws.amazon.com/athena/latest/ug/unload.html" },
+      { "title": "CREATE TABLE AS", "url": "https://docs.aws.amazon.com/athena/latest/ug/create-table-as.html" }
+    ]
+  },
+  {
+    "id": "D3-006",
+    "domain": 3,
+    "task": "3.1",
+    "type": "single",
+    "question": "ある企業の業務アナリストは、取引先から毎日届く CSV ファイルを分析の前に整えたいと考えています。前後の空白の除去、列の分割、日付の書式の統一などを、データのプレビューを見ながら画面上の操作で組み立て、同じ手順を毎朝自動で実行したいと考えています。アナリストはコードを書けません。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "AWS Glue DataBrew のプロジェクトで変換手順をレシピとして作り、そのレシピを使うレシピジョブにスケジュールを関連付ける。",
+      "AWS Glue の Python シェルジョブに pandas で変換処理を書き、トリガーで毎朝実行する。",
+      "Amazon Athena で変換用の SQL を書いたビューを作り、毎朝ビューを照会する。",
+      "Amazon EMR Studio のノートブックで PySpark のコードを書き、EMR クラスターで毎朝実行する。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「プレビューを見ながら画面上の操作で」「コードを書けない」「同じ手順を毎朝自動で」です。AWS Glue DataBrew はノーコードのデータ準備サービスで、プロジェクトでサンプルデータを見ながら変換を足していくと、その手順がレシピとして保存されます。レシピをデータセット全体に適用するのがレシピジョブで、DataBrew のスケジュール(繰り返し、特定の時刻、cron)を関連付ければ毎朝自動で実行できます。",
+    "optionNotes": [
+      "DataBrew のレシピは画面上で作れ、レシピジョブとスケジュールで同じ手順を自動実行できます。",
+      "Python のコードを書く必要があり、コードを書けないアナリストには向きません。",
+      "SQL を書く必要があり、画面上の操作で手順を組み立てる要件に合いません。",
+      "PySpark のコードとクラスターの運用が必要で、要件に合いません。"
+    ],
+    "services": ["AWS Glue DataBrew"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Creating and working with AWS Glue DataBrew recipe jobs", "url": "https://docs.aws.amazon.com/databrew/latest/dg/jobs.recipe.html" }
+    ]
+  },
+  {
+    "id": "D3-007",
+    "domain": 3,
+    "task": "3.1",
+    "type": "multi",
+    "question": "ある企業は、S3 バケットに置かれたファイルを AWS Lambda 関数で変換しています。関数は ObjectCreated イベントで起動し、変換結果を同じバケットの processed/ プレフィックスに書き込みます。最近、関数が延々と起動し続ける事象が起きました。また、3 GB 程度の大きなファイルを /tmp に展開する処理が「No space left on device」で失敗します。これらの問題を解決する方法の組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "変換結果の書き込み先を、トリガーを設定していない別の S3 バケットに変える。",
+      "関数のメモリを最大の 10,240 MB に増やし、/tmp の容量も同じだけ増やす。",
+      "関数のエフェメラルストレージ(/tmp)の設定を、ファイルの展開に足りる大きさに増やす。",
+      "関数の予約済み同時実行数を 0 に設定する。",
+      "S3 バケットを /tmp にマウントするよう関数の設定を変える。"
+    ],
+    "answer": [0, 2],
+    "explanation": "延々と起動するのは、関数がトリガー元のバケットに書いたオブジェクトが再び ObjectCreated イベントを出す再帰呼び出しです。最も確実な対策は、出力を別のバケットに書く 2 バケット構成にすることです。容量の問題は、Lambda の /tmp ディレクトリが 512 MB から 10,240 MB の範囲で設定できるエフェメラルストレージなので、その設定を増やして解決します。メモリと /tmp は別々の設定で、メモリを増やしても /tmp は増えません。",
+    "optionNotes": [
+      "トリガーのない別バケットに出力すれば、出力が新しいイベントを生まず、再帰呼び出しがなくなります。",
+      "メモリと /tmp の容量は別の設定で、メモリを増やしても /tmp は増えません。",
+      "/tmp は最大 10,240 MB まで設定でき、3 GB のファイルを展開する容量を確保できます。",
+      "同時実行数を 0 にすると関数がまったく実行されなくなり、変換処理そのものが止まります。",
+      "Lambda の /tmp に S3 バケットをマウントする設定はありません。"
+    ],
+    "services": ["AWS Lambda", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Lambda quotas", "url": "https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" },
+      { "title": "Use Lambda recursive loop detection to prevent infinite loops", "url": "https://docs.aws.amazon.com/lambda/latest/dg/invocation-recursion.html" }
+    ]
+  },
+  {
+    "id": "D3-008",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業は、Amazon Athena のテーブルをデータソースにした Amazon QuickSight のダッシュボードを 300 人の社員に公開しています。元データは毎日 1 回、夜間に更新されます。ダッシュボードを開くたびに Athena のクエリが実行され、表示が遅く、スキャン量の料金もかさんでいます。表示を速くし、コストを下げる方法はどれですか。",
+    "options": [
+      "データセットを直接クエリのままにし、Athena のワークグループでクエリ結果の再利用を有効にする。",
+      "AWS Glue DataBrew のデータプロファイルの画面を社員に共有し、ダッシュボードの代わりに使ってもらう。",
+      "データセットを SPICE にインポートし、夜間の更新の後に SPICE の更新が走るようスケジュールを設定する。",
+      "Athena のクエリ結果を毎日 CSV でダウンロードし、社員にメールで配布する。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「毎日 1 回の更新」「開くたびにクエリが実行される」「速く、安く」です。SPICE は QuickSight(現在は AWS Quick Sight)のインメモリエンジンで、データセットをインポートすると分析のクエリが速くなります。SPICE に入れたデータは追加の料金なしで何度でも使え、クエリごとに課金されるデータソースでは、作成時と更新時にだけクエリの料金がかかります。更新はデータセットの設定でスケジュールできるので、夜間の元データの更新後に合わせれば、毎日新しいデータを表示できます。",
+    "optionNotes": [
+      "クエリ結果の再利用は条件付きで、ダッシュボード側は直接クエリのままなので表示の遅さと料金の根本は変わりません。",
+      "DataBrew のプロファイルはデータ品質を調べる画面で、業務向けのダッシュボードの代わりにはなりません。",
+      "SPICE にインポートすれば表示が速くなり、Athena への課金は更新時だけになります。日次の更新もスケジュールできます。",
+      "手作業の配布になり、ダッシュボードの要件を満たさず運用負荷も増えます。"
+    ],
+    "services": ["Amazon QuickSight", "Amazon Athena"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Importing data into SPICE", "url": "https://docs.aws.amazon.com/quick/latest/userguide/spice.html" },
+      { "title": "Refreshing data in AWS Quick Sight", "url": "https://docs.aws.amazon.com/quick/latest/userguide/refreshing-data.html" }
+    ]
+  },
+  {
+    "id": "D3-009",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業のダッシュボードは、Amazon Redshift の大きな売上テーブルと商品テーブルを結合して集計する同じクエリを数分おきに実行しており、応答が遅くなっています。売上テーブルには 1 日中データがロードされます。集計結果は数分の遅れなら許容されます。最小の運用負荷で応答を速くする方法はどれですか。",
+    "options": [
+      "集計クエリを通常のビューとして定義し、ダッシュボードからビューを照会する。",
+      "集計クエリを AUTO REFRESH YES を付けたマテリアライズドビューとして作り、ダッシュボードからマテリアライズドビューを照会する。",
+      "Redshift の結果キャッシュが使われるよう、ダッシュボードのクエリの書き方を揃える。",
+      "スケジュールされたクエリで 5 分ごとに集計テーブルを DROP して CREATE TABLE AS で作り直す。"
+    ],
+    "answer": [1],
+    "explanation": "マテリアライズドビューは集計結果を事前に計算して保存するので、重い結合と集計を毎回実行しなくて済みます。AUTO REFRESH YES を付けると、Redshift が設定した間隔(既定は 5 分)でビューが古くなっているかを確かめ、古ければ自動で更新します。「数分の遅れは許容」という要件に合い、更新の仕組みを自分で作る必要もありません。結果キャッシュは、参照するテーブルが変更されると使えなくなるため、1 日中ロードが続くこの状況では効果が続きません。",
+    "optionNotes": [
+      "通常のビューは照会のたびに元の結合と集計を実行するため、応答は速くなりません。",
+      "事前計算した結果を照会でき、自動更新により運用の手間もかかりません。",
+      "結果キャッシュはテーブルが更新されると使えなくなります。1 日中ロードがある売上テーブルでは効果が続きません。",
+      "動きはしますが、作り直しの間にテーブルが無い時間ができ、スケジュールの管理も必要になります。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Refreshing a materialized view", "url": "https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-refresh.html" },
+      { "title": "Amazon Redshift Performance", "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_challenges_achieving_high_performance_queries.html" }
+    ]
+  },
+  {
+    "id": "D3-010",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "あるデータアナリストは、Amazon Redshift の daily_sales テーブル(列は store_id、sales_date、amount で、店舗ごとに 1 日 1 行)から、店舗ごとの売上の 7 日間の移動平均を日付ごとに求めたいと考えています。正しい結果を返す SQL の式はどれですか。",
+    "options": [
+      "AVG(amount) OVER (PARTITION BY store_id ORDER BY sales_date ROWS UNBOUNDED PRECEDING)",
+      "AVG(amount) OVER (ORDER BY sales_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)",
+      "SELECT store_id, AVG(amount) FROM daily_sales GROUP BY store_id",
+      "AVG(amount) OVER (PARTITION BY store_id ORDER BY sales_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)"
+    ],
+    "answer": [3],
+    "explanation": "移動平均はウィンドウ関数で求めます。PARTITION BY store_id で店舗ごとに区切り、ORDER BY sales_date で日付順に並べ、ROWS BETWEEN 6 PRECEDING AND CURRENT ROW で当日を含む直近 7 行をフレームにします。1 店舗 1 日 1 行なので、7 行が 7 日間に当たります。ROWS UNBOUNDED PRECEDING は先頭からの累積平均、PARTITION BY が無いと全店舗の行が混ざった平均、GROUP BY は店舗ごとに 1 つの値になるため、どれも 7 日間の移動平均にはなりません。",
+    "optionNotes": [
+      "フレームが先頭から当日までになるため、移動平均ではなく累積平均になります。",
+      "PARTITION BY が無いため、全店舗の行が日付順に混ざり、店舗ごとの移動平均になりません。",
+      "店舗ごとに全期間の平均が 1 つ返るだけで、日付ごとの値になりません。",
+      "店舗ごとに日付順で直近 7 行の平均を取るので、7 日間の移動平均になります。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "AVG window function", "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_WF_AVG.html" }
+    ]
+  },
+  {
+    "id": "D3-011",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "ある企業のデータサイエンティストは、Amazon S3 のデータレイクにある JSON と Parquet のデータを、PySpark で対話的に探索したいと考えています。すでに Amazon Athena で SQL を使っており、クラスターの作成やサイズの見積もりはしたくありません。使った分だけ支払い、ノートブックの形で試行錯誤したいと考えています。最も適したソリューションはどれですか。",
+    "options": [
+      "Amazon Athena for Apache Spark を使い、Spark 用のワークグループからノートブックで PySpark のコードを実行する。",
+      "Amazon EMR on EC2 のクラスターを起動し、JupyterHub を有効にしてノートブックを使う。",
+      "Athena の SQL エンジンのワークグループで、PySpark のコードをクエリエディタに貼り付けて実行する。",
+      "AWS Glue の Python シェルジョブに PySpark のコードを書き、実行のたびにログを確認する。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「PySpark で対話的に」「クラスターの作成やサイズの見積もりをしない」「使った分だけ」「ノートブック」です。Athena for Apache Spark はサーバーレスで、リソースの計画や設定なしに Spark のコードを対話的に実行できます。必要な計算資源は Athena が自動で判断して指定した上限まで増減します。ノートブックの体験も用意されており、PySpark エンジンバージョン 3 では Athena コンソールの Jupyter 互換のノートブック、Apache Spark 3.5 では Amazon SageMaker Unified Studio のノートブックから使えます。",
+    "optionNotes": [
+      "サーバーレスの Spark をノートブックで対話的に使え、クラスターの管理が不要です。",
+      "クラスターのサイズ決めと起動、停止の管理が必要で、要件に反します。",
+      "SQL エンジンのワークグループは SQL を実行するもので、PySpark のコードは実行できません。",
+      "Python シェルジョブは Spark を使わない単一ノードの Python 実行環境で、対話的な探索にも向きません。"
+    ],
+    "services": ["Amazon Athena", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Use Apache Spark in Amazon Athena", "url": "https://docs.aws.amazon.com/athena/latest/ug/notebooks-spark.html" }
+    ]
+  },
+  {
+    "id": "D3-012",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "question": "ある企業は、2 つの分析基盤について Amazon Redshift のプロビジョニングされたクラスターと Amazon Redshift Serverless のどちらを使うかを検討しています。1 つは週に数回、不定期に数十分だけクエリが集中する部門の分析基盤で、もう 1 つは 24 時間ほぼ一定の高い負荷が続く全社の分析基盤です。両者のトレードオフについて正しい説明はどれですか。（2 つ選択）",
+    "options": [
+      "Redshift Serverless では、ワークグループの作成時にノードの種類とノード数を選ぶ必要がある。",
+      "プロビジョニングされたクラスターは、クエリが無い時間に自動で一時停止し、コンピューティングの料金がかからない。",
+      "Redshift Serverless は、クエリが実行されている間に使った容量を RPU 時間で秒単位に課金し、クエリが無い間はコンピューティングの料金がかからないため、不定期な部門の基盤に向く。",
+      "Redshift Serverless では、Redshift Spectrum や同時実行スケーリングを使うために別途の料金と設定が必要になる。",
+      "24 時間一定の高い負荷が続く全社の基盤では、プロビジョニングされたクラスターにリザーブドノードを組み合わせると、オンデマンドより割り引かれた料金で容量を確保できる。"
+    ],
+    "answer": [2, 4],
+    "explanation": "Redshift Serverless は容量を RPU で表し、クエリが実行されている間の使用量を RPU 時間で秒単位に課金します(最低 60 秒)。クエリが無い間はコンピューティングの料金がかからず、ストレージの料金だけになるため、不定期で短時間の負荷に向きます。一方、常に高い負荷が続くなら、プロビジョニングされたクラスターにリザーブドノードを買うと、オンデマンドより割り引かれた料金でノードを確保でき、コストを予測しやすくなります。プロビジョニングの一時停止は手動かスケジュールで行うもので、自動ではありません。",
+    "optionNotes": [
+      "Serverless ではノードを選ばず、ベース容量や上限を RPU で設定します。ノードの種類と数を選ぶのはプロビジョニングです。",
+      "プロビジョニングのクラスターの一時停止は、手動かスケジュールされたアクションで行います。クエリが無いからといって自動では止まりません。",
+      "使った分だけ課金され、アイドル時はコンピューティングの料金がかからないため、不定期な負荷に向きます。",
+      "Serverless の料金には同時実行スケーリングと Redshift Spectrum が含まれ、別途の支払いは不要です。",
+      "常時高負荷ならリザーブドノードの割引が使え、プロビジョニングのほうがコスト効率よく容量を確保できます。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Billing for on-demand compute capacity", "url": "https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-billing-on-demand.html" },
+      { "title": "Amazon Redshift Pricing", "url": "https://aws.amazon.com/redshift/pricing/" }
+    ]
+  },
+  {
+    "id": "D3-013",
+    "domain": 3,
+    "task": "3.2",
+    "type": "single",
+    "question": "あるデータアナリストは、Amazon Redshift の sales テーブル(列は region、quarter、amount)から、地域ごとに 1 行、四半期 Q1 から Q4 の売上合計をそれぞれの列に並べた表を作りたいと考えています。最も簡潔に書ける方法はどれですか。",
+    "options": [
+      "FROM 句で UNPIVOT (amount FOR quarter IN (Q1, Q2, Q3, Q4)) を使う。",
+      "GROUP BY ROLLUP (region, quarter) で地域と四半期の小計を求める。",
+      "FROM 句で PIVOT (SUM(amount) FOR quarter IN ('Q1', 'Q2', 'Q3', 'Q4')) を使う。",
+      "LISTAGG(amount, ',') WITHIN GROUP (ORDER BY quarter) を region ごとに求める。"
+    ],
+    "answer": [2],
+    "explanation": "行の値を列に回転させるのがピボットです。Redshift では FROM 句の PIVOT パラメータで、集計関数と、列にしたい値の一覧を指定します。PIVOT (SUM(amount) FOR quarter IN ('Q1', 'Q2', 'Q3', 'Q4')) と書くと、残りの列 region ごとに 1 行になり、Q1 から Q4 がそれぞれ売上合計の列になります。UNPIVOT は逆に列を行へ戻す操作です。ROLLUP は小計の行を足すグループ化で、列への回転はしません。",
+    "optionNotes": [
+      "UNPIVOT は列を行に回転させる操作で、求める向きと逆です。",
+      "ROLLUP は小計と総計の行を追加するグループ化で、四半期を列に並べることはできません。",
+      "PIVOT で四半期の値を列にし、SUM で地域ごとの合計を求められます。",
+      "LISTAGG は値を 1 つの文字列に連結するだけで、四半期ごとの列にはなりません。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "PIVOT and UNPIVOT examples", "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_FROM_clause-pivot-unpivot-examples.html" }
+    ]
+  },
+  {
+    "id": "D3-014",
+    "domain": 3,
+    "task": "3.2",
+    "type": "multi",
+    "question": "ある企業は、注文データを S3 に蓄積し、AWS Glue Data Catalog に登録して Amazon Athena で照会しています。上流のシステムが同じ order_id の注文を更新のたびに再送するため、重複があると報告されました。データエンジニアは、重複の有無を確かめたうえで、order_id ごとに updated_at が最新の 1 行だけを残した Parquet のデータセットを作りたいと考えています。追加のサービスを増やさずに行う方法の組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "Athena で SELECT order_id, COUNT(*) FROM orders GROUP BY order_id HAVING COUNT(*) > 1 を実行し、重複している order_id を確かめる。",
+      "Amazon S3 Select でオブジェクトごとに重複を数え、結果を集計する。",
+      "AWS Glue クローラーを再実行し、重複した行を取り除いたテーブルを作らせる。",
+      "Athena の CTAS で format = 'PARQUET' を指定し、ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY updated_at DESC) が 1 の行だけを選んで新しいテーブルに書き出す。",
+      "Amazon QuickSight の SPICE にインポートし、インポート時に重複行を自動で除去させる。"
+    ],
+    "answer": [0, 3],
+    "explanation": "確かめる段階では、order_id でグループ化して件数が 2 以上のものを HAVING で抜き出せば、重複している注文が分かります。整える段階では、ROW_NUMBER を order_id で区切り updated_at の降順に番号を振り、1 番の行だけを残すと最新の 1 行になります。これを Athena の CTAS で format = 'PARQUET' を指定して実行すれば、Parquet のデータセットと新しいテーブルが一度に作れます。どちらも既存の Athena だけで完結します。",
+    "optionNotes": [
+      "GROUP BY と HAVING で、2 件以上ある order_id を一覧でき、重複の有無を確かめられます。",
+      "S3 Select は保守モードで新規の利用ができず、オブジェクトをまたいだ重複も数えられません。",
+      "クローラーはスキーマとパーティションをカタログに登録するもので、データの重複は取り除きません。",
+      "ROW_NUMBER で最新の 1 行に絞り、CTAS で Parquet に書き出せば、重複を除いたデータセットができます。",
+      "SPICE のインポートに重複行を自動で除去する機能はありません。"
+    ],
+    "services": ["Amazon Athena", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "CREATE TABLE AS", "url": "https://docs.aws.amazon.com/athena/latest/ug/create-table-as.html" },
+      { "title": "Services in Maintenance", "url": "https://docs.aws.amazon.com/general/latest/gr/maintenance_services.html" }
+    ]
+  },
+  {
+    "id": "D3-015",
+    "domain": 3,
+    "task": "3.3",
+    "type": "multi",
+    "question": "ある企業の監査担当者は、データレイクの特定の S3 バケットから、過去 1 年間に誰がどのオブジェクトを削除したかを調べられるようにしたいと考えています。現在は AWS CloudTrail の既定の設定のままで、証跡は作っていません。今後この調査ができるようにする方法の組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "CloudTrail のイベント履歴の保持期間を 365 日に延ばす。",
+      "証跡を作り、対象バケットのオブジェクトに対する S3 のデータイベントを記録して、ログを S3 に配信する。",
+      "S3 インベントリを毎日出力し、前日との差分から削除したユーザーを特定する。",
+      "Amazon CloudWatch の S3 リクエストメトリクスを有効にし、DeleteRequests の値を確認する。",
+      "証跡が S3 に配信したログに Amazon Athena のテーブルを定義し、eventName が DeleteObject のイベントを照会する。"
+    ],
+    "answer": [1, 4],
+    "explanation": "CloudTrail は既定で管理イベントを記録し、イベント履歴で 90 日分を見られます。DeleteObject のようなオブジェクト単位の操作はデータイベントで、既定では記録されません。そこで証跡を作り、高度なイベントセレクターで対象バケットの AWS::S3::Object のデータイベントを記録して S3 に配信します。ログは S3 に残るので 1 年以上保持でき、Athena でテーブルを定義すれば、userIdentity や eventName で誰がいつ削除したかを照会できます。データイベントは記録した件数に応じて課金されます。",
+    "optionNotes": [
+      "イベント履歴は 90 日分で、保持期間は変えられません。オブジェクト単位の削除も記録されていません。",
+      "データイベントを記録する証跡を作れば、DeleteObject を呼び出した ID と時刻が S3 に残ります。",
+      "インベントリはオブジェクトの一覧で、誰が削除したかは分かりません。",
+      "リクエストメトリクスは件数の推移で、誰がどのオブジェクトを削除したかは分かりません。",
+      "S3 に配信された CloudTrail のログを Athena で照会すれば、長期間の調査ができます。"
+    ],
+    "services": ["AWS CloudTrail", "Amazon S3", "Amazon Athena"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Logging data events", "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/logging-data-events-with-cloudtrail.html" },
+      { "title": "Query AWS CloudTrail logs", "url": "https://docs.aws.amazon.com/athena/latest/ug/cloudtrail-logs.html" }
+    ]
+  },
+  {
+    "id": "D3-016",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業は数十本の AWS Glue ETL ジョブを運用しています。どのジョブでも、実行が失敗したときやタイムアウトしたときに、運用チームへメールで通知したいと考えています。最小の運用負荷で実現する方法はどれですか。",
+    "options": [
+      "各ジョブで glue.driver.aggregate.numFailedTasks メトリクスに CloudWatch アラームを作り、Amazon SNS トピックに通知する。",
+      "source が aws.glue、detail-type が Glue Job State Change、state が FAILED または TIMEOUT のイベントに一致する Amazon EventBridge ルールを作り、メールを購読した Amazon SNS トピックをターゲットにする。",
+      "5 分ごとに AWS Lambda 関数を起動し、全ジョブの GetJobRuns の結果から失敗を探して Amazon SNS に発行する。",
+      "AWS CloudTrail の証跡で StartJobRun を記録し、CloudWatch Logs のメトリクスフィルターで検知する。"
+    ],
+    "answer": [1],
+    "explanation": "AWS Glue はジョブの状態が SUCCEEDED、FAILED、TIMEOUT、STOPPED になると、detail-type が Glue Job State Change のイベントを EventBridge に送ります。このイベントの state で FAILED と TIMEOUT に絞るルールを 1 つ作り、SNS トピックをターゲットにすれば、ジョブ名を列挙しなくても全ジョブの失敗をメールで受け取れます。Glue のドキュメントにも、ETL ジョブが失敗したときに SNS トピックへ通知する例が挙がっています。",
+    "optionNotes": [
+      "失敗したタスクの数はジョブ全体の失敗とは一致せず、タイムアウトも拾えません。ジョブごとにアラームを作る手間もかかります。",
+      "1 つのルールで全ジョブの失敗とタイムアウトを拾い、SNS でメール通知できます。",
+      "動きはしますが、ポーリングのコードと定期実行の管理が必要で、通知も最大 5 分遅れます。",
+      "StartJobRun はジョブを開始した記録で、ジョブが失敗したかどうかは分かりません。"
+    ],
+    "services": ["AWS Glue", "Amazon EventBridge", "Amazon SNS"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Automating AWS Glue with EventBridge", "url": "https://docs.aws.amazon.com/glue/latest/dg/automating-awsglue-with-cloudwatch-events.html" }
+    ]
+  },
+  {
+    "id": "D3-017",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業の取り込み処理は AWS Lambda 関数で動いており、level と pipeline のフィールドを持つ JSON 形式のログを CloudWatch Logs に出力しています。障害の振り返りのため、過去 7 日間について、pipeline ごと 1 時間ごとの ERROR の件数をその場で調べたいと考えています。新しい仕組みを作らずに最も早く調べる方法はどれですか。",
+    "options": [
+      "ロググループに level が ERROR のメトリクスフィルターを作り、作成された CloudWatch メトリクスをグラフにする。",
+      "ロググループを S3 にエクスポートし、AWS Glue クローラーでテーブルを作って Amazon Athena で集計する。",
+      "サブスクリプションフィルターで Amazon OpenSearch Service にログを送り、OpenSearch Dashboards で集計する。",
+      "CloudWatch Logs Insights で期間を過去 7 日に指定し、filter level = \"ERROR\" | stats count(*) by pipeline, bin(1h) を実行する。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「過去 7 日間」「その場で」「新しい仕組みを作らずに」です。CloudWatch Logs Insights は、ロググループに保存済みのログに対して対話的にクエリを実行でき、JSON のフィールドを自動で認識します。filter で ERROR に絞り、stats count(*) by pipeline, bin(1h) とすれば、pipeline ごと 1 時間ごとの件数が出ます。メトリクスフィルターは作成後に届いたログだけを対象にし、過去のログには遡らないため、振り返りには使えません。",
+    "optionNotes": [
+      "メトリクスフィルターは過去のログに遡って集計しないため、過去 7 日間の件数は得られません。",
+      "集計はできますが、エクスポートとテーブル作成の手間がかかり、最も早い方法ではありません。",
+      "サブスクリプションは設定後に届くログを送るもので、過去 7 日分の調査には間に合いません。ドメインの用意も必要です。",
+      "Logs Insights なら保存済みのログをその場で集計でき、新しい仕組みは要りません。"
+    ],
+    "services": ["Amazon CloudWatch", "AWS Lambda"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "stats", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Stats.html" },
+      { "title": "Creating metrics from log events using filters", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/MonitoringLogData.html" }
+    ]
+  },
+  {
+    "id": "D3-018",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "ある企業の AWS Glue ETL ジョブは、Amazon Data Firehose が S3 に書き出した前日分のパーティションを毎日処理します。1 日分のパーティションには数 KB の JSON ファイルが約 4 万個あり、ジョブの実行時間が長く、ドライバーのメモリ不足で失敗することもあります。毎回その日のパーティションをすべて処理する必要があります。最も効果的な対処はどれですか。",
+    "options": [
+      "読み込みのオプションで groupFiles を inPartition にし、必要に応じて groupSize を指定して、小さなファイルをまとめて読み込む。",
+      "同じワーカータイプのままワーカー数を 2 倍にする。",
+      "ジョブのブックマークを有効にし、処理済みのファイルを読み飛ばす。",
+      "ジョブを AWS Glue の Python シェルジョブに変える。"
+    ],
+    "answer": [0],
+    "explanation": "小さなファイルが大量にあると、Spark はファイルごとにタスクを作り、ドライバーがファイルの一覧とタスクの管理でメモリと時間を使います。AWS Glue のファイルのグループ化を使い、groupFiles を inPartition にすると、パーティション内の複数のファイルを 1 つのインメモリパーティションにまとめて読み込みます。groupSize でグループの大きさを指定できます。タスク数とドライバーの負担が減り、実行時間とメモリ不足の両方に効果があります。グループ化は入力ファイルが 50,000 を超えると自動で有効になりますが、このジョブは約 4 万個なので、明示的に設定する必要があります。",
+    "optionNotes": [
+      "ファイルのグループ化でタスク数とドライバーの負担が減り、小さなファイルの問題に直接効果があります。",
+      "ワーカーを増やしてもタスクの数とドライバーの負担は変わらず、ドライバーのメモリ不足は解消しません。",
+      "ブックマークは前回処理したデータを読み飛ばす仕組みです。毎回その日の全ファイルを処理するこのジョブでは、読み込むファイル数は減りません。",
+      "Python シェルジョブは分散処理をしない単一ノードの環境で、4 万個のファイルの処理はかえって遅くなります。"
+    ],
+    "services": ["AWS Glue", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Reading input files in larger groups", "url": "https://docs.aws.amazon.com/glue/latest/dg/grouping-input-files.html" }
+    ]
+  },
+  {
+    "id": "D3-019",
+    "domain": 3,
+    "task": "3.3",
+    "type": "multi",
+    "question": "ある企業は、AWS Glue ジョブと AWS Lambda 関数のアプリケーションログを CloudWatch Logs に出力しています。ロググループはすべて既定の設定のままです。ログの保管料金を抑えるため 90 日を過ぎたログを自動で消したいことと、ログに DataValidationError という文字列が出たら数分以内に運用チームへ通知したいことが要件です。最小の運用負荷で要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "ロググループに S3 のライフサイクルルールを設定し、90 日後に削除する。",
+      "毎日起動する AWS Lambda 関数で、90 日より古いログストリームを探して削除する。",
+      "各ロググループの保持期間を 90 日に設定する。",
+      "ロググループに DataValidationError に一致するメトリクスフィルターを作り、そのメトリクスに CloudWatch アラームを設定して Amazon SNS トピックに通知する。",
+      "AWS CloudTrail のデータイベントでログの内容を記録し、DataValidationError を含むイベントを検知する。"
+    ],
+    "answer": [2, 3],
+    "explanation": "CloudWatch Logs のロググループは、既定ではログを無期限に保存します。ロググループごとに保持期間を設定でき(API では PutRetentionPolicy)、期間を過ぎたログは削除の対象になり、保管料金の対象から外れます。通知の要件は、メトリクスフィルターでログの中の文字列のパターンを CloudWatch のメトリクスに変換し、そのメトリクスにアラームを設定して SNS で通知すれば満たせます。どちらも設定だけで済み、コードは要りません。",
+    "optionNotes": [
+      "ライフサイクルルールは S3 の機能で、CloudWatch Logs のロググループには設定できません。",
+      "動きはしますが、保持期間の設定で済むことをコードで作ることになり、運用負荷が増えます。",
+      "保持期間を設定すれば、90 日を過ぎたログが自動で削除されます。",
+      "メトリクスフィルターとアラームで、特定の文字列の出現を数分以内に通知できます。",
+      "CloudTrail は API 呼び出しを記録するもので、アプリケーションのログの内容は記録しません。"
+    ],
+    "services": ["Amazon CloudWatch", "Amazon SNS", "AWS Glue", "AWS Lambda"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Working with log groups and log streams", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/Working-with-log-groups-and-streams.html" },
+      { "title": "Creating metrics from log events using filters", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/MonitoringLogData.html" }
+    ]
+  },
+  {
+    "id": "D3-020",
+    "domain": 3,
+    "task": "3.3",
+    "type": "single",
+    "question": "あるデータエンジニアは、AWS CLI の aws emr create-cluster で一時的な Amazon EMR クラスターを起動し、Spark のステップを 1 つ実行して自動で終了させる運用をしています。昨夜ステップが失敗しましたが、クラスターはすでに終了しており、原因を調べるログが見つかりません。今後同じことが起きたときに原因を調べられるようにする方法はどれですか。",
+    "options": [
+      "AWS CloudTrail の証跡を作り、EMR の AddJobFlowSteps の呼び出しを記録する。",
+      "CloudWatch Logs Insights で /aws/emr のロググループを照会できるよう、ロググループを事前に作っておく。",
+      "create-cluster に --log-uri で S3 の場所を指定し、ステップの controller、stderr などのログを S3 にアーカイブする。",
+      "コアノードの EBS ボリュームを大きくし、ログが消えないようにする。"
+    ],
+    "answer": [2],
+    "explanation": "Amazon EMR は、コンソールから起動したクラスターでは既定でログを S3 にアーカイブしますが、CLI や API から起動したクラスターでは S3 へのログのアーカイブを自分で設定する必要があります。--log-uri を指定すると、ログが /クラスターID/ の下に保存され、ステップのログは steps/ステップID/ に controller、syslog、stderr、stdout として残ります。読み込み時の失敗なら controller にスタックトレースが出ます。クラスターが終了した後でも S3 から読めるので、一時的なクラスターでも原因を調べられます。",
+    "optionNotes": [
+      "CloudTrail に残るのはステップを追加した API 呼び出しで、Spark が失敗した理由は分かりません。",
+      "EMR on EC2 のログを CloudWatch Logs に送るには、クラスターの作成時に CloudWatch エージェントと MonitoringConfiguration の CloudWatchLogConfiguration を指定する必要があります。ロググループを作っておくだけでは何も届きません。",
+      "S3 へのログのアーカイブを指定すれば、クラスターの終了後もステップのログを調べられます。",
+      "Amazon EMR のクラスターに付けた EBS ボリュームは一時的なもので、クラスターやインスタンスの終了とともに削除されます。大きくしてもログは残りません。"
+    ],
+    "services": ["Amazon EMR", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Configure Amazon EMR cluster logging and debugging", "url": "https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-debugging.html" },
+      { "title": "Publish Amazon EMR logs to CloudWatch Logs", "url": "https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-logging-cw.html" },
+      { "title": "Instance storage options and behavior in Amazon EMR", "url": "https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-storage.html" }
+    ]
+  },
+  {
+    "id": "D3-021",
+    "domain": 3,
+    "task": "3.4",
+    "type": "single",
+    "question": "ある企業は、AWS Glue Studio のビジュアル ETL ジョブで顧客データを整えています。customer_id が空でないこと、email が決まったパターンに一致することを処理の途中で検証し、条件を満たさない行は隔離用の S3 プレフィックスに、満たす行は分析用のプレフィックスに書き分けたいと考えています。同じジョブの中で、最小の開発量で実現する方法はどれですか。",
+    "options": [
+      "ジョブの後に AWS Glue DataBrew のプロファイルジョブを実行し、検証レポートを見て不正な行を手作業で移す。",
+      "ジョブで分析用のプレフィックスに書き出した後、Amazon Athena で条件に合わない行を探して削除する。",
+      "AWS Glue クローラーにカスタム分類子を設定し、条件に合わない行をテーブルから除外させる。",
+      "Evaluate Data Quality 変換に IsComplete \"customer_id\" と email の ColumnValues のルールを DQDL で書き、行ごとの結果の列 DataQualityEvaluationResult で行を振り分けて別々の場所に書き出す。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「処理の途中で検証」「行ごとに書き分け」「同じジョブの中で」です。AWS Glue Data Quality の Evaluate Data Quality 変換は、DQDL で書いたルールでデータを流れの途中で検証します。出力に行ごとの結果を選ぶと、DataQualityRulesPass、DataQualityRulesFail、DataQualityEvaluationResult などの列が追加され、各行が Passed か Failed かが分かります。この列で行をフィルターすれば、隔離用と分析用に書き分けられます。IsComplete は値の欠落が無いことを、ColumnValues は値の条件やパターンを検証するルールです。",
+    "optionNotes": [
+      "プロファイルジョブは処理の後にデータセットを評価するもので、行の振り分けは手作業になり要件に合いません。",
+      "不正な行が一度分析用の場所に書かれてしまい、処理の途中で検証する要件を満たしません。",
+      "分類子はデータの形式を判定してスキーマを推定するもので、値の検証や行の除外はしません。",
+      "Evaluate Data Quality 変換の行ごとの結果を使えば、同じジョブの中で行を振り分けられます。"
+    ],
+    "services": ["AWS Glue", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Evaluating data quality for ETL jobs in AWS Glue Studio", "url": "https://docs.aws.amazon.com/glue/latest/dg/tutorial-data-quality.html" },
+      { "title": "Data Quality Definition Language (DQDL) reference", "url": "https://docs.aws.amazon.com/glue/latest/dg/dqdl.html" }
+    ]
+  },
+  {
+    "id": "D3-022",
+    "domain": 3,
+    "task": "3.4",
+    "type": "single",
+    "question": "ある企業の業務アナリストは、AWS Glue DataBrew にデータセットとプロジェクトを作ってデータを準備しています。「主要な列の欠損が 1% 以下」「注文番号が重複しない」といった品質の基準をコードを書かずに定義し、毎週の検証結果を DataBrew のコンソールで確認したいと考えています。最も適した方法はどれですか。",
+    "options": [
+      "レシピに、基準を満たさない行を取り除くステップを足し、レシピジョブを毎週実行する。",
+      "データセットに対して DataBrew のデータ品質ルールセットを作り、ルールセットを含むプロファイルジョブを毎週のスケジュールで実行する。",
+      "AWS Lake Formation のデータフィルターで基準を満たさない行を見えなくする。",
+      "Amazon QuickSight のダッシュボードに欠損率の計算フィールドを作り、毎週目で確認する。"
+    ],
+    "answer": [1],
+    "explanation": "DataBrew では、データ品質ルールをまとめたルールセットをデータセットに対して定義できます。ルールセットをプロファイルジョブに加えると、ジョブの実行時にデータのプロファイルと一緒に検証レポートが作られます。結果はプロファイルと同じ S3 の場所に出力され、コンソールのデータセットの詳細にある Data Quality タブで確認できます。プロファイルジョブにはスケジュールを関連付けられるので、毎週の検証も自動化できます。",
+    "optionNotes": [
+      "レシピはデータを変換するもので、基準を満たしたかの検証結果は残りません。基準に合わない行を黙って消すことにもなります。",
+      "ルールセットをプロファイルジョブで実行すれば、検証レポートをコンソールで確認でき、スケジュールで繰り返せます。",
+      "データフィルターはアクセス制御の仕組みで、品質の検証には使えません。",
+      "目視の確認になり、基準の定義と検証の自動化という要件に合いません。"
+    ],
+    "services": ["AWS Glue DataBrew"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Validating data quality in AWS Glue DataBrew", "url": "https://docs.aws.amazon.com/databrew/latest/dg/profile.data-quality-rules.html" },
+      { "title": "Creating a profile job using a ruleset", "url": "https://docs.aws.amazon.com/databrew/latest/dg/profile.data-quality-ruleset-create-a-profile-job.html" }
+    ]
+  },
+  {
+    "id": "D3-023",
+    "domain": 3,
+    "task": "3.4",
+    "type": "multi",
+    "question": "ある企業は、2 つの基幹システムから出力した顧客データを 1 つのデータセットに統合しました。統合後のデータセットは約 500 万行あります。データエンジニアは AWS Glue DataBrew で、重複行がどれだけあるか、列ごとの欠損がどれだけあるか、値の分布に偏りがないかを、データセット全体について調べたいと考えています。適切な手順の組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "プロファイルジョブを作り、ジョブで評価する範囲としてデータセット全体を選んで実行する。",
+      "DataBrew プロジェクトの画面に表示されるサンプルの統計を、データセット全体の結果として使う。",
+      "重複を削除するステップを入れたレシピジョブを実行し、ジョブの出力を重複の調査報告として使う。",
+      "AWS Glue クローラーを再実行し、テーブルのプロパティに記録される重複行の数と列ごとの欠損率を確認する。",
+      "プロファイルの結果で、データセット単位の重複行の数と、列ごとの欠損数や値の分布を確認する。"
+    ],
+    "answer": [0, 4],
+    "explanation": "DataBrew のプロファイルジョブは、データセットの重複行の数(DUPLICATE_ROWS_COUNT)や列間の相関などのデータセット単位の統計と、欠損数、一意な値の数、分位点などの列単位の統計を出力します。ジョブで評価する範囲はデータセット全体か行数を限った一部かを選べ、一部にすると全体と結果が変わることがあります。500 万行全体を調べるなら全体を選んで実行し、結果をコンソールか S3 の JSON で確認します。プロジェクトの画面はサンプルの行を表示しているだけです。",
+    "optionNotes": [
+      "評価範囲を全体にすれば、500 万行すべてについての統計が得られます。",
+      "プロジェクトの画面はサンプルの行に基づいており、データセット全体の状態を表しません。",
+      "レシピジョブはデータを変換して出力するもので、重複がどれだけあったかの報告は作りません。",
+      "クローラーはスキーマとパーティションを登録するもので、重複行の数や欠損率は記録しません。",
+      "プロファイルの結果に重複行の数、欠損数、値の分布が含まれ、整合性の調査に使えます。"
+    ],
+    "services": ["AWS Glue DataBrew"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Building a profile job configuration programmatically in AWS Glue DataBrew", "url": "https://docs.aws.amazon.com/databrew/latest/dg/profile.configuration.html" },
+      { "title": "Creating a profile job using a ruleset", "url": "https://docs.aws.amazon.com/databrew/latest/dg/profile.data-quality-ruleset-create-a-profile-job.html" }
+    ]
+  },
+  {
+    "id": "D3-024",
+    "domain": 3,
+    "task": "3.4",
+    "type": "single",
+    "question": "あるデータエンジニアは、AWS Glue DataBrew のプロジェクトで売上データを探索しています。元のファイルは地域ごとに並んでおり、プロジェクトのサンプルが先頭から取った行になっているため、画面には 1 つの地域のデータしか出てきません。データ全体の傾向を偏りなく反映したサンプルで対話的に変換を試したい場合、最も適した対応はどれですか。",
+    "options": [
+      "サンプルの取り方を、末尾から取った行に変える。",
+      "サンプルの取り方を先頭からのままにして、サンプルの行数を少し増やす。",
+      "サンプルの取り方を、ランダムに取った行に変える。",
+      "プロジェクトのサンプルをやめ、全行を対象にしたプロファイルジョブの結果だけを見て変換を決める。"
+    ],
+    "answer": [2],
+    "explanation": "DataBrew のプロジェクトのサンプルは、先頭の n 行(FIRST_N)、末尾の n 行(LAST_N)、ランダムな n 行(RANDOM)から選べます。データが地域や日付の順に並んでいると、先頭や末尾から取ったサンプルは一部の地域に偏ります。ランダムに抽出すれば、どの行も同じように選ばれる単純無作為抽出になり、全体の傾向を偏りなく反映しやすくなります。なお、少数の地域の割合を確実に保ちたいときは、地域ごとに一定割合を抽出する層化抽出という考え方もあります。",
+    "optionNotes": [
+      "末尾から取っても、並び順の最後の地域に偏るだけです。",
+      "先頭から取る限り、行数を少し増やしても並び順の偏りは解消しません。",
+      "ランダムな抽出に変えれば、並び順に関係なく全体を反映したサンプルになります。",
+      "プロファイルは全体の統計を把握するには役に立ちますが、変換を対話的に試すプロジェクトの代わりにはなりません。"
+    ],
+    "services": ["AWS Glue DataBrew"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "AWS::DataBrew::Project Sample", "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-databrew-project-sample.html" }
+    ]
+  },
+  {
+    "id": "D3-025",
+    "domain": 3,
+    "task": "3.4",
+    "type": "multi",
+    "question": "ある企業の AWS Glue の Spark ジョブは、注文データとクリックデータを product_id で結合しています。一部の人気商品にデータが集中しており、1 つのタスクだけが何時間も終わらず、ジョブのオブザーバビリティメトリクスの glue.driver.skewness.job が高い値を示しています。調べると、以前の担当者がジョブのパラメータで spark.sql.adaptive.enabled=false を設定していました。データの偏りによる遅延を減らす方法の組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "ワーカー数を 2 倍にする。",
+      "spark.sql.adaptive.enabled の設定を外すか true にし、spark.sql.adaptive.skewJoin.enabled も true にして、アダプティブクエリ実行のスキュー結合の最適化を使う。",
+      "結合の前に coalesce(1) でパーティションを 1 つにまとめる。",
+      "大きいほうのデータの product_id にランダムな接尾辞を付けて分散させ(ソルティング)、小さいほうのデータは接尾辞の数だけ複製してから結合する。",
+      "結合の前に product_id で repartition する。"
+    ],
+    "answer": [1, 3],
+    "explanation": "データスキューは、特定のキーに行が集中し、そのキーを受け持つタスクだけが長く走る状態です。アダプティブクエリ実行(AQE)は実行時の統計で計画を最適化する Spark の機能で、スキュー結合の最適化はシャッフルの統計から偏ったパーティションを見つけて小さく分割して結合します。AWS Glue 4.0 以降では既定で有効ですが、このジョブでは無効にされているため戻します。ソルティングは、偏ったキーにランダムな値を付けて複数のパーティションに散らす手法で、コード側で偏りを解消できます。",
+    "optionNotes": [
+      "偏ったキーは 1 つのタスクに集まったままなので、ワーカーを増やしてもそのタスクは速くなりません。",
+      "AQE のスキュー結合の最適化で、偏ったパーティションが実行時に分割されます。",
+      "パーティションを 1 つにすると並列性がなくなり、さらに遅くなります。",
+      "ソルティングで人気商品の行が複数のパーティションに散り、1 つのタスクへの集中がなくなります。",
+      "同じ product_id は同じパーティションに入るため、product_id での再分割では偏りは解消しません。"
+    ],
+    "services": ["AWS Glue"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Key topics in Apache Spark", "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/tuning-aws-glue-for-apache-spark/key-topics-apache-spark.html" },
+      { "title": "Monitoring with AWS Glue Observability metrics", "url": "https://docs.aws.amazon.com/glue/latest/dg/monitor-observability.html" }
+    ]
+  },
+  {
+    "id": "D3-026",
+    "domain": 3,
+    "task": "3.4",
+    "type": "single",
+    "question": "ある企業の AWS Glue ETL ジョブは、取引先から毎日届くファイルを処理します。通常の行数は日々増えており、取引先の不具合で行数が急に減ったときはジョブを止めたいと考えています。事業の成長に合わせてしきい値を人が直し続けることは避けたいと考えています。最も適した方法はどれですか。",
+    "options": [
+      "Evaluate Data Quality 変換に、直近の実行結果と比べる動的ルール RowCount > avg(last(7)) * 0.7 を DQDL で書き、ルールに失敗したらジョブを失敗させる。",
+      "Evaluate Data Quality 変換に固定のルール RowCount > 700000 を書き、四半期ごとに値を見直す。",
+      "AWS Glue DataBrew のルールセットに行数の固定のしきい値を定義し、ETL ジョブの後にプロファイルジョブを実行する。",
+      "S3 バケットの BucketSizeBytes メトリクスに CloudWatch アラームを設定する。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「しきい値を人が直し続けない」です。DQDL の動的ルールは、last() で同じデータセットの過去の実行で得たメトリクスを参照し、今回の値と比べます。last(k) で k 件を参照する場合は avg などの集計関数で 1 つの値にまとめる必要があり、RowCount > avg(last(7)) * 0.7 は直近 7 回の平均の 7 割を下回ると失敗します。しきい値が実績に合わせて動くので、行数が増えても見直しは要りません。動的ルールは AWS Glue ETL で使え、Data Catalog の評価では使えない点に注意します。",
+    "optionNotes": [
+      "動的ルールは過去の実行結果に合わせてしきい値が変わるため、人が直し続ける必要がありません。",
+      "固定のしきい値は、行数が増えると急減を見逃すようになり、定期的な見直しも必要です。",
+      "固定のしきい値で見直しが必要なうえ、ジョブの後の検証なので不正なデータを処理してから気づくことになります。",
+      "バケット全体の容量は 1 日 1 回のメトリクスで、その日のファイルの行数の急減を検知できません。"
+    ],
+    "services": ["AWS Glue"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Data Quality Definition Language (DQDL) reference", "url": "https://docs.aws.amazon.com/glue/latest/dg/dqdl.html" },
+      { "title": "RowCount", "url": "https://docs.aws.amazon.com/glue/latest/dg/dqdl-rule-types-RowCount.html" }
+    ]
+  }
+]

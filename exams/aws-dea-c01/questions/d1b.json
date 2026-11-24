@@ -1,0 +1,545 @@
+[
+  {
+    "id": "D1-022",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、毎晩 Amazon S3 バケットに約 50 万個の小さな JSON ファイルを受け取ります。データエンジニアは、各ファイルを AWS Lambda 関数で検証して変換するワークフローを AWS Step Functions で作っています。数百のファイルを同時に処理し、ファイルごとの処理を別々の実行履歴で追跡できるようにする必要があります。最小の運用負荷でこれらの要件を満たす方法はどれですか。",
+    "options": [
+      "Map ステートをインラインモードで使い、前のステップで取得した S3 のオブジェクト一覧を配列として渡す。",
+      "Parallel ステートに Lambda 関数を呼ぶブランチを数百個並べ、ファイルを分担して処理させる。",
+      "Map ステートを分散モードで使い、S3 のプレフィックスを項目のソースに指定して、MaxConcurrency で同時実行数を設定する。",
+      "Lambda 関数の中でファイルの一覧を取り、自分自身を非同期に再帰呼び出しして処理を広げる。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「50 万個」「数百を同時に」「ファイルごとに別々の実行履歴」です。Map ステートの分散モード (Distributed Map) は、S3 のオブジェクトや CSV、JSON ファイルを直接入力として読み、各反復を子ワークフローの実行として動かします。最大 10,000 の子ワークフローを並列に実行でき、子の実行ごとに親とは別の実行履歴を持ちます。インラインモードは同時実行が 40 程度までで、入力の 256 KB と実行履歴の 25,000 イベントの上限にも当たるため、この規模には向きません。分散モードは MaxConcurrency で同時実行数を抑えられるので、下流の負荷も調整できます。",
+    "optionNotes": [
+      "インラインモードは並列数が 40 程度までで、50 万件の配列は入力サイズと実行履歴の上限に当たります。",
+      "Parallel ステートはブランチが固定で、ファイル数に応じて動的に広げられません。数百のブランチを書くのは運用負荷も大きくなります。",
+      "正解です。分散モードは S3 を直接読み、各反復を独立した履歴を持つ子ワークフローとして高い並列度で動かせます。",
+      "再帰呼び出しは制御が難しく、ファイルごとの実行履歴も残りません。誤って無限に呼び出す危険もあります。"
+    ],
+    "services": ["AWS Step Functions", "AWS Lambda", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using Map state in Distributed mode for large-scale parallel workloads in Step Functions", "url": "https://docs.aws.amazon.com/step-functions/latest/dg/state-map-distributed.html" }
+    ]
+  },
+  {
+    "id": "D1-023",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、AWS Glue クローラーで Amazon S3 の生データを AWS Glue Data Catalog に登録し、その後 AWS Glue ETL ジョブで Parquet 形式に変換しています。今は担当者がクローラーの完了を確かめてから手でジョブを開始しています。クローラーが成功したときだけジョブを自動で開始し、両者を一つの単位として監視したいと考えています。追加のサービスを使わず、最小の運用負荷でこれらの要件を満たす方法はどれですか。",
+    "options": [
+      "AWS Glue ワークフローを作り、クローラーを開始するトリガーと、クローラーの SUCCEEDED を監視してジョブを開始する条件付きトリガーを置く。",
+      "クローラーとジョブにそれぞれスケジュールを設定し、ジョブの開始時刻をクローラーより 30 分遅らせる。",
+      "Amazon MWAA 環境を作り、クローラーとジョブを順に実行する DAG を書く。",
+      "S3 イベント通知で AWS Lambda 関数を呼び、関数の中でクローラーの状態を 1 分ごとに確認してからジョブを開始する。"
+    ],
+    "answer": [0],
+    "explanation": "要件の語句は「クローラーが成功したときだけ」「一つの単位として監視」「追加のサービスを使わず」です。AWS Glue のトリガーには、スケジュール、オンデマンド、条件付きの 3 種類があります。条件付きトリガーは、監視するジョブやクローラーが成功、失敗、タイムアウトなどの指定した状態で終わったときに発火します。AWS Glue ワークフローにクローラー、トリガー、ジョブをまとめると、依存関係をグラフで確かめられ、実行状況も一か所で追えます。Glue の中だけで完結するので、ほかのオーケストレーションの仕組みを足す必要がありません。",
+    "optionNotes": [
+      "正解です。条件付きトリガーがクローラーの SUCCEEDED を待ってジョブを開始し、ワークフローで全体を監視できます。",
+      "時刻をずらすだけでは、クローラーが長引いたときや失敗したときにもジョブが動いてしまいます。",
+      "MWAA でも実現できますが、環境の作成と DAG の管理が増え、「追加のサービスを使わず」に反します。",
+      "Lambda 関数でのポーリングは自作のコードが増え、関数の最大実行時間の制約もあります。"
+    ],
+    "services": ["AWS Glue", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "AWS Glue triggers", "url": "https://docs.aws.amazon.com/glue/latest/dg/about-triggers.html" },
+      { "title": "Overview of workflows in AWS Glue", "url": "https://docs.aws.amazon.com/glue/latest/dg/workflows_overview.html" }
+    ]
+  },
+  {
+    "id": "D1-024",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、オンプレミスのサーバーで Apache Airflow を動かし、200 本以上の DAG を運用しています。DAG は Python で書かれ、追加の Python ライブラリと自作のプラグインに依存しています。企業は Airflow サーバーのパッチ適用やスケーリングの管理をやめたいと考えていますが、DAG の書き直しは最小限にしたいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "すべての DAG を Amazon States Language に書き換え、AWS Step Functions のステートマシンとして動かす。",
+      "Amazon EC2 の Auto Scaling グループに Airflow をインストールし、DAG を Amazon EFS で共有する。",
+      "各 DAG のタスクを AWS Glue ワークフローのトリガーとジョブに置き換える。",
+      "Amazon MWAA の環境を作り、DAG を S3 バケットの dags フォルダに、依存ライブラリを requirements.txt に、プラグインを plugins.zip に置く。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「サーバーの管理をやめたい」と「DAG の書き直しは最小限」の両立です。Amazon Managed Workflows for Apache Airflow (Amazon MWAA) は Airflow のマネージドサービスで、既存の DAG をそのまま動かせます。DAG のファイルを環境に紐づいた S3 バケットの dags フォルダに置くと、MWAA がスケジューラーとワーカーに自動で同期します。追加の Python ライブラリは requirements.txt、自作のプラグインは plugins.zip で配布できます。Step Functions や Glue ワークフローに移すと、200 本以上の DAG を作り直すことになり、要件に合いません。",
+    "optionNotes": [
+      "Step Functions はサーバーレスですが、すべての DAG を別の言語で書き直す必要があります。",
+      "DAG は動きますが、EC2 上の Airflow のパッチ適用やスケーリングを引き続き自分で管理することになります。",
+      "Glue ワークフローは Airflow の DAG と互換性がなく、全面的な作り直しになります。",
+      "正解です。MWAA なら既存の DAG、依存ライブラリ、プラグインをほぼそのまま持ち込み、基盤の管理を AWS に任せられます。"
+    ],
+    "services": ["Amazon MWAA", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Adding or updating DAGs", "url": "https://docs.aws.amazon.com/mwaa/latest/userguide/configuring-dag-folder.html" },
+      { "title": "Managing Python dependencies in requirements.txt", "url": "https://docs.aws.amazon.com/mwaa/latest/userguide/best-practices-dependencies.html" }
+    ]
+  },
+  {
+    "id": "D1-025",
+    "domain": 1,
+    "task": "1.3",
+    "type": "multi",
+    "question": "ある企業は、AWS Step Functions のステートマシンで AWS Glue ジョブと AWS Lambda 関数を順に実行しています。Lambda 関数は外部の API を呼ぶため、ときどき一時的なエラーで失敗します。データエンジニアは、一時的なエラーは間隔を広げながら自動で再試行し、再試行しても失敗したときは運用チームにメールで知らせたいと考えています。これらの要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "Lambda 関数を呼ぶ Task ステートに Retry フィールドを付け、IntervalSeconds、MaxAttempts、BackoffRate を設定する。",
+      "ステートマシンのタイプを Express に変え、失敗した実行が自動で再実行されるようにする。",
+      "Lambda 関数の予約済み同時実行数を 0 にし、エラーが出たときに呼び出しを止める。",
+      "Task ステートに Catch フィールドを付け、失敗時に Amazon SNS の Publish を呼ぶステートへ遷移させる。トピックには運用チームのメールアドレスをサブスクライブしておく。",
+      "Lambda 関数のタイムアウトを最大の 30 分に延ばし、外部 API の応答を待たせる。"
+    ],
+    "answer": [0, 3],
+    "explanation": "Step Functions は Task ステートに Retry と Catch を書いてエラーを扱います。Retry の IntervalSeconds は最初の再試行までの待ち時間、MaxAttempts は再試行の回数、BackoffRate は待ち時間を広げる倍率で、指数バックオフで一時的なエラーを吸収できます。Retry を使い切っても失敗したときは Catch が受け取り、指定した次のステートに遷移します。そこで Amazon SNS の Publish を呼ぶと、メールでサブスクライブした運用チームに通知が届きます。「間隔を広げながら再試行」が Retry と BackoffRate、「失敗したら知らせる」が Catch と SNS に対応します。",
+    "optionNotes": [
+      "正解です。Retry と BackoffRate で、待ち時間を広げながら決まった回数だけ自動で再試行できます。",
+      "Express ワークフローは少なくとも 1 回の実行モデルですが、失敗した実行を自動で再試行する仕組みではありません。",
+      "同時実行数を 0 にすると関数がまったく呼べなくなり、再試行も通知もできません。",
+      "正解です。Catch で失敗を捕まえて SNS に発行すれば、メールで運用チームに知らせられます。",
+      "タイムアウトを延ばしても、API が返す一時的なエラーには対処できず、通知も行われません。"
+    ],
+    "services": ["AWS Step Functions", "AWS Lambda", "Amazon SNS", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Handling errors in Step Functions workflows", "url": "https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html" }
+    ]
+  },
+  {
+    "id": "D1-026",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、夜間のバッチ処理を AWS Step Functions で組んでいます。ワークフローは AWS Glue ジョブの完了を待つステップを含み、全体で 2〜3 時間かかります。監査のため、各ステップが二重に実行されないことと、実行履歴を Step Functions の API やコンソールで後から確認できることが求められています。どのワークフローのタイプと統合パターンを選ぶべきですか。",
+    "options": [
+      "Express ワークフローで、AWS Glue の StartJobRun をリクエストレスポンスのパターンで呼ぶ。",
+      "Standard ワークフローで、AWS Glue の StartJobRun をジョブの実行 (.sync) パターンで呼ぶ。",
+      "Express ワークフローで、AWS Glue の StartJobRun をジョブの実行 (.sync) パターンで呼ぶ。",
+      "Standard ワークフローで、StartJobRun をリクエストレスポンスで呼び、Wait ステートで 3 時間待ってから次のステップに進む。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「2〜3 時間」「二重に実行されない」「実行履歴を後から確認」です。Standard ワークフローは最長 1 年まで動き、タスクとステートを 1 回だけ実行するモデルで、実行履歴を Step Functions の API で完了後 90 日まで取得できます。Express ワークフローは最長 5 分で、少なくとも 1 回の実行モデルのため、要件に合いません。Express は .sync と .waitForTaskToken のパターンにも対応していません。Glue の最適化された統合は .sync パターンに対応しており、ジョブが終わるまでステートマシンが待ってから次に進みます。",
+    "optionNotes": [
+      "Express は最長 5 分で、2〜3 時間の処理を収められず、実行も少なくとも 1 回のモデルです。",
+      "正解です。Standard は長時間の処理と 1 回だけの実行に向き、.sync で Glue ジョブの完了を待てます。",
+      "Express は最長 5 分で、.sync パターンにも対応していません。",
+      "固定の待ち時間では、ジョブが早く終わっても無駄に待ち、長引くと完了前に次へ進んでしまいます。"
+    ],
+    "services": ["AWS Step Functions", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Start an AWS Glue job with Step Functions", "url": "https://docs.aws.amazon.com/step-functions/latest/dg/connect-glue.html" },
+      { "title": "Choosing workflow type in Step Functions", "url": "https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html" },
+      { "title": "Discover service integration patterns in Step Functions", "url": "https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html" }
+    ]
+  },
+  {
+    "id": "D1-027",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、スケジュールで動く AWS Glue ETL ジョブを 30 本運用しています。どのジョブでも、実行が失敗またはタイムアウトしたときに、データチームへ数分以内にメールで知らせる必要があります。ジョブのスクリプトは変更したくありません。最小の運用負荷でこれらの要件を満たす方法はどれですか。",
+    "options": [
+      "各ジョブのスクリプトの最後に、Amazon SNS へ通知を送る処理を追加する。",
+      "AWS CloudTrail のログを Amazon Athena で 5 分ごとに検索する AWS Lambda 関数を作り、失敗を見つけたらメールを送る。",
+      "Amazon EventBridge のルールで、source が aws.glue、detail-type が Glue Job State Change、state が FAILED と TIMEOUT のイベントを捕まえ、Amazon SNS トピックに送る。",
+      "ジョブの失敗を Amazon SQS キューに書き込ませ、データチームにキューを定期的に確認してもらう。"
+    ],
+    "answer": [2],
+    "explanation": "AWS Glue はジョブの状態の変化を Amazon EventBridge にイベントとして送ります。detail-type が Glue Job State Change のイベントは、SUCCEEDED、FAILED、TIMEOUT、STOPPED のときに出ます。イベントパターンで source を aws.glue、state を FAILED と TIMEOUT に絞ったルールを作り、ターゲットに Amazon SNS トピックを指定すれば、メールでサブスクライブしたデータチームにほぼリアルタイムで届きます。ルールは 1 つで 30 本すべてのジョブに効き、スクリプトに手を入れる必要もありません。「スクリプトを変更しない」「最小の運用負荷」の両方を満たします。",
+    "optionNotes": [
+      "スクリプトの変更が必要で、ジョブがスクリプトに到達する前に失敗したときやタイムアウトしたときには通知できません。",
+      "自作の検索処理が必要で遅延も大きくなります。ジョブの失敗は CloudTrail よりも EventBridge のイベントで直接受け取れます。",
+      "正解です。1 つの EventBridge ルールで全ジョブの失敗とタイムアウトを捕まえ、SNS でメールを送れます。",
+      "SQS は人に知らせる仕組みではなく、定期的な確認では数分以内の通知を満たせません。"
+    ],
+    "services": ["AWS Glue", "Amazon EventBridge", "Amazon SNS"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Automating AWS Glue with EventBridge", "url": "https://docs.aws.amazon.com/glue/latest/dg/automating-awsglue-with-cloudwatch-events.html" }
+    ]
+  },
+  {
+    "id": "D1-028",
+    "domain": 1,
+    "task": "1.3",
+    "type": "multi",
+    "question": "ある企業では、Amazon S3 にファイルが置かれるたびに S3 イベント通知で AWS Lambda 関数を直接呼び、Amazon RDS for PostgreSQL に書き込んでいます。月末にはファイルが集中して Lambda 関数のエラーが増え、一部のファイルが処理されないままになっています。データエンジニアは、急な増加を吸収し、繰り返し失敗するファイルを後から調べて再処理できるようにしたいと考えています。これらの要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "S3 イベント通知を無効にし、Lambda 関数を 1 分ごとのスケジュールで動かしてバケット全体を一覧させる。",
+      "S3 イベント通知の送信先を Amazon SQS キューに変え、そのキューを Lambda 関数のイベントソースにする。",
+      "Lambda 関数のメモリを最大の 10,240 MB にして、1 回の処理を速くする。",
+      "Lambda 関数を AWS Step Functions の Express ワークフローに置き換える。",
+      "SQS キューにデッドレターキューを設定し、maxReceiveCount を超えて処理に失敗したメッセージを移す。"
+    ],
+    "answer": [1, 4],
+    "explanation": "急な増加を吸収するには、生産者と消費者の間に Amazon SQS キューを挟んで疎結合にします。メッセージはキューに保持され、Lambda 関数はイベントソースマッピングで処理できる速さで読み出すため、取りこぼしが減ります。繰り返し失敗するメッセージは、キューのリドライブポリシーで maxReceiveCount を決め、その回数を超えたらデッドレターキューへ移します。デッドレターキューに残ったメッセージを調べて原因を直し、元のキューへ戻せば再処理できます。「吸収」がキュー、「後から調べて再処理」がデッドレターキューに対応します。",
+    "optionNotes": [
+      "毎分の一覧は対象が増えるほど遅く高くなり、失敗したファイルを追跡する仕組みもありません。",
+      "正解です。SQS が急な増加をバッファし、Lambda 関数は自分の速さで処理できます。",
+      "処理が速くなっても、集中時のエラーや失敗したファイルの保持には対処できません。",
+      "Express ワークフローに替えても、バッファや失敗したメッセージの保管の仕組みは得られません。",
+      "正解です。デッドレターキューに失敗したメッセージが残るので、後から調べて再処理できます。"
+    ],
+    "services": ["Amazon SQS", "AWS Lambda", "Amazon S3", "Amazon RDS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using dead-letter queues in Amazon SQS", "url": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" }
+    ]
+  },
+  {
+    "id": "D1-029",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業の夜間ワークフローは AWS Step Functions の Standard ワークフローで動いています。途中で、オンプレミスのデータ品質チェックシステムに処理を依頼し、その結果を受け取ってから次のステップに進む必要があります。チェックには数分から数時間かかり、オンプレミスのシステムは処理を終えると HTTPS で AWS の API を呼べます。状態を問い合わせる処理を書かずに、最小の運用負荷でこの要件を満たす方法はどれですか。",
+    "options": [
+      "Task ステートで .waitForTaskToken を使い、タスクトークンを Amazon SQS 経由でオンプレミスのシステムに渡す。システムは処理を終えたら、トークンを付けて SendTaskSuccess または SendTaskFailure を呼ぶ。",
+      "Wait ステートと Choice ステートでループを組み、AWS Lambda 関数で 5 分ごとにオンプレミスのシステムの状態を問い合わせる。",
+      "ワークフローを Express タイプに作り直し、オンプレミスのシステムの応答を待つ。",
+      "オンプレミスのシステムが処理を終えたら StartExecution を呼び、ワークフローの後半を別のステートマシンとして新しく実行する。"
+    ],
+    "answer": [0],
+    "explanation": "外部のシステムや人の作業を待つときは、コールバックのパターン (.waitForTaskToken) を使います。Task ステートはタスクトークンを外部へ渡したあと一時停止し、そのトークンを付けた SendTaskSuccess か SendTaskFailure が呼ばれるまで待ちます。Standard ワークフローなら最長 1 年まで待てるので、数時間のチェックにも対応できます。待っている間に料金のかかる問い合わせ処理は不要です。Express ワークフローはこのパターンに対応していません。「問い合わせる処理を書かずに」がコールバックを選ぶ決め手です。",
+    "optionNotes": [
+      "正解です。タスクトークンを渡して待ち、外部のシステムからの SendTaskSuccess で再開できます。",
+      "動きはしますが、まさに避けたい問い合わせの処理を書くことになり、状態遷移も増えます。",
+      "Express は最長 5 分で、.waitForTaskToken のパターンにも対応していません。",
+      "ワークフローが 2 つに分かれ、全体の実行状況や失敗の追跡が難しくなります。"
+    ],
+    "services": ["AWS Step Functions", "Amazon SQS"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Discover service integration patterns in Step Functions", "url": "https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html" }
+    ]
+  },
+  {
+    "id": "D1-030",
+    "domain": 1,
+    "task": "1.3",
+    "type": "single",
+    "question": "ある企業は、ニューヨークの現地時間で平日の午前 5 時に AWS Step Functions のデータ集計ワークフローを開始する必要があります。今は夏時間の切り替えのたびにスケジュールを手で直しており、この運用をやめたいと考えています。最小の運用負荷でこの要件を満たす方法はどれですか。",
+    "options": [
+      "Amazon EventBridge のスケジュールされたルールに UTC の cron 式を設定し、夏時間の切り替えに合わせて年に 2 回 cron 式を更新する。",
+      "Amazon EC2 インスタンスの crontab から、AWS CLI で StartExecution を呼ぶ。",
+      "AWS Lambda 関数を 1 時間ごとに動かし、ニューヨークの現在時刻を計算して午前 5 時のときだけ StartExecution を呼ぶ。",
+      "Amazon EventBridge Scheduler で America/New_York のタイムゾーンを指定した cron 式のスケジュールを作り、ターゲットに Step Functions の StartExecution を設定する。"
+    ],
+    "answer": [3],
+    "explanation": "Amazon EventBridge Scheduler は、スケジュールにタイムゾーンを指定でき、そのタイムゾーンの夏時間に合わせて自動で調整します。America/New_York を指定して cron 式を書けば、夏時間の切り替え後も現地時間の午前 5 時に動きます。Step Functions の StartExecution はテンプレート化されたターゲットとして用意されており、ステートマシンの ARN と入力を指定するだけで呼べます。EventBridge のスケジュールされたルールは UTC で評価されるため、夏時間に合わせるには手で直す必要が残ります。「手で直す運用をやめたい」が Scheduler を選ぶ決め手です。",
+    "optionNotes": [
+      "スケジュールされたルールは UTC で動くため、年 2 回の手作業がなくなりません。",
+      "EC2 インスタンスの管理が増え、インスタンスが止まるとワークフローも開始されません。",
+      "自作の時刻判定が必要で、毎時の無駄な呼び出しも発生します。",
+      "正解です。Scheduler はタイムゾーンを指定でき、夏時間の調整を自動で行い、Step Functions を直接開始できます。"
+    ],
+    "services": ["Amazon EventBridge", "AWS Step Functions"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Schedule types in EventBridge Scheduler", "url": "https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" },
+      { "title": "Using templated targets in EventBridge Scheduler", "url": "https://docs.aws.amazon.com/scheduler/latest/UserGuide/managing-targets-templated.html" }
+    ]
+  },
+  {
+    "id": "D1-031",
+    "domain": 1,
+    "task": "1.3",
+    "type": "multi",
+    "question": "ある企業は、AWS Step Functions の Standard ワークフローで、データの抽出、5 つの AWS Glue ジョブによる変換、Amazon Redshift への読み込みを順に実行しています。ある晩、4 番目の Glue ジョブが一時的な原因で失敗しました。企業は、成功した前半のステップを実行し直さずに、失敗したステップから再開したいと考えています。また、失敗したときは、運用チームへのメールと、チケット管理システムが読む Amazon SQS キューの両方に同じ内容を届けたいと考えています。これらの要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "同じ入力で StartExecution を呼び、新しい実行を最初から始める。",
+      "失敗した実行に対して RedriveExecution を呼び、失敗したステップから再開する。",
+      "Amazon SNS トピックを作り、メールアドレスと SQS キューの両方をサブスクライブして、失敗したときにトピックへ発行する。",
+      "失敗したときに SQS キューへメッセージを送り、運用チームの各メンバーにもそのキューを直接ポーリングさせる。",
+      "ワークフローを Express タイプで作り直し、失敗したときに自動でリドライブされるようにする。"
+    ],
+    "answer": [1, 2],
+    "explanation": "Step Functions のリドライブ (RedriveExecution) は、Standard ワークフローの失敗、中止、タイムアウトした実行を、失敗したステップから同じ入力で再開します。成功したステップの結果と履歴は保たれ、実行し直されません。対象は完了から 14 日以内の実行です。同じ内容を複数の受け手に届けるには、Amazon SNS のファンアウトを使います。1 つのトピックにメールと SQS キューをサブスクライブすれば、1 回の発行で両方に届きます。「前半を実行し直さない」がリドライブ、「両方に同じ内容」が SNS のファンアウトに対応します。",
+    "optionNotes": [
+      "最初から実行し直すと、成功した抽出や前半の Glue ジョブまでもう一度動いてしまいます。",
+      "正解です。リドライブは失敗したステップから再開し、成功したステップは実行し直しません。",
+      "正解です。SNS トピックにメールと SQS をサブスクライブすれば、同じ通知を両方に配れます。",
+      "SQS のメッセージは 1 つの消費者が受け取ると削除されるため、複数の人とシステムに同じ内容を届けられません。",
+      "RedriveExecution は Standard ワークフロー向けで、Express の実行には使えません。"
+    ],
+    "services": ["AWS Step Functions", "Amazon SNS", "Amazon SQS", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "RedriveExecution", "url": "https://docs.aws.amazon.com/step-functions/latest/apireference/API_RedriveExecution.html" },
+      { "title": "Fanout Amazon SNS notifications to Amazon SQS queues for asynchronous processing", "url": "https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html" }
+    ]
+  },
+  {
+    "id": "D1-032",
+    "domain": 1,
+    "task": "1.4",
+    "type": "single",
+    "question": "ある企業は、Amazon S3 にファイルが置かれるたびに AWS Lambda 関数を非同期に呼び、Amazon RDS for MySQL にデータを書き込んでいます。大量のファイルが一度に届くと関数が数百まで同時に実行され、データベースの接続数の上限を超えてエラーになります。この関数からのデータベースへの同時接続を 50 以下に抑える必要があります。最も簡単にこの要件を満たす方法はどれですか。",
+    "options": [
+      "関数にプロビジョニングされた同時実行を 50 設定する。",
+      "関数の予約済み同時実行数を 50 に設定する。",
+      "関数のメモリを増やし、1 回の処理時間を短くする。",
+      "関数のタイムアウトを延ばし、データベースに接続できるまで待たせる。"
+    ],
+    "answer": [1],
+    "explanation": "予約済み同時実行数 (reserved concurrency) は、アカウントの同時実行数の一部を関数に割り当て、その値を関数の同時実行の上限にもします。50 に設定すれば関数は 50 より多く同時に動かないため、データベースのような下流の資源を守れます。上限を超えた非同期の呼び出しはスロットリングされ、Lambda が一定時間再試行するので、すぐに失われることはありません。プロビジョニングされた同時実行は、あらかじめ初期化した実行環境を用意してコールドスタートを減らす機能で、同時実行の上限にはなりません。予約済み同時実行数の設定に追加の料金はかかりません。",
+    "optionNotes": [
+      "プロビジョニングされた同時実行は初期化済みの環境を用意する機能で、それを超えた分も通常どおりスケールします。",
+      "正解です。予約済み同時実行数は関数の同時実行の上限となり、下流のデータベースを守れます。",
+      "処理時間が短くなっても、ファイルが集中すれば同時実行数は増え続けます。",
+      "待たせる時間が延びるだけで、同時接続の数は抑えられません。"
+    ],
+    "services": ["AWS Lambda", "Amazon RDS", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Configuring reserved concurrency for a function", "url": "https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html" }
+    ]
+  },
+  {
+    "id": "D1-033",
+    "domain": 1,
+    "task": "1.4",
+    "type": "multi",
+    "question": "ある企業の AWS Lambda 関数は、受け取ったファイルを解凍し、CPU を多く使う変換をしてから Amazon S3 に書き出します。メモリ設定は 512 MB で、1 回の実行に約 40 秒かかり、メモリの使用量は 200 MB 程度です。この関数は社内のダッシュボードから同期的に呼ばれることもあり、しばらく呼ばれなかった後の呼び出しで数秒の遅延が出ることが問題になっています。実行時間を短くし、この遅延をなくす方法の組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "関数のメモリ設定を増やし、比例して割り当てられる CPU を増やす。",
+      "エフェメラルストレージ (/tmp) を 10,240 MB に増やす。",
+      "想定される同時実行数に合わせて、プロビジョニングされた同時実行を設定する。",
+      "予約済み同時実行数を設定し、ほかの関数に同時実行を取られないようにする。",
+      "関数のタイムアウトを短くし、遅い実行を早めに打ち切る。"
+    ],
+    "answer": [0, 2],
+    "explanation": "Lambda は設定したメモリに比例して CPU を割り当てます。1,769 MB で 1 vCPU 相当になり、メモリは 128 MB から 10,240 MB まで設定できます。メモリを使い切っていなくても、CPU を多く使う処理ならメモリを増やすと実行時間が短くなります。しばらく呼ばれなかった後の遅延はコールドスタートによるもので、プロビジョニングされた同時実行で初期化済みの実行環境を用意しておくと防げます。「CPU を多く使う」がメモリの増加、「呼ばれなかった後の遅延」がプロビジョニングされた同時実行の決め手です。",
+    "optionNotes": [
+      "正解です。メモリを増やすと CPU も比例して増え、CPU を多く使う処理の実行時間が短くなります。",
+      "/tmp の容量は CPU の性能に関係せず、200 MB 程度の処理では容量も足りています。",
+      "正解です。初期化済みの実行環境が待機するため、コールドスタートの遅延を避けられます。",
+      "予約済み同時実行数は同時実行の枠を確保するもので、コールドスタートはなくなりません。",
+      "打ち切ると処理が完了しなくなるだけで、実行時間そのものは短くなりません。"
+    ],
+    "services": ["AWS Lambda"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Configure Lambda function memory", "url": "https://docs.aws.amazon.com/lambda/latest/dg/configuration-memory.html" },
+      { "title": "Configuring provisioned concurrency for a function", "url": "https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html" }
+    ]
+  },
+  {
+    "id": "D1-034",
+    "domain": 1,
+    "task": "1.4",
+    "type": "single",
+    "question": "ある企業は、AWS Lambda 関数で受け取ったデータを、約 8 GB の参照データ (辞書ファイル群) と突き合わせて変換しています。参照データは毎週更新され、複数の関数から同じものを読みます。呼び出しのたびに Amazon S3 からダウンロードすると時間がかかり、デプロイパッケージにも収まりません。最も適したストレージの使い方はどれですか。",
+    "options": [
+      "参照データを Amazon EFS に置き、関数を VPC に接続して、EFS のアクセスポイントを /mnt 配下のパスにマウントする。",
+      "参照データを Lambda レイヤーに入れ、各関数に追加する。",
+      "エフェメラルストレージ (/tmp) を 10,240 MB にし、参照データを /tmp に置いてすべての関数で共有する。",
+      "参照データを Amazon EBS ボリュームに置き、各関数からボリュームをアタッチする。"
+    ],
+    "answer": [0],
+    "explanation": "Lambda 関数は Amazon EFS のファイルシステムをマウントできます。関数を EFS と同じ VPC に接続し、EFS のアクセスポイントと /mnt で始まるローカルのマウントパスを指定すると、通常のファイルとして読み書きできます。EFS は複数の関数や実行環境から同時に使えるので、毎週の更新も 1 か所で済みます。Lambda レイヤーを含むデプロイパッケージは解凍後 250 MB までで、8 GB は収まりません。/tmp は実行環境ごとの一時領域で、関数どうしでは共有できません。「複数の関数から同じもの」「大きなデータ」が EFS を選ぶ決め手です。",
+    "optionNotes": [
+      "正解です。EFS をマウントすれば、大きな参照データを複数の関数で共有し、更新も 1 か所で済みます。",
+      "関数のコードとレイヤーを合わせて解凍後 250 MB が上限で、8 GB は入りません。",
+      "/tmp は実行環境ごとに分かれた一時領域で、ほかの関数や環境とは共有されません。",
+      "Lambda 関数は EBS ボリュームをアタッチできません。"
+    ],
+    "services": ["AWS Lambda", "Amazon EFS", "Amazon VPC"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Configuring Amazon EFS file system access", "url": "https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem-efs.html" },
+      { "title": "Lambda quotas", "url": "https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" }
+    ]
+  },
+  {
+    "id": "D1-035",
+    "domain": 1,
+    "task": "1.4",
+    "type": "single",
+    "question": "ある企業は、AWS Lambda 関数、AWS Step Functions のステートマシン、Amazon DynamoDB テーブルからなるサーバーレスのデータパイプラインを、開発、ステージング、本番の各環境に同じ構成で展開したいと考えています。データエンジニアは、短い記述でこれらのリソースを定義し、ローカルでビルドして、コマンドでパッケージとデプロイを行いたいと考えています。最も適した方法はどれですか。",
+    "options": [
+      "AWS マネジメントコンソールで各環境に手作業でリソースを作り、環境ごとの差異を手順書で管理する。",
+      "AWS CLI のコマンドを並べたシェルスクリプトで、各リソースを順に作成する。",
+      "AWS SAM テンプレートに AWS::Serverless::Function、AWS::Serverless::StateMachine、AWS::Serverless::SimpleTable を定義し、sam build と sam deploy で環境ごとのパラメーターを渡してデプロイする。",
+      "Lambda 関数のコンテナイメージを Amazon ECR に置き、AWS CodeDeploy でステートマシンと DynamoDB テーブルを作成する。"
+    ],
+    "answer": [2],
+    "explanation": "AWS Serverless Application Model (AWS SAM) は、サーバーレスのリソースを短い記述で定義できる AWS CloudFormation の拡張です。AWS::Serverless::Function で Lambda 関数、AWS::Serverless::StateMachine で Step Functions、AWS::Serverless::SimpleTable で DynamoDB テーブルを定義できます。sam build でコードと依存関係をビルドし、sam deploy でパッケージを S3 に上げて CloudFormation スタックとしてデプロイします。テンプレートのパラメーターを環境ごとに変えれば、同じ構成を何度でも再現できます。手作業やスクリプトでは、環境の差異や削除の管理が難しくなります。",
+    "optionNotes": [
+      "手作業では環境ごとに差異が生まれやすく、繰り返しのデプロイにも向きません。",
+      "スクリプトは更新や削除、失敗時のロールバックを自分で書く必要があります。",
+      "正解です。SAM はサーバーレスのリソースを簡潔に定義し、sam build と sam deploy で環境ごとに再現できます。",
+      "CodeDeploy はアプリケーションの配布を担うサービスで、ステートマシンやテーブルを作成するものではありません。"
+    ],
+    "services": ["AWS SAM", "AWS Lambda", "AWS Step Functions", "Amazon DynamoDB", "AWS CloudFormation"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AWS SAM resources and properties", "url": "https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-resources-and-properties.html" }
+    ]
+  },
+  {
+    "id": "D1-036",
+    "domain": 1,
+    "task": "1.4",
+    "type": "single",
+    "question": "ある企業は、AWS Organizations の 12 のアカウントと 3 つのリージョンに、同じ構成のデータ取り込み用リソース (S3 バケット、AWS Glue のデータベース、IAM ロール) を作る必要があります。新しいアカウントが対象の組織単位 (OU) に追加されたときにも、自動で同じ構成を展開したいと考えています。テンプレートは AWS CloudFormation で書かれています。最小の運用負荷でこれらの要件を満たす方法はどれですか。",
+    "options": [
+      "アカウントとリージョンの組み合わせごとに、CloudFormation スタックを手でデプロイする。",
+      "サービスマネージド型のアクセス許可で CloudFormation StackSets を作り、対象の OU とリージョンを指定して自動デプロイを有効にする。",
+      "AWS CDK アプリを作り、各アカウントの認証情報で cdk deploy を順に実行するスクリプトを書く。",
+      "AWS Config のルールでリソースが無いアカウントを検出し、見つかったら手でスタックを作る。"
+    ],
+    "answer": [1],
+    "explanation": "AWS CloudFormation StackSets は、1 つのテンプレートから複数のアカウントとリージョンにスタックを 1 回の操作で作成、更新、削除できます。サービスマネージド型のアクセス許可を使うと AWS Organizations と連携し、OU を対象に指定できます。自動デプロイを有効にすると、OU に新しいアカウントが加わったときに、あらかじめ決めたリージョンへ自動でスタックが作られます。36 の組み合わせを手やスクリプトで回す方法と比べて、運用の手間が小さく、構成のずれも起きにくくなります。「新しいアカウントにも自動で」が StackSets の自動デプロイを選ぶ決め手です。",
+    "optionNotes": [
+      "36 の組み合わせを手で扱うことになり、新しいアカウントへの展開も自動になりません。",
+      "正解です。StackSets は複数のアカウントとリージョンに一括で展開し、OU に加わったアカウントにも自動で展開できます。",
+      "動きはしますが、認証情報の管理とスクリプトの保守が必要で、新しいアカウントへの自動展開もありません。",
+      "検出はできても作成は手作業で、運用負荷が大きくなります。"
+    ],
+    "services": ["AWS CloudFormation", "AWS Glue", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Managing stacks across accounts and Regions with StackSets", "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/what-is-cfnstacksets.html" }
+    ]
+  },
+  {
+    "id": "D1-037",
+    "domain": 1,
+    "task": "1.4",
+    "type": "multi",
+    "question": "ある企業は、AWS Glue ジョブのスクリプトと AWS CloudFormation テンプレートを Git リポジトリで管理しています。今は開発者が本番アカウントに直接デプロイしており、壊れたスクリプトが本番で失敗したことがあります。データエンジニアは、変更が自動でテストされ、本番に反映する前に責任者が確認する CI/CD の仕組みを作りたいと考えています。これらの要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "本番の Glue ジョブのスクリプトをコンソールのエディターで直せるよう、開発者に本番の編集権限を与える。",
+      "リポジトリへの push を禁止し、変更は毎週まとめて担当者が手作業でデプロイする。",
+      "AWS CodePipeline のパイプラインを作り、AWS CodeBuild のステージで単体テストを実行してから、テスト用アカウントへデプロイする。",
+      "Glue ジョブのブックマークを有効にし、失敗した実行を自動で巻き戻せるようにする。",
+      "本番にデプロイするステージの前に、CodePipeline の手動承認アクションを置く。"
+    ],
+    "answer": [2, 4],
+    "explanation": "CI/CD では、リポジトリへの変更をきっかけにビルド、テスト、デプロイを自動で流します。AWS CodePipeline でパイプラインを組み、AWS CodeBuild のステージで Glue スクリプトの単体テストを実行し、通ったものだけをテスト用アカウントにデプロイすれば、壊れた変更が先へ進みません。本番の前に手動承認アクションを置くと、パイプラインはそこで止まり、必要な権限を持つ人が承認したときだけ再開します。承認も却下もされないまま 7 日たつと失敗として扱われます。「自動でテスト」が CodeBuild のテスト、「責任者が確認」が手動承認に対応します。",
+    "optionNotes": [
+      "本番で直接編集すると、テストも確認も通らずに変更が入り、今回の問題がむしろ増えます。",
+      "手作業のデプロイは CI/CD の自動化と逆で、テストも自動になりません。",
+      "正解です。CodeBuild で自動テストを実行し、通った変更だけをテスト用アカウントへ進められます。",
+      "ジョブのブックマークは処理済みのデータを記録する仕組みで、デプロイの巻き戻しやテストとは関係ありません。",
+      "正解です。手動承認アクションで、責任者が確認してから本番へ進めるようにできます。"
+    ],
+    "services": ["AWS CodePipeline", "AWS CodeBuild", "AWS Glue", "AWS CloudFormation"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Add a manual approval action to a stage", "url": "https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals.html" }
+    ]
+  },
+  {
+    "id": "D1-038",
+    "domain": 1,
+    "task": "1.4",
+    "type": "multi",
+    "question": "データエンジニアのチームは、AWS Glue の Spark ジョブを開発しています。今は各自が Glue コンソールのスクリプトエディターで直接スクリプトを直しており、誰がいつ何を変えたのか分かりません。また、変更のたびに AWS 上でジョブを流して動作を確かめており、時間と費用がかかっています。ソフトウェア開発のベストプラクティスに沿って改善する方法の組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "スクリプトを Git リポジトリで管理し、プルリクエストでレビューしてからマージする。",
+      "スクリプトのファイル名に日付を付け、S3 バケットに上書きせずに置いていく。",
+      "ジョブのログ出力を止め、実行時間を短くする。",
+      "AWS Glue が公開している Docker イメージをローカルで使い、サンプルデータに対して pytest で単体テストを実行する。",
+      "本番のデータを開発者の PC にコピーし、各自の方法で動作を確かめる。"
+    ],
+    "answer": [0, 3],
+    "explanation": "変更の履歴とレビューの問題には、バージョン管理を使います。スクリプトを Git で管理すると、誰がいつ何を変えたかがコミットに残り、プルリクエストでレビューしてから取り込めます。AWS 上で毎回ジョブを流す問題には、ローカルでのテストを使います。AWS Glue は Amazon ECR Public Gallery と Docker Hub に Docker イメージを公開しており、手元で Glue の ETL ライブラリを使ったスクリプトを動かし、pytest で単体テストを実行できます。小さなサンプルデータで素早く確かめられ、費用もかかりません。ログは監視と調査に欠かせないので、止めるべきではありません。",
+    "optionNotes": [
+      "正解です。Git で履歴を残し、プルリクエストでレビューしてから変更を取り込めます。",
+      "ファイルは残りますが、誰が何を変えたかやレビューの記録は残らず、バージョン管理の代わりになりません。",
+      "ログは監視と障害調査に必要で、止めるとベストプラクティスに反します。",
+      "正解です。Glue の Docker イメージでローカルに単体テストを流せば、AWS 上で毎回ジョブを実行せずに済みます。",
+      "本番データを個人の PC に持ち出すのはセキュリティ上の問題があり、テストの方法も揃いません。"
+    ],
+    "services": ["AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Develop and test AWS Glue jobs locally using a Docker image", "url": "https://docs.aws.amazon.com/glue/latest/dg/develop-local-docker-image.html" },
+      { "title": "Develop and test AWS Glue 5.0 jobs locally using a Docker container", "url": "https://aws.amazon.com/blogs/big-data/develop-and-test-aws-glue-5-0-jobs-locally-using-a-docker-container/" }
+    ]
+  },
+  {
+    "id": "D1-039",
+    "domain": 1,
+    "task": "1.4",
+    "type": "single",
+    "question": "ある企業は、Amazon S3 上の Parquet 形式の販売データを Amazon Athena で集計しています。テーブルは sale_date 列 (例: '2026-11-24') でパーティション分割されており、列は 80 あります。日次レポートでは SELECT * FROM sales で全行を取り出し、後段のスクリプトで前日の行だけに絞り込んでから 3 つの列を合計しています。クエリが遅く、スキャン量に応じた料金も高くなっています。クエリの実行時間と料金を最も効果的に減らす方法はどれですか。",
+    "options": [
+      "クエリの最後に LIMIT 1000 を付け、取り出す行数を減らす。",
+      "データを CSV 形式に変換し、後段のスクリプトで読み込みやすくする。",
+      "クエリ結果の再利用を有効にし、以前の結果を使い回す。",
+      "WHERE 句でパーティション列 sale_date を前日の日付に絞り、必要な 3 つの列だけを SELECT して、SUM と GROUP BY で集計する。"
+    ],
+    "answer": [3],
+    "explanation": "Athena の料金はスキャンしたデータ量で決まるので、読む量を減らすことが実行時間と料金の両方に役立ちます。パーティション列を WHERE 句で絞ると、Athena は条件に合うパーティションの S3 プレフィックスだけを読みます。Parquet は列指向の形式なので、SELECT で必要な列だけを指定すると、残りの 77 列は読みません。集計も SQL の SUM と GROUP BY で Athena 側に任せれば、後段に全行を転送する必要がなくなります。「SELECT * で全行を取り出す」が無駄の原因で、パーティションの絞り込みと列の指定が決め手です。",
+    "optionNotes": [
+      "LIMIT は返す行数を減らすだけで、絞り込みの条件がないと必要な行が得られず、集計結果も正しくなりません。",
+      "CSV は行指向で圧縮も効きにくく、列だけを読むことができないため、スキャン量はむしろ増えます。",
+      "日次レポートは毎回日付が変わる別のクエリになるため、結果の再利用では効果が得られません。",
+      "正解です。パーティションの絞り込みと列の指定でスキャン量が大きく減り、集計も Athena 側で済みます。"
+    ],
+    "services": ["Amazon Athena", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Use partitioning and bucketing", "url": "https://docs.aws.amazon.com/athena/latest/ug/ctas-partitioning-and-bucketing.html" },
+      { "title": "Partition your data", "url": "https://docs.aws.amazon.com/athena/latest/ug/partitions.html" }
+    ]
+  },
+  {
+    "id": "D1-040",
+    "domain": 1,
+    "task": "1.4",
+    "type": "single",
+    "question": "ある企業の AWS Glue の Spark ジョブは、注文データと顧客データを customer_id で結合しています。Spark UI を見ると、ほとんどのタスクは数十秒で終わるのに、1 つのタスクだけが 40 分以上かかっています。調べたところ、注文の 3 割が「ゲスト購入」を表す同じ customer_id を持っていました。ジョブの実行時間を最も効果的に短くする方法はどれですか。",
+    "options": [
+      "偏ったキーにランダムな値を付け足すソルティングで結合キーを分散させるか、適応型クエリ実行 (AQE) の skew join を有効にして、大きなパーティションを分割させる。",
+      "ワーカー数を 2 倍にし、全体の並列度を上げる。",
+      "coalesce(1) でデータを 1 つのパーティションにまとめてから結合する。",
+      "ジョブのタイムアウトを延ばし、遅いタスクが終わるまで待つ。"
+    ],
+    "answer": [0],
+    "explanation": "分散処理では、データをキーごとにパーティションへ分け、複数のノードで並列に処理します。特定のキーにデータが集中するデータスキューが起きると、そのキーを担当する 1 つのタスクだけが極端に重くなり、ほかのノードが空いていても全体が終わりません。ソルティングは偏ったキーにランダムな値を付けて複数のパーティションに散らす手法です。AWS Glue 3.0 以降の Spark では、AQE を有効にし spark.sql.adaptive.skewJoin.enabled を true にすると、偏った結合のパーティションを自動で分割できます。「1 つのタスクだけが遅い」がスキューを疑う決め手です。",
+    "optionNotes": [
+      "正解です。ソルティングや AQE の skew join で偏ったキーのデータを分け、1 つのタスクへの集中を解消できます。",
+      "同じキーのデータは 1 つのパーティションに集まるため、ワーカーを増やしても遅いタスクは速くなりません。",
+      "1 つのパーティションにまとめると並列性がまったくなくなり、さらに遅くなります。",
+      "待つだけで、実行時間は短くなりません。"
+    ],
+    "services": ["AWS Glue"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Optimize shuffles", "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/tuning-aws-glue-for-apache-spark/optimize-shuffles.html" },
+      { "title": "Detect and handle data skew on AWS Glue", "url": "https://aws.amazon.com/blogs/big-data/detect-and-handle-data-skew-on-aws-glue/" }
+    ]
+  },
+  {
+    "id": "D1-041",
+    "domain": 1,
+    "task": "1.4",
+    "type": "single",
+    "question": "ある企業は、口座、端末、IP アドレス、取引の間のつながりを分析し、不正なグループを見つけたいと考えています。「ある口座から 3 段階以内でつながる口座のうち、同じ端末を共有するもの」のような、多段階の関係をたどるクエリを数ミリ秒から数百ミリ秒で返す必要があります。リレーショナルデータベースでは自己結合が何重にも必要になり、クエリが遅くなっていました。最も適したデータ構造とサービスはどれですか。",
+    "options": [
+      "口座ごとに関係する ID を配列に入れ、Amazon DynamoDB のテーブルに格納する。",
+      "口座、端末、IP アドレスを頂点、つながりを辺とするグラフとして Amazon Neptune に格納し、Gremlin または openCypher でたどる。",
+      "すべての関係を 1 つの大きな表に非正規化し、Amazon Redshift でソートキーを付けて検索する。",
+      "関係を木構造の JSON にまとめて Amazon S3 に置き、Amazon Athena で検索する。"
+    ],
+    "answer": [1],
+    "explanation": "多段階のつながりをたどる問題には、グラフのデータ構造が向いています。グラフは頂点 (ノード) と辺 (エッジ) でデータを表し、関係そのものを直接保持するので、何段階先までたどっても結合を重ねる必要がありません。Amazon Neptune は高度につながったデータを扱うマネージドのグラフデータベースで、数十億の関係を保存し、ミリ秒単位のレイテンシーでクエリを返せるよう設計されています。Gremlin、openCypher、SPARQL に対応し、不正検出は代表的な用途の一つです。木構造は親子が 1 つに決まる階層向けで、端末を共有する口座のような網の目状の関係は表しきれません。",
+    "optionNotes": [
+      "1 段階の関係は引けますが、多段階をたどるにはアプリケーション側で何度も読み出す必要があります。",
+      "正解です。グラフとして持てば、多段階の関係を結合なしで低いレイテンシーでたどれます。",
+      "Redshift は大量データの集計向けで、多段階の関係をミリ秒単位でたどる用途には向きません。",
+      "木構造では複数の親を持つ関係を表しきれず、Athena の検索も秒単位でかかります。"
+    ],
+    "services": ["Amazon Neptune"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "What Is Amazon Neptune?", "url": "https://docs.aws.amazon.com/neptune/latest/userguide/intro.html" }
+    ]
+  }
+]

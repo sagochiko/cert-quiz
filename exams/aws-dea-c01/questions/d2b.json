@@ -1,0 +1,417 @@
+[
+  {
+    "id": "D2-017",
+    "domain": 2,
+    "task": "2.3",
+    "type": "single",
+    "question": "ある小売企業は、Amazon Redshift の sales テーブルに 5 年分の売上データを保持しています。1 年以上前のデータはほとんど参照されないため、Amazon S3 に移して Redshift のストレージを減らしたいと考えています。移したデータは Amazon Athena と Amazon Redshift Spectrum から引き続きクエリし、販売日で絞り込んだときに読み取るデータ量を抑える必要があります。これらの要件を最も少ない運用負荷で満たす方法はどれですか。",
+    "options": [
+      "UNLOAD コマンドで CSV 形式のまま 1 つのファイルに書き出し（PARALLEL OFF）、AWS Glue クローラーでテーブルを作成する",
+      "UNLOAD コマンドに FORMAT PARQUET と PARTITION BY (sale_date) を指定して S3 に書き出し、AWS Glue Data Catalog に外部テーブルとして登録する",
+      "Redshift の手動スナップショットを取得して S3 にエクスポートし、Athena からスナップショットのファイルを直接クエリする",
+      "AWS DMS のタスクで Redshift をソース、S3 をターゲットに設定し、全ロードで CSV ファイルとして書き出す"
+    ],
+    "answer": [1],
+    "explanation": "Redshift から S3 へデータを移す標準の手段は UNLOAD コマンドです。FORMAT PARQUET を指定すると列指向の Parquet で書き出され、Athena や Redshift Spectrum は必要な列だけを読みます。さらに PARTITION BY (sale_date) を付けると、s3://.../sale_date=2024-01-02/ のような Hive 形式のフォルダに分かれて書き出されるため、販売日で絞り込むクエリではパーティションの刈り込みが働き、読み取るデータ量が減ります。決め手は「販売日で絞り込んだときに読み取るデータ量を抑える」と「最も少ない運用負荷」です。UNLOAD は SQL 1 文で済み、書き出し後に Data Catalog に外部テーブルを定義すれば両方のサービスから参照できます。",
+    "optionNotes": [
+      "CSV は行指向で圧縮もされず、PARALLEL OFF で 1 ファイルにするとパーティションも無いため、日付で絞ってもファイル全体を読むことになります。",
+      "正解です。Parquet と日付のパーティションにより、Athena と Redshift Spectrum のどちらでも読み取り量を抑えられます。",
+      "Redshift のスナップショットは Redshift への復元用で、Athena から直接クエリできるファイル形式で S3 に置かれるものではありません。",
+      "DMS でも S3 に書き出せますが、移行タスクの設定と運用が必要で、CSV のままでは読み取り量も減りません。UNLOAD より手間がかかります。"
+    ],
+    "services": ["Amazon Redshift", "Amazon S3", "Amazon Athena", "Amazon Redshift Spectrum"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "UNLOAD examples", "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_UNLOAD_command_examples.html" },
+      { "title": "Unloading semi-structured data", "url": "https://docs.aws.amazon.com/redshift/latest/dg/unload-super.html" }
+    ]
+  },
+  {
+    "id": "D2-018",
+    "domain": 2,
+    "task": "2.3",
+    "type": "single",
+    "question": "ある企業は、アプリケーションのログを 1 ファイルあたり数 MB のオブジェクトとして Amazon S3 に保存しています。ログは作成から 30 日間は頻繁に読まれます。31 日目から 120 日目までは四半期に 1 回程度しか読まれませんが、読むときはミリ秒単位で取り出せる必要があります。120 日を過ぎたログは監査のためだけに保管し、取り出しに 12〜48 時間かかってもかまいません。作成から 7 年経ったログは削除します。最もコスト効率が良い S3 Lifecycle 設定はどれですか。",
+    "options": [
+      "作成から 7 日後に S3 Standard-IA へ移行し、120 日後に S3 Glacier Flexible Retrieval へ移行し、7 年後に失効させる",
+      "作成から 30 日後に S3 One Zone-IA へ移行し、120 日後に S3 Glacier Instant Retrieval へ移行し、7 年後に失効させる",
+      "作成から 30 日後に S3 Glacier Instant Retrieval へ移行し、120 日後に S3 Glacier Deep Archive へ移行し、7 年後に失効させる",
+      "作成時から S3 Intelligent-Tiering に保存し、120 日後に S3 Standard へ戻し、7 年後に失効させる"
+    ],
+    "answer": [2],
+    "explanation": "S3 Glacier Instant Retrieval は四半期に 1〜2 回程度しか読まれないがミリ秒で取り出したいデータ向けのストレージクラスで、31〜120 日目の要件に合います。最小保存期間は 90 日なので、30 日目に移して 120 日目に次へ移す設定なら最小保存期間の追加料金もかかりません。120 日以降は取り出しに 12〜48 時間かかってよいため、最も安い S3 Glacier Deep Archive が合います（最小保存期間 180 日、標準の取り出しは 12 時間以内）。最後に Expiration アクションで 7 年後に失効させます。S3 Lifecycle の移行はウォーターフォールの下方向だけで、Standard-IA と One Zone-IA へは保存から 30 日未満のオブジェクトを移行できない点も押さえておきます。",
+    "optionNotes": [
+      "S3 Standard-IA と S3 One Zone-IA へは、保存から 30 日未満のオブジェクトを Lifecycle で移行できません。また 30 日間は頻繁に読まれるため IA の取り出し料金もかさみます。",
+      "One Zone-IA は 1 つのアベイラビリティーゾーンにしか保存されません。120 日以降に Glacier Instant Retrieval を使うと、取り出しを待てるのに Deep Archive より高くつきます。",
+      "正解です。アクセス頻度と取り出し時間の要件に合わせて、ミリ秒取り出しの安価なクラスから最安のアーカイブへ段階的に移しています。",
+      "S3 Lifecycle は上位のストレージクラスへ戻す移行に対応していません。S3 Standard へ戻すと料金も上がります。"
+    ],
+    "services": ["Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Transitioning objects using Amazon S3 Lifecycle", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/lifecycle-transition-general-considerations.html" },
+      { "title": "Understanding and managing Amazon S3 storage classes", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html" }
+    ]
+  },
+  {
+    "id": "D2-019",
+    "domain": 2,
+    "task": "2.3",
+    "type": "multi",
+    "question": "あるデータエンジニアは、バージョニングを有効にした Amazon S3 バケットにデータレイクの生データを保存しています。上書きや削除のたびに古いバージョンが増え、ストレージ料金が膨らんでいます。また、削除されたオブジェクトの削除マーカーだけが大量に残り、LIST 操作が遅くなっています。要件は次のとおりです。誤操作に備えて各オブジェクトの直近 2 つの旧バージョンは残すこと、それより古い旧バージョンは旧バージョンになってから 30 日後に完全に削除すること、旧バージョンがすべて消えて残った削除マーカーを自動で片付けること。これらの要件を満たす S3 Lifecycle ルールのアクションはどれですか。（2 つ選択）",
+    "options": [
+      "NoncurrentVersionExpiration アクションで NoncurrentDays を 30、NewerNoncurrentVersions を 2 に設定する",
+      "Expiration アクションで Days を 30 に設定し、現行バージョンを 30 日後に失効させる",
+      "バケットのバージョニングを停止（Suspended）し、既存の旧バージョンが自動で削除されるようにする",
+      "Expiration アクションで ExpiredObjectDeleteMarker を true に設定する",
+      "AbortIncompleteMultipartUpload アクションで DaysAfterInitiation を 30 に設定する"
+    ],
+    "answer": [0, 3],
+    "explanation": "旧バージョン（noncurrent version）を消すのは NoncurrentVersionExpiration アクションです。NoncurrentDays で旧バージョンになってからの日数を、NewerNoncurrentVersions で残しておく新しい旧バージョンの数を指定できるので、「直近 2 つは残し、それより古いものは 30 日後に完全に削除」をそのまま表せます。旧バージョンがすべて消えて削除マーカーだけが残った状態を、期限切れの削除マーカー（expired object delete marker）と呼びます。これは Expiration アクションで ExpiredObjectDeleteMarker を true にすると自動で削除され、LIST 操作の遅さも解消します。現行バージョンを失効させる設定は要件にない現行データの削除につながります。",
+    "optionNotes": [
+      "正解です。旧バージョンの日数と残す数を1つのアクションで指定できます。",
+      "現行バージョンを失効させると、バージョニング有効のバケットでは削除マーカーが作られ、現在使っているデータが見えなくなります。要件にない削除です。",
+      "バージョニングを停止しても、既存の旧バージョンは残ったままで自動では削除されません。",
+      "正解です。旧バージョンが無くなって残った削除マーカーを Lifecycle が自動で削除します。",
+      "未完了のマルチパートアップロードの片付けには役立ちますが、旧バージョンや削除マーカーは消えません。"
+    ],
+    "services": ["Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "NoncurrentVersionExpiration", "url": "https://docs.aws.amazon.com/AmazonS3/latest/API/API_NoncurrentVersionExpiration.html" },
+      { "title": "Managing delete markers", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/ManagingDelMarkers.html" },
+      { "title": "Lifecycle configuration elements", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/intro-lifecycle-rules.html" }
+    ]
+  },
+  {
+    "id": "D2-020",
+    "domain": 2,
+    "task": "2.3",
+    "type": "single",
+    "question": "ある企業は、Web セッションの情報を Amazon DynamoDB テーブルに保存し、TTL を有効にしています。TTL 属性 expires_at には Unix エポック秒の数値を書き込んでいます。運用を始めたところ、有効期限を過ぎたセッションが Query の結果に数時間から数日含まれ、アプリケーションが期限切れのセッションを有効と扱ってしまうことがわかりました。アプリケーションが期限切れの項目を使わないようにする方法のうち、追加のコストと運用負荷が最も小さいものはどれですか。",
+    "options": [
+      "AWS Lambda 関数を Amazon EventBridge Scheduler で 1 分ごとに起動し、期限切れの項目を Scan して DeleteItem で削除する",
+      "TTL 属性の値をミリ秒単位のエポック時刻に変更し、TTL の処理がより細かく実行されるようにする",
+      "TTL 属性の値を ISO 8601 形式の文字列に変更し、DynamoDB が日時として正しく解釈できるようにする",
+      "Query と Scan にフィルター式を付け、expires_at が現在のエポック秒より大きい項目だけを返すようにする"
+    ],
+    "answer": [3],
+    "explanation": "DynamoDB の TTL は書き込みスループットを消費せずに期限切れの項目を削除しますが、削除はバックグラウンドで行われ、期限切れから通常は数日以内とされています。そのため期限切れでもまだ削除されていない項目は読み取りの結果に含まれます。AWS のドキュメントは、Scan と Query の結果から期限切れの項目を除くためにフィルター式を使うよう勧めています。expires_at と現在のエポック秒を比べるフィルター式を付けるだけなら、追加のサービスも削除の書き込み料金も要りません。TTL 属性は Number 型のエポック秒である必要があり、それ以外の型や単位にすると TTL の対象から外れます。",
+    "optionNotes": [
+      "期限切れの項目は消せますが、Scan の読み取りと DeleteItem の書き込みに料金がかかり、Lambda の運用も増えます。TTL の利点である書き込み料金なしの削除を捨てることになります。",
+      "TTL 属性は秒単位の Unix エポック時刻である必要があります。DynamoDB は現在のエポック秒と属性の値を比べるため、ミリ秒の値は秒として読まれて数万年先の日時になり、期限切れにならないので削除されません。",
+      "TTL 属性が Number 型でない項目は TTL の処理で無視されます。文字列にすると削除されなくなります。",
+      "正解です。削除を待たずに、読み取り時に期限切れの項目を除けます。"
+    ],
+    "services": ["Amazon DynamoDB"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using time to live (TTL) in DynamoDB", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html" },
+      { "title": "Working with expired items and time to live (TTL)", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ttl-expired-items.html" },
+      { "title": "Computing time to live (TTL) in DynamoDB", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/time-to-live-ttl-before-you-start.html" }
+    ]
+  },
+  {
+    "id": "D2-021",
+    "domain": 2,
+    "task": "2.3",
+    "type": "multi",
+    "question": "ある金融機関は、取引記録を Amazon S3 に保存しています。規制により、すべての取引記録は作成から 7 年間、AWS アカウントのルートユーザーを含むどのユーザーも上書きや削除ができない状態で保管しなければなりません。さらに、訴訟の対象になった一部の取引記録は、終了日が決まっていない訴訟が終わるまで、7 年を過ぎても削除できないようにする必要があります。これらの要件を満たす組み合わせはどれですか。（2 つ選択）",
+    "options": [
+      "S3 Object Lock をガバナンスモードで有効にし、バケットの既定の保持期間を 7 年に設定する",
+      "S3 Object Lock をコンプライアンスモードで有効にし、バケットの既定の保持期間を 7 年に設定する",
+      "バケットポリシーで、すべてのプリンシパルに対して s3:DeleteObject と s3:PutObject の上書きを拒否する",
+      "バケットで MFA Delete を有効にし、削除のたびに MFA デバイスによる認証を求める",
+      "訴訟の対象になったオブジェクトのバージョンにリーガルホールドを設定し、訴訟が終わったら解除する"
+    ],
+    "answer": [1, 4],
+    "explanation": "S3 Object Lock のコンプライアンスモードでは、保持期間中のオブジェクトバージョンはルートユーザーを含むどのユーザーも上書きや削除ができず、保持期間を短くすることもできません。「ルートユーザーを含む」という要件にはこちらが合います。終了日の決まっていない保管には、リーガルホールドを使います。リーガルホールドは保持期間と同じ保護を与えますが期限が無く、明示的に解除するまで有効です。保持期間とリーガルホールドは同じオブジェクトバージョンに併用できるので、7 年の保持期間が過ぎても訴訟中のものは削除されません。",
+    "optionNotes": [
+      "ガバナンスモードは s3:BypassGovernanceRetention 権限があれば保持設定を外したり削除したりできるため、ルートユーザーを含め誰も削除できないという要件を満たしません。",
+      "正解です。保持期間中は誰も削除できず、期間の短縮もできません。",
+      "バケットポリシーは権限のある管理者やルートユーザーが書き換えられるため、改ざんできない保管の保証になりません。",
+      "MFA Delete は削除に追加の認証を求めるだけで、認証できれば削除できます。期間を決めた保管にもなりません。",
+      "正解です。期限の無い保護で、訴訟が終わった時点で解除できます。"
+    ],
+    "services": ["Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Locking objects with Object Lock", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html" },
+      { "title": "Object Lock considerations", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock-managing.html" }
+    ]
+  },
+  {
+    "id": "D2-022",
+    "domain": 2,
+    "task": "2.3",
+    "type": "single",
+    "question": "ある企業は、データレイクの S3 バケットを東京リージョンで運用しています。災害対策の方針として、新しく書き込まれたオブジェクトを大阪リージョンのバケットにも複製し、複製の 99.9% が 15 分以内に終わることを SLA で裏付ける必要があります。複製の遅れは監視できるようにしたいと考えています。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "両方のバケットでバージョニングを有効にし、S3 Replication Time Control（S3 RTC）を有効にした S3 クロスリージョンレプリケーションのルールを作成する",
+      "東京リージョン内に別のバケットを作成し、S3 同一リージョンレプリケーションのルールを作成する",
+      "AWS Backup で S3 バケットのバックアッププランを作成し、毎日のバックアップを大阪リージョンのボールトにコピーする",
+      "S3 マルチリージョンアクセスポイントを作成し、東京と大阪のバケットを登録する"
+    ],
+    "answer": [0],
+    "explanation": "別リージョンのバケットへオブジェクトを自動で複製するのは S3 クロスリージョンレプリケーション（CRR）です。レプリケーションを使うには送信元と送信先の両方でバージョニングを有効にする必要があります。CRR だけでは多くの場合 15 分以内に終わるものの保証はありません。S3 Replication Time Control を有効にすると、ほとんどのオブジェクトが数秒で、99.9% が 15 分以内に複製されることが SLA で裏付けられます。S3 RTC を有効にしたルールは S3 Replication メトリクスを発行するため、保留中の操作数や複製の遅延を Amazon CloudWatch で監視できます。",
+    "optionNotes": [
+      "正解です。CRR に S3 RTC を付けると、15 分以内の複製が SLA で裏付けられ、レプリケーションのメトリクスで監視もできます。",
+      "同一リージョンレプリケーションでは複製先も東京リージョンになり、リージョン障害への備えになりません。",
+      "1 日 1 回のバックアップでは、新しいオブジェクトを 15 分以内に別リージョンへ置くという要件を満たしません。",
+      "マルチリージョンアクセスポイントはリクエストのルーティングの仕組みで、それだけではバケット間でデータは複製されません。"
+    ],
+    "services": ["Amazon S3", "Amazon CloudWatch"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Meeting compliance requirements with S3 Replication Time Control", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication-time-control.html" },
+      { "title": "Replicating objects within and across Regions", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html" }
+    ]
+  },
+  {
+    "id": "D2-023",
+    "domain": 2,
+    "task": "2.3",
+    "type": "multi",
+    "question": "あるデータエンジニアは、毎晩 Amazon S3 に届く約 200 GB の CSV データを Amazon Redshift のプロビジョニングされたクラスターの 1 つのテーブルにロードしています。現在は gzip で圧縮した 1 つの大きなファイルを COPY コマンドで読み込んでおり、ロードに時間がかかっています。上流のシステムの都合で、ファイルは gzip で圧縮した形式のまま S3 に置く必要があります。ロードを最も速くするために取るべき対応はどれですか。（2 つ選択）",
+    "options": [
+      "データを圧縮しない 1 つのファイルにまとめ直し、COPY コマンドが解凍の処理をしなくて済むようにする",
+      "データを複数のファイルに分け、ファイルごとに別のセッションから COPY コマンドを同時に実行する",
+      "データを圧縮後 1 MB〜1 GB 程度のほぼ同じ大きさのファイルに分け、ファイル数をクラスターのスライス数の倍数にする",
+      "分けたファイルを共通のプレフィックスかマニフェストファイルで指定し、1 つの COPY コマンドで読み込む",
+      "COPY コマンドをやめ、Amazon Redshift Data API で複数行の INSERT 文を並列に発行する"
+    ],
+    "answer": [2, 3],
+    "explanation": "COPY コマンドはクラスターのすべてのスライスを使って複数のファイルを並列に読み込みます。圧縮しない区切り文字のファイルなら、Redshift は 1 つの大きなファイルでも範囲に分けて並列に読み込みますが、gzip で圧縮した 1 つのファイルは並列に処理できないため遅くなります。Redshift はファイルの大きさを見て作業を分けないので、ファイル数をスライス数の倍数にし、圧縮後 1 MB〜1 GB 程度のほぼ同じ大きさに揃えると、スライスに均等に仕事が配られます。分けたファイルは共通のプレフィックスかマニフェストファイルで指定し、1 つの COPY コマンドで読み込みます。同じテーブルに複数の COPY を同時に実行すると Redshift は直列にロードせざるを得ず、ソートキーがあれば最後に VACUUM も必要になります。",
+    "optionNotes": [
+      "圧縮しない区切り文字のファイルなら 1 つでも並列に読み込まれますが、gzip で圧縮したまま置くという前提に反します。S3 から読むデータ量も増えます。",
+      "同じテーブルに対する同時の COPY は直列のロードになり、かえって遅くなります。",
+      "正解です。スライスに均等にファイルが配られ、並列のロードが最大限に働きます。",
+      "正解です。1 つの COPY コマンドで複数のファイルを並列に読み込めます。",
+      "単一行や少量の INSERT は Redshift のロードではアンチパターンで、COPY より大幅に遅くなります。"
+    ],
+    "services": ["Amazon Redshift", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Loading data from compressed and uncompressed files", "url": "https://docs.aws.amazon.com/redshift/latest/dg/t_splitting-data-files.html" },
+      { "title": "Use a single COPY command to load from multiple files", "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-single-copy-command.html" }
+    ]
+  },
+  {
+    "id": "D2-024",
+    "domain": 2,
+    "task": "2.4",
+    "type": "multi",
+    "question": "ある企業は、Amazon Redshift にスタースキーマのデータウェアハウスを設計しています。ファクトテーブル sales は数十億行で、数千万行のディメンションテーブル customer と customer_id で結合するクエリが最も多く実行されます。ほとんどのクエリは直近数週間の sale_date で範囲を絞り込みます。結合時のデータの再分散を減らし、範囲の絞り込みで読み取るブロックを減らすための設計はどれですか。（2 つ選択）",
+    "options": [
+      "sales と customer の両方で customer_id を DISTKEY にする",
+      "sales の DISTKEY を sale_date にする",
+      "sales のソートキーを sale_date にする",
+      "customer を DISTSTYLE ALL にする",
+      "sales と customer の両方を DISTSTYLE EVEN にする"
+    ],
+    "answer": [0, 2],
+    "explanation": "Redshift の分散スタイルを選ぶ目的は、結合や集計の前にデータを必要な場所に置き、再分散の手間を減らすことです。最もよく結合するファクトテーブルとディメンションテーブルを共通の列で分散させると、同じ customer_id の行が同じスライスに置かれ、結合時の再分散が要らなくなります。範囲を絞り込む列をソートキーにすると、ゾーンマップによって対象外のブロックを読み飛ばせるので、直近の sale_date だけを読むクエリが速くなります。日付を DISTKEY にすると、狭い期間で絞ったときに対象の行が一部のスライスに偏ります。",
+    "optionNotes": [
+      "正解です。ファクトと最も結合の多いディメンションを同じキーで分散させると、結合が各スライス内で完結します。",
+      "日付で分散させると、直近数週間に絞ったクエリでは対象の行が限られたスライスに集中し、処理が偏ります。",
+      "正解です。範囲の絞り込みで対象外のブロックを読み飛ばせます。",
+      "ALL はテーブル全体をすべてのノードに複製するため、数千万行のテーブルではストレージとロード時間が大きく増えます。customer はファクトと同じキーで分散できるので ALL にする必要はありません。",
+      "EVEN では結合キーに関係なく行が配られるため、結合のたびに再分散が起きます。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Choose the best distribution style", "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-best-dist-key.html" }
+    ]
+  },
+  {
+    "id": "D2-025",
+    "domain": 2,
+    "task": "2.4",
+    "type": "single",
+    "question": "あるEC企業は、Amazon DynamoDB の orders テーブルに注文を保存しています。パーティションキーは CustomerId、ソートキーは OrderId で、テーブルはすでに本番で使われています。新たに、顧客ごとの未出荷の注文を注文日の順に取得する画面を追加します。1 人の顧客が数千件の注文を持つことがありますが、未出荷の注文はそのうちのごく一部です。読み取りのコストと遅延を最も小さくする設計はどれですか。",
+    "options": [
+      "テーブル全体を Scan し、出荷状態が未出荷の項目だけをフィルター式で返す",
+      "未出荷の注文にだけ OpenOrderDate 属性を書き込み、出荷したら属性を削除する。CustomerId をパーティションキー、OpenOrderDate をソートキーにしたグローバルセカンダリインデックスを作成して Query する",
+      "既存のテーブルに、CustomerId と ShipStatus を使うローカルセカンダリインデックスを追加し、ShipStatus が未出荷の項目を Query する",
+      "CustomerId で Query し、出荷状態が未出荷の項目だけをフィルター式で返す"
+    ],
+    "answer": [1],
+    "explanation": "DynamoDB はインデックスのキー属性を持つ項目だけをインデックスに書き込みます。この性質を使ったものがスパースインデックスです。未出荷の注文にだけ OpenOrderDate を書き込み、出荷時に削除すれば、グローバルセカンダリインデックス（GSI）には未出荷の注文だけが入ります。GSI を CustomerId と OpenOrderDate で作れば、顧客ごとの未出荷の注文を注文日の順に Query で取り出せ、読み取るのは必要な項目だけです。フィルター式は読み取ったあとに結果を絞るだけなので、読み取りキャパシティは絞り込む前の項目分だけ消費されます。",
+    "optionNotes": [
+      "Scan はテーブル全体を読むため、フィルター式で返す件数を減らしても読み取りのコストと遅延が最も大きくなります。",
+      "正解です。スパースな GSI には未出荷の注文だけが入り、必要な項目だけを注文日の順に読めます。",
+      "ローカルセカンダリインデックスはテーブルの作成時にしか作れません。本番で使っている既存のテーブルには追加できません。",
+      "顧客の注文をすべて読んでから絞り込むため、数千件の注文を持つ顧客では読み取りのコストと遅延が大きくなります。"
+    ],
+    "services": ["Amazon DynamoDB"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Take advantage of sparse indexes", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-indexes-general-sparse-indexes.html" },
+      { "title": "Working with Local Secondary Indexes in DynamoDB AWS CLI", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/LCICli.html" }
+    ]
+  },
+  {
+    "id": "D2-026",
+    "domain": 2,
+    "task": "2.4",
+    "type": "single",
+    "question": "ある企業は、数 TB のイベントデータを Apache Iceberg テーブルとして Amazon S3 に保存し、Amazon Athena でクエリしています。上流のシステムの変更で、新しい列 channel を追加する必要が出ました。また、int 型の列 quantity に int の上限を超える値が入るようになったため、型を広げる必要があります。既存のデータファイルを書き換えずに、最も少ない手間でスキーマを変更する方法はどれですか。",
+    "options": [
+      "新しいスキーマで CREATE TABLE AS SELECT（CTAS）を実行して新しいテーブルを作り、クエリの参照先を切り替える",
+      "Athena で ALTER TABLE REPLACE COLUMNS を実行し、channel を加えて quantity を bigint にした全列の定義に置き換える",
+      "Athena で ALTER TABLE ADD COLUMNS により channel を追加し、ALTER TABLE CHANGE COLUMN で quantity を bigint に変更する",
+      "Athena で ALTER TABLE CHANGE COLUMN により quantity を string に変更し、どのような値でも入るようにする"
+    ],
+    "answer": [2],
+    "explanation": "Iceberg のスキーマ変更はメタデータだけの変更で、データファイルは書き換えられません。Athena の Iceberg テーブルは列の追加、削除、名前の変更、並べ替え、型の拡張（type promotion）に対応しています。型の拡張で使えるのは int から bigint、float から double、decimal の精度を上げる変更です。したがって ALTER TABLE ADD COLUMNS で channel を追加し、ALTER TABLE CHANGE COLUMN で quantity を bigint に広げれば、既存のファイルはそのままに要件を満たせます。決め手は「既存のデータファイルを書き換えずに」と「最も少ない手間」です。Athena の Iceberg テーブルでは ALTER TABLE REPLACE COLUMNS が使えない点も押さえておきます。",
+    "optionNotes": [
+      "CTAS は数 TB のデータをすべて書き直すため、時間とコストがかかり、書き換えずにという要件に反します。",
+      "Athena の Iceberg テーブルは ALTER TABLE REPLACE COLUMNS に対応していません。すべての列を削除してから追加し直す構文のため、Iceberg のスキーマ変更には CHANGE COLUMN を使います。",
+      "正解です。どちらもメタデータだけの変更で、データファイルは書き換えられません。",
+      "int から string への変更は Iceberg の型の拡張に含まれず、対応していません。"
+    ],
+    "services": ["Amazon Athena", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Evolve Iceberg table schema", "url": "https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-evolving-table-schema.html" },
+      { "title": "ALTER TABLE CHANGE COLUMN", "url": "https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-alter-table-change-column.html" }
+    ]
+  },
+  {
+    "id": "D2-027",
+    "domain": 2,
+    "task": "2.4",
+    "type": "single",
+    "question": "ある企業は、Amazon MSK のトピックに Apache Avro 形式のレコードを送り、スキーマを AWS Glue Schema Registry で管理しています。今後のスキーマ変更では、使われていないフィールドの削除と、既定値を持つ任意のフィールドの追加を行う予定です。運用の方針として、コンシューマーを先に新しいスキーマへ更新し、新しいスキーマのコンシューマーが 1 つ前のバージョンで書かれたレコードも読めることを、新しいバージョンの登録時に自動で確かめたいと考えています。設定すべき互換性モードはどれですか。",
+    "options": [
+      "NONE",
+      "FORWARD",
+      "DISABLED",
+      "BACKWARD"
+    ],
+    "answer": [3],
+    "explanation": "BACKWARD 互換性では、新しいスキーマを使う受信側が、現在のバージョンと 1 つ前のバージョンで書かれたデータの両方を読めることが求められます。フィールドの削除と任意のフィールドの追加はこの条件を満たす変更で、コンシューマーを先に更新する運用に合います。Schema Registry は新しいバージョンの登録時に、選んだ互換性モードに照らして確かめ、満たさない変更を拒否します。BACKWARD は既定かつ推奨の設定です。すべての過去バージョンとの互換性を確かめたいなら BACKWARD_ALL を選びます。",
+    "optionNotes": [
+      "NONE は互換性の確認を行わず、どのような新しいバージョンも受け入れるため、登録時に自動で確かめるという要件を満たしません。",
+      "FORWARD は古いスキーマの受信側が新しいスキーマで書かれたデータを読めることを求めるもので、プロデューサーを先に更新する運用向けです。",
+      "DISABLED はそのスキーマの新しいバージョンの登録自体を止める設定で、スキーマを変更できなくなります。",
+      "正解です。新しいスキーマのコンシューマーが 1 つ前のバージョンのデータを読めるかを登録時に確かめます。"
+    ],
+    "services": ["AWS Glue", "Amazon MSK"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "AWS Glue Schema registry", "url": "https://docs.aws.amazon.com/glue/latest/dg/schema-registry.html" }
+    ]
+  },
+  {
+    "id": "D2-028",
+    "domain": 2,
+    "task": "2.4",
+    "type": "single",
+    "question": "ある企業は、オンプレミスの Oracle データベースを Amazon Aurora PostgreSQL に移行する計画を立てています。データベースには多数のテーブルのほかに、ストアドプロシージャやパッケージが含まれています。移行の前に、どのオブジェクトが自動で変換でき、どのオブジェクトに手作業が必要かを把握したいと考えています。作業端末にデスクトップアプリケーションをインストールせず、マネージドなサービスで進めることが求められています。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "AWS DMS Schema Conversion で移行プロジェクトを作成し、評価レポートで自動変換できるオブジェクトと手作業が必要な項目を確認してから、スキーマを変換して Aurora PostgreSQL に適用する",
+      "作業端末に AWS Schema Conversion Tool（AWS SCT）をインストールし、評価レポートを作成してからスキーマを変換する",
+      "AWS DMS の全ロードタスクを作成し、ターゲットテーブル準備モードを DROP_AND_CREATE にして、テーブルとストアドプロシージャを Aurora PostgreSQL に作成させる",
+      "AWS Glue クローラーで Oracle のスキーマを AWS Glue Data Catalog に取り込み、Data Catalog のテーブル定義から Aurora PostgreSQL のテーブルを作成する"
+    ],
+    "answer": [0],
+    "explanation": "DMS Schema Conversion は AWS DMS の機能で、ソースのデータベーススキーマを Aurora、Amazon RDS、Amazon Redshift で使える形に変換します。マネージドな Web ベースの機能で、AWS SCT の変換エンジンを基にしています。移行プロジェクトを作って評価を実行すると、自動で変換できるものと手作業が必要なものが評価レポートにまとまります。そのうえでスキーマを変換し、ターゲットに適用するか SQL スクリプトとして書き出せます。ルールで変換しきれないオブジェクトは生成 AI で変換を補えます。決め手は「デスクトップアプリケーションをインストールせず」です。",
+    "optionNotes": [
+      "正解です。マネージドな機能で、評価レポートによる事前の把握と変換、適用までを行えます。",
+      "AWS SCT でも評価と変換はできますが、デスクトップアプリケーションのインストールが必要で、要件に合いません。",
+      "DMS のデータ移行タスクが作るのは基本的なテーブル定義だけで、ストアドプロシージャやパッケージは変換されません。事前の評価もできません。",
+      "Glue クローラーはテーブルの列定義を取り込むだけで、プロシージャの変換や変換可否の評価はできません。"
+    ],
+    "services": ["AWS DMS", "Amazon Aurora"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Converting database schemas using DMS Schema Conversion", "url": "https://docs.aws.amazon.com/dms/latest/userguide/CHAP_SchemaConversion.html" }
+    ]
+  },
+  {
+    "id": "D2-029",
+    "domain": 2,
+    "task": "2.4",
+    "type": "single",
+    "question": "ある企業は、Amazon SageMaker Unified Studio をデータ基盤の入り口として使っています。データは AWS Glue の ETL ジョブで加工され、Amazon Redshift のテーブルに書き込まれます。一部の前処理はオンプレミスの Apache Airflow で実行しており、Airflow には OpenLineage のプラグインが入っています。上流のテーブルを変更したときにどの下流の資産に影響するかを調べられるよう、テーブル間のデータリネージを可視化したいと考えています。最も少ない運用負荷で要件を満たす方法はどれですか。",
+    "options": [
+      "AWS CloudTrail のログを Amazon S3 に保存し、Amazon Athena で Glue と Redshift の API 呼び出しを集計してリネージを独自に組み立てる",
+      "Amazon SageMaker ML Lineage Tracking でトラッキングエンティティを手動で作成し、ETL ジョブとテーブルを関連付ける",
+      "Amazon SageMaker Catalog のデータリネージで Glue と Redshift の接続からの自動取得を設定し、Airflow からは OpenLineage のイベントを送る",
+      "AWS Glue Data Catalog のテーブルバージョンの履歴を定期的にエクスポートし、テーブル間の関係を表にまとめる"
+    ],
+    "answer": [2],
+    "explanation": "SageMaker Unified Studio のデータリネージ（Amazon SageMaker Catalog の機能）は OpenLineage 互換で、データの出どころ、変換、利用先をたどれるように可視化します。AWS Glue と Amazon Redshift の接続についてはリネージの自動取得を設定でき、Redshift のストアドプロシージャやマテリアライズドビューの SQL のリネージにも対応しています。OpenLineage を有効にした外部のシステムからは、API や AWS が公開しているカスタムトランスポートでリネージのイベントを送れます。決め手は「テーブル間のデータリネージ」「影響を調べる」「最も少ない運用負荷」です。",
+    "optionNotes": [
+      "API 呼び出しの記録からはテーブル間のデータの流れが分からず、独自の組み立てと保守に大きな手間がかかります。",
+      "ML Lineage Tracking は機械学習のワークフロー（トレーニングジョブ、モデル、エンドポイントなど）の系譜を追う機能で、ETL のテーブル間のリネージには向きません。",
+      "正解です。Glue と Redshift は自動で、Airflow は OpenLineage のイベントで、同じ画面にリネージがまとまります。",
+      "テーブルバージョンの履歴はスキーマの変更履歴で、どのテーブルからどのテーブルへデータが流れたかは分かりません。"
+    ],
+    "services": ["Amazon SageMaker", "AWS Glue", "Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Data lineage in Amazon SageMaker Unified Studio", "url": "https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/datazone-data-lineage.html" },
+      { "title": "Automate lineage capture from data connections", "url": "https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/datazone-data-lineage-automate-capture-from-data-connections.html" },
+      { "title": "Amazon SageMaker ML Lineage Tracking", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/lineage-tracking.html" }
+    ]
+  },
+  {
+    "id": "D2-030",
+    "domain": 2,
+    "task": "2.4",
+    "type": "multi",
+    "question": "ある企業は、Web サーバーのアクセスログを gzip 圧縮した JSON で Amazon S3 に保存し、Amazon Athena でクエリしています。ログは year/month/day/hour のパーティションに分かれ、1 時間あたり数千個の数十 KB のファイルが届きます。パーティションは毎時増え、AWS Glue Data Catalog への登録が遅れることがあります。クエリのほとんどは特定の日付で絞り込みますが、クエリの計画段階に時間がかかり、実行も遅くなっています。クエリ性能を改善するために取るべき対応はどれですか。（2 つ選択）",
+    "options": [
+      "パーティションに user_id を加え、ユーザーごとのフォルダにもログを分ける",
+      "AWS Glue の ETL ジョブでログを Parquet に変換し、1 ファイルが 128 MB 以上になるようにまとめて書き出す",
+      "gzip 圧縮をやめ、圧縮しない JSON で保存して Athena が解凍する処理を省く",
+      "クエリのたびに先に MSCK REPAIR TABLE を実行し、パーティションを最新の状態にしてから本来のクエリを実行する",
+      "テーブルにパーティション射影（partition projection）を設定し、日付のパーティションの値と場所をテーブルのプロパティから計算させる"
+    ],
+    "answer": [1, 4],
+    "explanation": "小さなファイルが大量にあると、ファイルごとのメタデータ取得や S3 へのリクエストが積み重なり、計画段階が長くなります。Athena の性能のガイドラインでは、分割の単位をおよそ 128 MB にすることが目安とされています。列指向の Parquet に変換してファイルをまとめれば、必要な列だけを読めて小さなファイルの問題も解消します。パーティション射影を使うと、Athena は Glue Data Catalog でパーティションを調べる代わりに、テーブルのプロパティからパーティションの値と場所を計算します。パーティションの多いテーブルでクエリが速くなり、毎時のパーティション登録も要らなくなります。",
+    "optionNotes": [
+      "パーティションを細かくしすぎると、小さなファイルとパーティションがさらに増え、性能が悪くなります。",
+      "正解です。列指向の形式と適切なファイルサイズにより、読み取る量とファイル数が減ります。",
+      "圧縮をやめると S3 から読むデータ量とスキャン料金が増え、小さなファイルの問題も残ります。",
+      "MSCK REPAIR TABLE はパーティションが多いと時間がかかり、毎回実行するとかえって遅くなります。",
+      "正解です。カタログでのパーティションの検索を省き、パーティション管理も自動になります。"
+    ],
+    "services": ["Amazon Athena", "AWS Glue", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Use partition projection with Amazon Athena", "url": "https://docs.aws.amazon.com/athena/latest/ug/partition-projection.html" },
+      { "title": "Optimize your tables", "url": "https://docs.aws.amazon.com/athena/latest/ug/performance-tuning-s3-throttling-optimizing-your-tables.html" }
+    ]
+  },
+  {
+    "id": "D2-031",
+    "domain": 2,
+    "task": "2.4",
+    "type": "single",
+    "question": "ある企業は、Amazon S3 に保存した社内規程集（章、節、項に分かれた長い文書）を使って、社員の質問に答える生成 AI アプリケーションを作ります。Amazon Bedrock Knowledge Bases を使い、検索では短い段落単位で質問との一致を取り、回答の生成には一致した段落を含むより広い範囲の文脈をモデルに渡したいと考えています。規程集は毎月改訂されます。これらの要件を満たす構成はどれですか。",
+    "options": [
+      "規程集をそのまま Amazon OpenSearch Serverless のインデックスに全文検索用として登録し、埋め込みを作らずにキーワード検索の結果をモデルに渡す",
+      "S3 をデータソースとするナレッジベースを作成し、埋め込みモデルとベクトルストアに Amazon OpenSearch Serverless を指定して、親と子のチャンクサイズを決めた階層チャンキングを設定する。改訂のたびにデータソースを同期する",
+      "S3 をデータソースとするナレッジベースを作成し、チャンキングなし（各ファイルを 1 チャンク）を設定する。改訂されても S3 の変更が自動で反映されるため同期は不要とする",
+      "S3 をデータソースとするナレッジベースを作成し、固定サイズのチャンキングを設定する。回答の文脈を広げたいときは、作成後にチャンキングを階層チャンキングへ切り替える"
+    ],
+    "answer": [1],
+    "explanation": "Bedrock Knowledge Bases は取り込み時に文書をチャンクに分け、埋め込みモデルでベクトルに変換してベクトルインデックスに書き込みます。階層チャンキングでは親チャンクと子チャンクを入れ子に作り、検索ではまず精度の高い子チャンクで一致を取り、それをより広い親チャンクに置き換えてモデルに渡します。「短い段落で一致を取り、広い文脈を渡す」という要件に合います。なお、階層チャンキングは S3 ベクトルバケットをベクトルストアにする構成では推奨されていません。S3 の文書を改訂したら、データソースを同期（取り込みジョブを実行）してインデックスを更新します。",
+    "optionNotes": [
+      "埋め込みを作らないキーワード検索では意味の近さで探せず、ナレッジベースのベクトル検索の仕組みも使えません。",
+      "正解です。階層チャンキングで精度と文脈を両立し、改訂のたびに同期してインデックスを最新に保ちます。",
+      "1 ファイルを 1 チャンクにすると埋め込みが粗くなり、段落単位で一致を取れません。S3 を変更しても同期しなければインデックスは更新されません。",
+      "チャンキングの方式はデータソースの作成後に変更できません。また固定サイズのチャンキングでは親の文脈を渡す仕組みがありません。"
+    ],
+    "services": ["Amazon Bedrock", "Amazon S3", "Amazon OpenSearch Service"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "How content chunking works for knowledge bases", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/kb-chunking.html" },
+      { "title": "Modify a data source for your Amazon Bedrock knowledge base", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/kb-ds-update.html" }
+    ]
+  }
+]

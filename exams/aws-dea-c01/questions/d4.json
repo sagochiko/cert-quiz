@@ -1,0 +1,605 @@
+[
+  {
+    "id": "D4-001",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "データエンジニアは、AWS Glue の ETL ジョブからプライベートサブネットにある Amazon RDS for PostgreSQL のデータベースへ JDBC 接続で読み込もうとしています。AWS Glue の接続にはデータベースと同じ VPC のサブネットと、専用のセキュリティグループ glue-sg を指定しました。データベースのセキュリティグループは glue-sg からの 5432 番ポートを許可していますが、接続テストがタイムアウトします。この問題を解決するために、データエンジニアは何をすべきですか。",
+    "options": [
+      "glue-sg のアウトバウンドルールを削除し、データベースのセキュリティグループだけで通信を制御する",
+      "AWS Glue の接続先のサブネットをパブリックサブネットに変更し、データベースにパブリック IP アドレスを付ける",
+      "glue-sg に、送信元を glue-sg 自身とする全 TCP ポートのインバウンドルール(自己参照ルール)を追加する",
+      "ネットワーク ACL にエフェメラルポートを拒否するルールを追加し、不要な通信を遮断する"
+    ],
+    "answer": [2],
+    "explanation": "AWS Glue は接続に指定したサブネットに Elastic Network Interface を作り、ジョブのワーカー同士もこのネットワークインターフェイス経由で通信します。そのため、接続に関連付けるセキュリティグループのどれか1つに、自分自身を送信元とする全 TCP ポートのインバウンドルールが必要です。これが無いとワーカー間の通信が通らず、データベース側の許可が正しくても接続テストがタイムアウトします。あわせて、アウトバウンドはすべて許可するか、自己参照ルールで VPC 内に絞ります。サブネットから Amazon S3 に届くよう、S3 の VPC エンドポイントか NAT ゲートウェイへの経路も必要です。",
+    "optionNotes": [
+      "AWS Glue のセキュリティグループには外向きの通信が必要です。アウトバウンドを削除すると、データベースにもワーカー同士にも届かなくなります。",
+      "データベースを公開する必要はなく、セキュリティの要件にも反します。原因である自己参照ルールの欠落も解消しません。",
+      "AWS Glue の接続の要件どおりの設定です。ワーカーのネットワークインターフェイス同士が通信できるようになり、タイムアウトが解消します。",
+      "通信をさらに遮断する変更で、タイムアウトの解消にはつながりません。エフェメラルポートを拒否すると戻りの通信も止まります。"
+    ],
+    "services": ["AWS Glue", "Amazon RDS", "Amazon VPC"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Setting up Amazon VPC for JDBC connections to Amazon RDS data stores from AWS Glue", "url": "https://docs.aws.amazon.com/glue/latest/dg/setup-vpc-for-glue-access.html" }
+    ]
+  },
+  {
+    "id": "D4-002",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業は Amazon Redshift のプロビジョニングされたクラスターを使っています。管理者ユーザーのパスワードはクラスター作成時に手で決め、社内の Wiki に記録しています。セキュリティ部門は、パスワードを人が目にしない形で保管し、定期的に自動でローテーションするよう求めています。最も少ない運用負荷でこの要件を満たす方法はどれですか。",
+    "options": [
+      "クラスターの設定で、管理者の認証情報を AWS Secrets Manager で管理するよう変更する",
+      "パスワードを AWS Systems Manager Parameter Store の SecureString に保存し、Amazon EventBridge のスケジュールで AWS Lambda 関数を起動して ALTER USER でパスワードを変更する",
+      "パスワードを AWS Secrets Manager にシークレットとして手で登録し、ローテーション用の AWS Lambda 関数を自作して割り当てる",
+      "管理者ユーザーを削除し、すべての管理作業を IAM ユーザーのアクセスキーで Amazon Redshift Data API から行う"
+    ],
+    "answer": [0],
+    "explanation": "Amazon Redshift には、管理者パスワードを AWS Secrets Manager で管理する統合機能があります。有効にすると Amazon Redshift がシークレットを作り、既定で30日ごとに自動でローテーションし、クラスターのパスワードもそれに合わせて変わります。パスワードを人が決めたり見たりする必要がなく、ローテーション用の関数を作る手間もありません。決め手は「人が目にしない」「自動でローテーション」「最も少ない運用負荷」の3点です。ローテーションの間隔は Secrets Manager 側で変えられ、すぐにローテーションすることもできます。",
+    "optionNotes": [
+      "Amazon Redshift が Secrets Manager のシークレットを作り、既定で30日ごとにローテーションします。自作の仕組みが要らず、運用負荷が最も小さくなります。",
+      "Parameter Store には自動ローテーションの機能が無く、Lambda 関数と ALTER USER の処理を自前で作って保守する必要があります。",
+      "要件は満たせますが、シークレットの登録とローテーション関数の作成と保守が必要で、統合機能より手間がかかります。",
+      "管理者ユーザーを無くすのは現実的ではなく、長期のアクセスキーに頼る点もベストプラクティスに反します。"
+    ],
+    "services": ["Amazon Redshift", "AWS Secrets Manager"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Managing Amazon Redshift admin passwords using AWS Secrets Manager", "url": "https://docs.aws.amazon.com/redshift/latest/mgmt/redshift-secrets-manager-integration.html" },
+      { "title": "Parameter Store reference", "url": "https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-a-parameter.html" }
+    ]
+  },
+  {
+    "id": "D4-003",
+    "domain": 4,
+    "task": "4.1",
+    "type": "multi",
+    "question": "ある企業は、VPC のプライベートサブネットで動く AWS Lambda 関数から Amazon S3 バケットへ加工済みのファイルを書き込みます。VPC にはインターネットゲートウェイも NAT ゲートウェイもなく、今後も追加しない方針です。また、このバケットへの書き込みはこの VPC を経由したものだけを許可する必要があります。Lambda 関数の実行ロールにはバケットへの s3:PutObject の権限が付いています。これらの要件を満たすために、データエンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "Amazon S3 のゲートウェイ VPC エンドポイントを作成し、Lambda 関数のサブネットのルートテーブルに関連付ける",
+      "パブリックサブネットに NAT ゲートウェイを作成し、プライベートサブネットのルートテーブルに 0.0.0.0/0 の経路を追加する",
+      "S3 バケットにセキュリティグループを関連付け、Lambda 関数のセキュリティグループからのインバウンドだけを許可する",
+      "バケットポリシーに、aws:SourceVpce が作成した VPC エンドポイントの ID と一致しない場合に s3:PutObject を拒否する文を追加する",
+      "IAM ユーザーのアクセスキーを Lambda 関数の環境変数に設定し、そのユーザーにだけバケットへの書き込みを許可する"
+    ],
+    "answer": [0, 3],
+    "explanation": "インターネットへの経路を持たない VPC から Amazon S3 に届けるには、S3 のゲートウェイ VPC エンドポイントを作り、サブネットのルートテーブルに関連付けます。これで Lambda 関数は AWS のネットワーク内で S3 に到達できます。次に「この VPC 経由の書き込みだけを許可」という要件は、バケットポリシーで aws:SourceVpce 条件キーを使い、指定したエンドポイント以外からのリクエストを Deny することで満たします。ネットワークの経路はエンドポイントが、アクセスの制限はバケットポリシーが受け持つ組み合わせです。なお、このポリシーはコンソールからの操作も拒否する点に注意します。",
+    "optionNotes": [
+      "インターネットを通らずに S3 へ届く経路を作ります。ルートテーブルへの関連付けで S3 宛ての通信がエンドポイントに向かいます。",
+      "NAT ゲートウェイは追加しない方針に反し、インターネット経由の経路になります。",
+      "S3 バケットにセキュリティグループを関連付ける機能はありません。S3 へのアクセスはバケットポリシーなどで制御します。",
+      "aws:SourceVpce で特定のエンドポイントを経由しない書き込みを拒否でき、「この VPC 経由だけ」の要件を満たします。",
+      "長期のアクセスキーを環境変数に置くのは避けるべきで、実行ロールで足ります。経路の問題も解決しません。"
+    ],
+    "services": ["Amazon VPC", "Amazon S3", "AWS Lambda", "AWS PrivateLink"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Gateway endpoints for Amazon S3", "url": "https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html" }
+    ]
+  },
+  {
+    "id": "D4-004",
+    "domain": 4,
+    "task": "4.1",
+    "type": "single",
+    "question": "ある企業は Amazon SageMaker Unified Studio のドメインを全社で1つ使っています。マーケティング部門は、自部門のデータエンジニアのグループだけが部門用の領域でプロジェクトを作れるようにし、その領域の管理はマーケティング部門のリーダーに任せたいと考えています。ほかの部門のユーザーが部門の公開したアセットをカタログで探して利用申請できる状態は保つ必要があります。これらの要件を満たす方法はどれですか。",
+    "options": [
+      "マーケティング部門専用に新しい SageMaker Unified Studio のドメインを作成し、部門のユーザーだけをそのドメインに追加する",
+      "全社のドメインで、マーケティング部門以外の IAM ロールに datazone:CreateProject を拒否する IAM ポリシーを付ける",
+      "AWS Lake Formation で部門名の LF-Tag を作り、マーケティング部門のデータエンジニアにだけ LF-Tag の権限を付与する",
+      "全社のドメインにマーケティング部門のドメインユニットを作成し、リーダーをドメインユニットの所有者にして、部門のデータエンジニアのグループにプロジェクト作成ポリシーを付与する"
+    ],
+    "answer": [3],
+    "explanation": "SageMaker Unified Studio のドメインユニットは、ドメインの中を部門やチームの単位で区切る仕組みです。ドメインユニットの所有者には管理を任せられ、ユニットごとにプロジェクト作成ポリシーやプロジェクトメンバーシップポリシーなどの認可ポリシーをユーザーやグループに付与できます。同じドメインの中なので、部門が公開したアセットはほかの部門のユーザーからもカタログで検索でき、利用申請もできます。決め手は「部門の領域の管理を任せる」「特定のグループだけがプロジェクトを作れる」「全社で探せる状態を保つ」の3点です。",
+    "optionNotes": [
+      "ドメインを分けると、ほかの部門のユーザーが同じカタログで探して利用申請することが難しくなります。",
+      "IAM で一律に拒否するだけでは、部門の領域の管理をリーダーに任せる要件を満たせません。ドメインユニットの認可ポリシーのほうが目的に合います。",
+      "LF-Tag はデータカタログのリソースへのアクセス権を制御する仕組みで、SageMaker Unified Studio のプロジェクト作成の権限は制御しません。",
+      "ドメインユニットで管理の委任とプロジェクト作成の制限ができ、同じドメインなので全社からの検索と利用申請も保たれます。"
+    ],
+    "services": ["Amazon SageMaker Unified Studio", "Amazon DataZone"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Domain units and authorization policies in Amazon SageMaker Unified Studio", "url": "https://docs.aws.amazon.com/sagemaker-unified-studio/latest/adminguide/domain-units.html" },
+      { "title": "Assign authorization policies to users and groups within an Amazon SageMaker Unified Studio domain unit", "url": "https://docs.aws.amazon.com/sagemaker-unified-studio/latest/adminguide/assign-authorization-policies-to-users-in-domain-unit.html" }
+    ]
+  },
+  {
+    "id": "D4-005",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業は AWS Lake Formation で管理するデータレイクに、数百のテーブルを持っています。テーブルは毎週増え、各テーブルには「機密」か「一般」のどちらかの区分があります。分析者のロールは一般のテーブルだけを Amazon Athena で検索でき、監査チームのロールはすべてのテーブルを検索できる必要があります。新しいテーブルが増えるたびに分析者や監査チームへの権限付与をやり直さずに済む方法はどれですか。",
+    "options": [
+      "テーブルが作られるたびに、名前付きリソース方式で分析者と監査チームのロールにテーブルごとの SELECT を付与する AWS Lambda 関数を実行する",
+      "classification というキーに confidential と general の値を持つ LF-Tag を作ってテーブルに割り当て、分析者には classification=general、監査チームには両方の値を含む LF-Tag 式で SELECT を付与する",
+      "テーブルごとの S3 プレフィックスに対してバケットポリシーを書き、分析者のロールには一般のテーブルのプレフィックスだけ読み取りを許可する",
+      "分析者のロールの IAM ポリシーで、一般のテーブルの ARN を列挙して glue:GetTable を許可する"
+    ],
+    "answer": [1],
+    "explanation": "Lake Formation のタグベースのアクセス制御(LF-TBAC)では、キーと値の組である LF-Tag をデータベース、テーブル、列に割り当て、プリンシパルには LF-Tag 式に対する権限を付与します。新しいテーブルに区分の LF-Tag を付けるだけで、既存の付与が自動で当てはまるため、テーブルが増えても付与をやり直す必要がありません。名前付きリソース方式ではプリンシパルとテーブルの組み合わせの数だけ付与が必要になり、テーブル数が多いと管理が膨らみます。決め手は「数百のテーブル」「毎週増える」「付与をやり直さない」です。",
+    "optionNotes": [
+      "自動化はできますが、テーブルとプリンシパルの組み合わせごとに付与が増え続け、権限の見通しが悪くなります。",
+      "LF-Tag 式への付与なので、新しいテーブルに区分のタグを付けるだけで権限が当てはまります。運用の手間が最も小さい方法です。",
+      "Lake Formation で管理するテーブルへのアクセスは Lake Formation の権限で制御します。プレフィックスごとのバケットポリシーは管理が煩雑で、列やテーブル単位の統制にもなりません。",
+      "glue:GetTable はメタデータの取得の権限で、データの読み取りは Lake Formation の権限で決まります。ARN の列挙はテーブルが増えるたびに更新が必要です。"
+    ],
+    "services": ["AWS Lake Formation", "Amazon Athena", "AWS Glue Data Catalog"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Lake Formation tag-based access control", "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/tag-based-access-control.html" },
+      { "title": "Lake Formation tag-based access control best practices and considerations", "url": "https://docs.aws.amazon.com/lake-formation/latest/dg/lf-tag-considerations.html" }
+    ]
+  },
+  {
+    "id": "D4-006",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある企業は Amazon Redshift に売上テーブルを持っています。30人の分析者が sales スキーマのテーブルを SELECT できるようにし、人の入れ替わりがあっても権限の管理を簡単にしたいと考えています。また、地域マネージャーは売上テーブルのうち自分の担当地域の行だけを参照できる必要があります。これらの要件を満たす方法はどれですか。（2 つ選択）",
+    "options": [
+      "分析者ごとに IAM ポリシーを作り、redshift:GetClusterCredentials に sales スキーマの条件を付ける",
+      "CREATE ROLE でロールを作り、sales スキーマのテーブルへの SELECT をロールに GRANT したうえで、分析者のユーザーにロールを GRANT する",
+      "地域ごとに売上テーブルを複製した別のテーブルを作り、地域マネージャーごとに対応するテーブルへの SELECT を付与する",
+      "売上テーブルを Amazon S3 に UNLOAD し、地域ごとのプレフィックスに分けて S3 のバケットポリシーで地域マネージャーのアクセスを制御する",
+      "CREATE RLS POLICY で担当地域に一致する行だけを返すポリシーを作り、地域マネージャーのロールに ATTACH して、テーブルの行レベルセキュリティを有効にする"
+    ],
+    "answer": [1, 4],
+    "explanation": "Amazon Redshift のロールベースのアクセス制御(RBAC)では、CREATE ROLE で作ったロールにオブジェクトの権限をまとめて付与し、そのロールをユーザーに GRANT します。人の入れ替わりはロールの付け外しだけで済むので、30人分の権限を個別に管理せずに済みます。行単位の制限は行レベルセキュリティ(RLS)で実現します。CREATE RLS POLICY で USING 句に行の条件を書き、ATTACH RLS POLICY でユーザーやロールに関連付け、テーブル側で行レベルセキュリティを有効にします。データを複製しないので、テーブルを1つのまま地域ごとの見え方を変えられます。",
+    "optionNotes": [
+      "IAM ポリシーはクラスターへの接続の認証を制御するもので、データベース内のスキーマやテーブルへの SELECT の権限は付与できません。",
+      "ロールに権限をまとめ、ユーザーにはロールを付けるだけなので、入れ替わりがあっても管理が簡単です。",
+      "テーブルの複製は保管と更新の手間が増え、データの不一致も起こりやすくなります。",
+      "Redshift の外にデータを出す必要はなく、二重管理になります。地域マネージャーは Redshift で参照したいという前提にも合いません。",
+      "RLS ポリシーで担当地域の行だけが返るようになります。データを複製せずに行単位の制限ができます。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "GRANT", "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_GRANT.html" },
+      { "title": "CREATE RLS POLICY", "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_CREATE_RLS_POLICY.html" },
+      { "title": "ATTACH RLS POLICY", "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_ATTACH_RLS_POLICY.html" }
+    ]
+  },
+  {
+    "id": "D4-007",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "データエンジニアは AWS Glue の ETL ジョブ用の IAM ロールを作ります。ジョブは s3://raw-data バケットの sales/ プレフィックスの下のオブジェクトを一覧して読み取り、s3://curated-data バケットの sales/ プレフィックスの下に書き込みます。AWS 管理ポリシーでは権限が広すぎるため、最小権限のカスタムポリシーを作ることにしました。S3 の権限として最も適切なものはどれですか。",
+    "options": [
+      "AmazonS3FullAccess を付け、さらにアクセス許可の境界で raw-data と curated-data 以外のバケットを拒否する",
+      "Resource に raw-data と curated-data の両方のバケットとその下のすべてのオブジェクトを指定し、Action に s3:* を許可する",
+      "arn:aws:s3:::raw-data に s3:prefix を sales/ に限る条件付きで s3:ListBucket を、arn:aws:s3:::raw-data/sales/* に s3:GetObject を、arn:aws:s3:::curated-data/sales/* に s3:PutObject を許可する",
+      "Resource に \"*\" を指定して s3:GetObject、s3:PutObject、s3:ListBucket を許可し、Condition で aws:SourceVpc を指定する"
+    ],
+    "answer": [2],
+    "explanation": "最小権限のポリシーでは、必要なアクションだけを、必要なリソースだけに許可します。S3 では、s3:ListBucket はバケットの ARN に対するアクションで、s3:GetObject と s3:PutObject はオブジェクトの ARN に対するアクションです。一覧をプレフィックスに限るには s3:prefix 条件キーを使います。読み取り元には ListBucket と GetObject、書き込み先には PutObject だけを、それぞれ sales/ の範囲で許可するのが要件に合います。管理ポリシーを境界で削る方法や、s3:* のような広いアクションの許可は、削除などの不要な操作まで認めてしまいます。",
+    "optionNotes": [
+      "境界でバケットは絞れても、両方のバケットに対する削除などすべての操作が許可されたままで、最小権限になりません。",
+      "s3:* は削除やポリシー変更まで含み、プレフィックスの範囲も絞れていません。",
+      "アクションごとに正しいリソースの種類(バケットかオブジェクトか)を指定し、プレフィックスまで絞っており、最小権限の要件に合います。",
+      "Resource が \"*\" なのでアカウント内のすべてのバケットが対象になり、ネットワークの条件だけでは最小権限になりません。"
+    ],
+    "services": ["AWS IAM", "Amazon S3", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Security best practices in IAM", "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html" }
+    ]
+  },
+  {
+    "id": "D4-008",
+    "domain": 4,
+    "task": "4.2",
+    "type": "single",
+    "question": "ある企業の AWS Lambda 関数は、Amazon Aurora PostgreSQL のデータベースに接続してデータを抽出します。関数は、データベースのユーザー名とパスワード、および接続先のスキーマ名や抽出のバッチサイズのような秘密ではない設定値を読み込みます。セキュリティ部門は、データベースの認証情報を30日ごとに自動でローテーションするよう求めています。設定値はできるだけ安く保管したいと考えています。これらの要件を満たす組み合わせはどれですか。",
+    "options": [
+      "データベースの認証情報を AWS Secrets Manager に保存してローテーションを有効にし、設定値は AWS Systems Manager Parameter Store の標準パラメータに保存する",
+      "認証情報と設定値をすべて AWS Systems Manager Parameter Store の SecureString に保存し、Parameter Store のローテーション機能で30日ごとに更新する",
+      "認証情報と設定値を Lambda 関数の環境変数に設定し、AWS KMS のカスタマーマネージドキーで暗号化する",
+      "認証情報と設定値を1つの JSON ファイルにまとめ、SSE-KMS で暗号化した S3 バケットに置いて関数から読み込む"
+    ],
+    "answer": [0],
+    "explanation": "Parameter Store は設定データやシークレットを階層的に保管できますが、保存したシークレットを自動でローテーションする機能はありません。データベースの認証情報のように自動ローテーションが要るものは、Amazon Aurora などのローテーションに対応した AWS Secrets Manager に置きます。一方、スキーマ名やバッチサイズのような秘密ではない値は、Parameter Store の標準パラメータに置けば追加料金なしで保管できます。決め手は「30日ごとに自動でローテーション」と「設定値はできるだけ安く」の2つで、役割に応じてサービスを使い分けるのが要件に合います。",
+    "optionNotes": [
+      "認証情報は Secrets Manager の自動ローテーションで、設定値は安価な Parameter Store の標準パラメータで扱え、両方の要件を満たします。",
+      "Parameter Store には自動ローテーションの機能がありません。認証情報には Secrets Manager が推奨されています。",
+      "環境変数は暗号化できますが、自動ローテーションの仕組みはありません。値を変えるたびに関数の設定を更新する必要があります。",
+      "S3 のファイルではローテーションを自前で作る必要があり、認証情報の扱いとしても推奨されません。"
+    ],
+    "services": ["AWS Secrets Manager", "AWS Systems Manager Parameter Store", "AWS Lambda"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Parameter Store reference", "url": "https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-a-parameter.html" },
+      { "title": "Use AWS Secrets Manager secrets in Parameter Store", "url": "https://docs.aws.amazon.com/secretsmanager/latest/userguide/integrating_parameterstore.html" }
+    ]
+  },
+  {
+    "id": "D4-009",
+    "domain": 4,
+    "task": "4.2",
+    "type": "multi",
+    "question": "ある企業では、20 のデータチームがそれぞれ AWS Secrets Manager にデータベースの認証情報を保存しています。各チームのメンバーは IAM Identity Center から IAM ロールを引き受けて作業し、自チームのシークレットだけを読み取れる必要があります。チームは今後も増える予定で、チームが増えるたびに IAM ポリシーを書き換えずに済む方法が求められています。これらの要件を満たすために、データエンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "各シークレットに team タグを付け、作業者のセッションにも所属チームを表す team タグが渡されるよう IAM Identity Center のアクセスコントロール属性を設定する",
+      "チームごとに専用の IAM ポリシーを作り、そのチームのシークレットの ARN を列挙して secretsmanager:GetSecretValue を許可する",
+      "secretsmanager:ResourceTag/team が ${aws:PrincipalTag/team} と一致する場合だけ secretsmanager:GetSecretValue を許可する1つのポリシーを、全チーム共通のロールに付ける",
+      "各シークレットのリソースベースのポリシーに、読み取りを許可するメンバーの IAM ロールの ARN を列挙する",
+      "全チーム共通のロールにアクセス許可の境界を設定し、secretsmanager:* を許可する"
+    ],
+    "answer": [0, 2],
+    "explanation": "属性ベースのアクセス制御(ABAC)では、プリンシパルとリソースの両方にタグを付け、ポリシーの条件でタグの値が一致するかを比べます。IAM Identity Center のアクセスコントロール属性を使うと、ユーザーの所属チームをセッションタグとして渡せます。ポリシー側では aws:PrincipalTag をポリシー変数として使い、リソースのタグと一致する場合だけ許可します。チームが増えても、シークレットとユーザーにタグを付けるだけでポリシーはそのまま使えます。ロールベースの方式でチームごとにポリシーを作る方法は、チームの数だけポリシーの作成と保守が必要になります。",
+    "optionNotes": [
+      "リソースとセッションの両方に team タグがそろうことで、タグの一致による制御ができます。ABAC の前提になる設定です。",
+      "チームが増えるたびにポリシーとロールを足す必要があり、「書き換えずに済む」要件に合いません。",
+      "タグの一致を条件にした1つのポリシーで全チームに対応でき、チームが増えてもポリシーを変えずに済みます。",
+      "メンバーやロールが変わるたびに各シークレットのポリシーを書き換える必要があり、運用が煩雑です。",
+      "アクセス許可の境界は権限の上限を決めるもので、それだけでは自チームのシークレットに絞れません。"
+    ],
+    "services": ["AWS IAM", "AWS IAM Identity Center", "AWS Secrets Manager"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Define permissions based on attributes with ABAC authorization", "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction_attribute-based-access-control.html" },
+      { "title": "Using tags in IAM permission policies", "url": "https://docs.aws.amazon.com/tag-editor/latest/userguide/tags-in-iam-policies.html" }
+    ]
+  },
+  {
+    "id": "D4-010",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "question": "ある企業は Amazon Redshift の customers テーブルにクレジットカード番号の列を持っています。社内の規程により、一般の分析者には末尾4桁以外を伏せた値を、不正検知チームには元の値を、それぞれ同じテーブルへの同じクエリで返す必要があります。データは複製せず、ビューも増やしたくないと考えています。この要件を満たす方法はどれですか。",
+    "options": [
+      "AWS Glue の Detect Sensitive Data 変換でカード番号を伏せた別のテーブルを作り、一般の分析者にはそのテーブルだけを参照させる",
+      "CREATE RLS POLICY で不正検知チーム以外にはカード番号を含む行を返さないポリシーを作り、テーブルに関連付ける",
+      "一般の分析者向けと不正検知チーム向けにそれぞれビューを作り、ロールごとに参照できるビューを分ける",
+      "末尾4桁以外を伏せる式のマスキングポリシーを CREATE MASKING POLICY で作って PUBLIC に ATTACH し、不正検知チームのロールにはより高い優先度で元の値を返すマスキングポリシーを ATTACH する"
+    ],
+    "answer": [3],
+    "explanation": "Amazon Redshift の動的データマスキング(DDM)は、クエリの実行時に、ユーザーやロールに応じて列の値を変換して返す機能です。CREATE MASKING POLICY でマスクの式を定義し、ATTACH MASKING POLICY でテーブルの列とユーザー、ロール、PUBLIC の組み合わせに関連付けます。同じ列に複数のポリシーが当てはまるときは、PRIORITY の高いものが使われます。PUBLIC には伏せるポリシーを、不正検知チームのロールには元の値を返すポリシーを高い優先度で付ければ、同じクエリでも見え方が変わります。データの複製もビューの追加も要りません。",
+    "optionNotes": [
+      "別のテーブルを作るのでデータの複製になり、同じテーブルへの同じクエリで見え方を変える要件にも合いません。",
+      "RLS は行を返すかどうかを制御する機能で、列の値を部分的に伏せることはできません。",
+      "ビューを増やさないという要件に反します。参照するオブジェクトもロールごとに変わります。",
+      "DDM のポリシーと優先度で、同じテーブルへの同じクエリでもロールに応じて伏せた値と元の値を返せます。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "ATTACH MASKING POLICY", "url": "https://docs.aws.amazon.com/redshift/latest/dg/r_ATTACH_MASKING_POLICY.html" },
+      { "title": "Dynamic data masking", "url": "https://docs.aws.amazon.com/redshift/latest/dg/t_ddm.html" }
+    ]
+  },
+  {
+    "id": "D4-011",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "question": "ある企業は、問い合わせ記録を AWS Glue の ETL ジョブで Amazon S3 のデータレイクに取り込んでいます。自由記述の列にメールアドレスや電話番号が含まれることがあり、個人情報保護の方針により、データレイクに書き込む前に置き換える必要があります。分析者は、同じメールアドレスを持つ記録同士を突き合わせられる必要があります。コードを書く量を最も少なくしてこの要件を満たす方法はどれですか。",
+    "options": [
+      "取り込んだ後に Amazon Macie の機密データ検出ジョブを実行し、検出されたオブジェクトを削除する",
+      "AWS Glue Studio のジョブに Detect Sensitive Data 変換を追加し、検出したメールアドレスと電話番号に Apply cryptographic hash のアクションを設定する",
+      "データレイクに取り込んだ後、Amazon Redshift の動的データマスキングでメールアドレスと電話番号を伏せる",
+      "AWS Lake Formation で自由記述の列を除外する列レベルの権限を設定し、分析者からは列を見えなくする"
+    ],
+    "answer": [1],
+    "explanation": "AWS Glue の Detect Sensitive Data 変換は、メールアドレスや電話番号などの個人情報をセルや列の単位で検出し、そのまま変換できます。アクションには、指定の文字列に置き換える、一部だけ伏せる、SHA-256 の暗号学的ハッシュに置き換える、などがあります。ハッシュにすれば同じメールアドレスは同じ値になるので、元の値を残さずに記録同士を突き合わせられます。AWS Glue Studio の視覚的なエディタで設定でき、コードを書く量も少なく済みます。決め手は「書き込む前に置き換える」と「同じメールアドレス同士を突き合わせる」です。",
+    "optionNotes": [
+      "Macie は検出と報告をするサービスで、値の置き換えはしません。書き込んだ後の検出なので「書き込む前に」の要件にも合いません。",
+      "書き込む前に個人情報を検出してハッシュに置き換えられ、同じ値同士の突き合わせもできます。コードを書かずに設定できます。",
+      "データレイクには元の値が残ったままで、書き込む前に置き換える要件を満たしません。",
+      "自由記述の列そのものが見えなくなり、分析に使えなくなります。データレイクには元の値も残ります。"
+    ],
+    "services": ["AWS Glue", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Detect and process sensitive data", "url": "https://docs.aws.amazon.com/glue/latest/dg/detect-PII.html" }
+    ]
+  },
+  {
+    "id": "D4-012",
+    "domain": 4,
+    "task": "4.3",
+    "type": "multi",
+    "question": "ある企業のアカウント A には、AWS KMS のカスタマーマネージドキーを使う SSE-KMS で暗号化された S3 バケットがあります。分析部門のアカウント B で動く AWS Glue ジョブが、このバケットのオブジェクトを読み取る必要があります。バケットポリシーではすでにアカウント B の Glue ジョブのロールに s3:GetObject を許可していますが、読み取りは AccessDenied で失敗します。この問題を解決するために、データエンジニアが行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "バケットの暗号化を AWS 管理キー(aws/s3)に変更し、キーポリシーにアカウント B を追加する",
+      "バケットで S3 バケットキーを有効にする",
+      "アカウント A のカスタマーマネージドキーのキーポリシーに、アカウント B(またはその Glue ジョブのロール)に kms:Decrypt を許可する文を追加する",
+      "アカウント B の Glue ジョブのロールの IAM ポリシーに、アカウント A のキーの ARN を対象として kms:Decrypt を許可する文を追加する",
+      "アカウント B に新しいカスタマーマネージドキーを作り、Glue ジョブの設定でそのキーを指定する"
+    ],
+    "answer": [2, 3],
+    "explanation": "別のアカウントのプリンシパルに KMS キーを使わせるには、2か所での許可が必要です。まずキーを持つアカウント A で、キーポリシーに外部アカウントかそのロールを入れ、使ってよい操作を決めます。ただしキーポリシーは許可の範囲を決めるだけで、アカウント B のロールが実際に使うには、アカウント B 側の IAM ポリシーでキーの ARN に対する kms:Decrypt などを委任する必要があります。SSE-KMS のオブジェクトを読むには、S3 の権限に加えてこのキーの復号の権限が要るので、バケットポリシーだけでは AccessDenied になります。",
+    "optionNotes": [
+      "AWS 管理キーのキーポリシーは変更できず、ほかのアカウントに使用を許可できません。",
+      "S3 バケットキーは KMS へのリクエストの回数とコストを減らす機能で、アカウントをまたぐ権限の問題は解決しません。",
+      "キーを持つアカウント側で外部アカウントにキーの使用を許可します。これが無いと、アカウント B でどう設定しても復号できません。",
+      "キーポリシーで許可された範囲の中で、アカウント B のロールにキーの使用を委任します。両方がそろって初めて復号できます。",
+      "オブジェクトはアカウント A のキーで暗号化されており、別のキーでは復号できません。"
+    ],
+    "services": ["AWS KMS", "Amazon S3", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Allowing users in other accounts to use a KMS key", "url": "https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-modifying-external-accounts.html" }
+    ]
+  },
+  {
+    "id": "D4-013",
+    "domain": 4,
+    "task": "4.3",
+    "type": "multi",
+    "question": "ある医療系の企業は、オンプレミスのシステムから Amazon S3 に検査データをアップロードしています。コンプライアンスの要件で、S3 への通信は必ず暗号化し、暗号化されていない通信でのリクエストは受け付けないようにする必要があります。さらに、データは AWS に送る前に自社の管理する環境で暗号化し、S3 には暗号化済みのデータだけが届くようにする必要があります。これらの要件を満たす方法はどれですか。（2 つ選択）",
+    "options": [
+      "バケットのデフォルト暗号化を SSE-S3 に設定する",
+      "バケットポリシーに、aws:SecureTransport が false のリクエストをすべて拒否する文を追加する",
+      "バケットで S3 Object Lock をコンプライアンスモードで有効にする",
+      "アップロードするプログラムで Amazon S3 Encryption Client を使い、AWS KMS のキーをラッピングキーにしてクライアント側で暗号化する",
+      "バケットで S3 バケットキーを有効にし、SSE-KMS のリクエストの回数を減らす"
+    ],
+    "answer": [1, 3],
+    "explanation": "暗号化されていない通信を受け付けない要件は、バケットポリシーで aws:SecureTransport が false のリクエストを Deny することで満たします。明示的な拒否なので、ほかの許可があっても HTTP でのリクエストは通りません。送る前に暗号化する要件は、クライアント側の暗号化で満たします。Amazon S3 Encryption Client はデータをローカルで暗号化してから PutObject を行うため、S3 には暗号化済みのデータだけが届き、AWS を含む第三者に平文が渡りません。ラッピングキーには AWS KMS などを使えます。SSE-S3 や SSE-KMS は S3 に届いた後の保存時の暗号化です。",
+    "optionNotes": [
+      "SSE-S3 は S3 が受け取った後に行う保存時の暗号化で、送る前に暗号化する要件も通信の暗号化の強制も満たしません。",
+      "HTTP での暗号化されていないリクエストを明示的に拒否でき、通信の暗号化を強制できます。",
+      "Object Lock はオブジェクトの削除や上書きを防ぐ機能で、暗号化とは関係がありません。",
+      "データを自社の環境で暗号化してから送るので、S3 には暗号化済みのデータだけが届きます。",
+      "S3 バケットキーはサーバー側の暗号化のコストを下げる機能で、どちらの要件にも当たりません。"
+    ],
+    "services": ["Amazon S3", "AWS KMS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Protecting data by using client-side encryption", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingClientSideEncryption.html" },
+      { "title": "Security best practices for Amazon S3", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html" }
+    ]
+  },
+  {
+    "id": "D4-014",
+    "domain": 4,
+    "task": "4.3",
+    "type": "single",
+    "question": "ある企業のデータレイクは、AWS KMS のカスタマーマネージドキーを使う SSE-KMS で暗号化された S3 バケットに、毎日数百万の小さなオブジェクトを書き込んでいます。最近、AWS KMS のリクエスト料金が大きく増えました。暗号化の方式とキーの管理方法は変えず、アプリケーションも変更せずにコストを下げたいと考えています。最も適切な方法はどれですか。",
+    "options": [
+      "バケットで S3 バケットキーを有効にする",
+      "バケットのデフォルト暗号化を DSSE-KMS に変更する",
+      "カスタマーマネージドキーの自動ローテーションを無効にする",
+      "書き込むアプリケーションで Amazon S3 Encryption Client を使い、データキーをローカルにキャッシュする"
+    ],
+    "answer": [0],
+    "explanation": "S3 バケットキーを有効にすると、S3 はバケット単位のキーを KMS から受け取り、それを使ってオブジェクトごとのデータキーを作ります。オブジェクトごとに KMS を呼ぶ必要がなくなるため、KMS へのリクエストの回数が減り、リクエスト料金を最大99%下げられます。設定はバケットで有効にするだけで、クライアントのアプリケーションを変える必要はなく、引き続き同じカスタマーマネージドキーの SSE-KMS で暗号化されます。決め手は「小さなオブジェクトが大量」「KMS のリクエスト料金」「方式とキーとアプリケーションを変えない」です。",
+    "optionNotes": [
+      "KMS へのリクエストを減らしてコストを下げられ、暗号化の方式もキーもアプリケーションも変わりません。",
+      "DSSE-KMS は二重の暗号化で、S3 バケットキーにも対応していません。方式が変わるうえ、コストも下がりません。",
+      "キーのローテーションの有無は、オブジェクトごとの KMS へのリクエスト回数とは関係がありません。",
+      "クライアント側の暗号化に変えることになり、暗号化の方式もアプリケーションも変わります。"
+    ],
+    "services": ["Amazon S3", "AWS KMS"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Reducing the cost of SSE-KMS with Amazon S3 Bucket Keys", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-key.html" }
+    ]
+  },
+  {
+    "id": "D4-015",
+    "domain": 4,
+    "task": "4.4",
+    "type": "single",
+    "question": "ある企業のセキュリティチームは、AWS CloudTrail の証跡で管理イベントを記録し、その形式のログを監査に使っています。今回、機密データを置いた1つの S3 バケットについて、どの IAM プリンシパルがオブジェクトを書き込み、削除したかを同じ CloudTrail の形式で記録するよう求められました。コストを抑えるため、読み取りの操作や他のバケットは記録しない方針です。この要件を満たす方法はどれですか。",
+    "options": [
+      "CloudTrail の Event history で、対象のバケットの PutObject と DeleteObject のイベントを検索する",
+      "対象のバケットで S3 サーバーアクセスログを有効にし、ログの出力先を CloudTrail の証跡と同じバケットにする",
+      "既存の証跡で S3 のデータイベントを有効にし、高度なイベントセレクターで resources.ARN を対象のバケットに、readOnly を false に絞る",
+      "AWS Config で対象のバケットの設定の記録を有効にし、設定の変更履歴からオブジェクトの書き込みと削除を調べる"
+    ],
+    "answer": [2],
+    "explanation": "S3 のオブジェクトに対する PutObject や DeleteObject などの操作は、CloudTrail のデータイベントです。データイベントは量が多くなりやすいため、証跡では既定では記録されず、Event history にも表示されません。証跡でデータイベントを有効にし、高度なイベントセレクターで resources.ARN を対象のバケットに、readOnly を false に絞れば、特定のバケットの書き込み系の操作だけを CloudTrail の形式で記録できます。記録する範囲を絞るので、データイベントの追加料金も抑えられます。",
+    "optionNotes": [
+      "Event history には管理イベントしか表示されず、S3 のデータイベントは記録も表示もされません。",
+      "サーバーアクセスログはリクエストを記録できますが、CloudTrail の形式ではなく、書き込み系だけに絞ることもできません。",
+      "データイベントを特定のバケットと書き込み系の操作に絞って、CloudTrail の形式で記録できます。",
+      "AWS Config はリソースの設定の変更を記録するサービスで、オブジェクトの書き込みや削除の操作は記録しません。"
+    ],
+    "services": ["AWS CloudTrail", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Amazon S3 CloudTrail events", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/cloudtrail-logging-s3-info.html" },
+      { "title": "Logging data events", "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/logging-data-events-with-cloudtrail.html" }
+    ]
+  },
+  {
+    "id": "D4-016",
+    "domain": 4,
+    "task": "4.4",
+    "type": "single",
+    "question": "ある企業は数年前から AWS CloudTrail Lake を使っており、AWS Organizations の全アカウントと全リージョンの管理イベントを組織のイベントデータストアに集めています。監査担当者から、過去6か月の間に全アカウントで AWS Glue のテーブルを削除した操作と、その実行者の一覧を出すよう求められました。新しい仕組みを作らず、最も少ない手間でこの要件を満たす方法はどれですか。",
+    "options": [
+      "各アカウントの CloudTrail の Event history で DeleteTable を検索し、結果を CSV にダウンロードして結合する",
+      "CloudTrail Lake でイベントデータストアに SQL クエリを実行し、eventSource が glue.amazonaws.com で eventName が DeleteTable のイベントを抽出する",
+      "各アカウントに AWS Config のルールを追加し、Glue のテーブルの削除を検出する",
+      "Amazon CloudWatch Logs の新しいロググループに CloudTrail のイベントを送るよう設定し、CloudWatch Logs Insights で検索する"
+    ],
+    "answer": [1],
+    "explanation": "CloudTrail Lake のイベントデータストアには、組織の複数のアカウントとリージョンのイベントをまとめて保存でき、SQL でクエリできます。すでに組織のイベントデータストアに管理イベントが集まっているので、eventSource と eventName で絞り込む SQL を1本書くだけで、全アカウント分の削除操作と実行者(userIdentity)を一覧にできます。なお、CloudTrail Lake は2026年3月31日から保守モードで、新しく使い始めることはできません。この企業のように以前から使っている利用者は引き続き使えます。新しく集中ログの仕組みを作る場合、AWS は Amazon CloudWatch への移行を勧めています。",
+    "optionNotes": [
+      "Event history はアカウントとリージョンごとで、保持期間も90日です。6か月分を全アカウントで集めることはできません。",
+      "既存の組織のイベントデータストアに SQL を実行するだけで、全アカウントの削除操作と実行者を抽出できます。",
+      "Config のルールはこれからの変更の評価に使うもので、過去6か月の操作の一覧は出せません。",
+      "これから送るイベントしか検索できず、過去6か月分は対象になりません。新しい仕組みも必要になります。"
+    ],
+    "services": ["AWS CloudTrail Lake", "AWS Organizations", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Working with AWS CloudTrail Lake", "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-lake.html" },
+      { "title": "Services in Maintenance", "url": "https://docs.aws.amazon.com/general/latest/gr/maintenance_services.html" },
+      { "title": "CloudTrail Lake availability change", "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-lake-service-availability-change.html" }
+    ]
+  },
+  {
+    "id": "D4-017",
+    "domain": 4,
+    "task": "4.4",
+    "type": "multi",
+    "question": "ある企業のデータチームには、ログの分析について2つの要件があります。1つ目は、Amazon CloudWatch Logs に出力している AWS Glue ジョブのアプリケーションログから、直近1時間のエラーをその場で対話的に集計することです。2つ目は、S3 バケットに1年分たまった AWS CloudTrail の証跡のログを SQL で検索し、特定の日付の範囲だけをスキャンしてコストと時間を抑えることです。それぞれの要件に最も合う方法はどれですか。（2 つ選択）",
+    "options": [
+      "CloudWatch Logs Insights で対象のロググループにクエリを実行し、エラーのメッセージを集計する",
+      "CloudTrail の Event history で1年分のイベントを日付で絞り込んで検索する",
+      "Amazon EC2 インスタンスにログをダウンロードし、スクリプトで集計する",
+      "証跡のログを毎晩 Amazon Redshift のプロビジョニングされたクラスターに COPY し、SQL で検索する",
+      "Amazon Athena で CloudTrail のログのテーブルをパーティション射影付きで作成し、日付のパーティションで絞り込んでクエリする"
+    ],
+    "answer": [0, 4],
+    "explanation": "CloudWatch Logs にあるログを対話的に検索、集計するには CloudWatch Logs Insights を使います。専用のクエリ言語でロググループを直接検索でき、データの移動も準備も要りません。S3 にたまった CloudTrail のログを SQL で検索するには Amazon Athena を使います。パーティション射影を使うと、パーティションの値と場所をテーブルの設定から計算するので、パーティションを追加し続ける管理が要らず、日付の範囲で絞ったときにスキャンする量も減ります。それぞれログの置き場所に合ったサービスを選ぶのが決め手です。",
+    "optionNotes": [
+      "CloudWatch Logs のログをその場で対話的に検索、集計でき、1つ目の要件に合います。",
+      "Event history の保持期間は90日で、1年分は検索できません。データイベントも含まれません。",
+      "ダウンロードとスクリプトの保守が必要で、対話的な分析にも向きません。",
+      "SQL で検索はできますが、クラスターの運用と毎晩の読み込みが必要で、Athena より手間とコストがかかります。",
+      "S3 のログを直接 SQL で検索でき、パーティション射影で日付の範囲だけをスキャンできます。2つ目の要件に合います。"
+    ],
+    "services": ["Amazon CloudWatch Logs", "Amazon Athena", "AWS CloudTrail"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Analyzing log data with CloudWatch Logs Insights", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html" },
+      { "title": "Query AWS CloudTrail logs", "url": "https://docs.aws.amazon.com/athena/latest/ug/cloudtrail-logs.html" }
+    ]
+  },
+  {
+    "id": "D4-018",
+    "domain": 4,
+    "task": "4.4",
+    "type": "single",
+    "question": "ある企業は 20 の AWS アカウントでデータパイプラインを動かしており、各アカウントのアプリケーションログは Amazon CloudWatch Logs に出力されています。監査のため、すべてのログをログ保管用のアカウントの S3 バケットにほぼリアルタイムで集め、長期間安く保管する必要があります。サーバーの管理はしたくないと考えています。この要件を満たす方法はどれですか。",
+    "options": [
+      "各アカウントで AWS Lambda 関数を毎日実行し、CreateExportTask でロググループを S3 にエクスポートしてから、ログ保管用のアカウントへコピーする",
+      "各アカウントの Amazon EC2 インスタンスの CloudWatch エージェントの設定を変え、ログを直接 S3 バケットに書き込む",
+      "ログ保管用のアカウントに Amazon EMR のクラスターを作り、各アカウントの CloudWatch Logs から定期的にログを取得して S3 に書き込む",
+      "ログ保管用のアカウントに Amazon Data Firehose のストリームとそれを指す CloudWatch Logs の送信先を作り、各アカウントでその送信先へのサブスクリプションフィルターを設定する"
+    ],
+    "answer": [3],
+    "explanation": "CloudWatch Logs のサブスクリプションフィルターを使うと、ログイベントをほぼリアルタイムで別のサービスへ流せます。アカウントをまたぐ場合は、受け取る側のアカウントに Amazon Data Firehose のストリームと、それを包む CloudWatch Logs の送信先を作り、送る側のアカウントでその送信先へのサブスクリプションフィルターを設定します。Firehose が S3 へ配信するので、サーバーの管理は要りません。S3 に集めたログはライフサイクルのルールで安いストレージクラスへ移せます。決め手は「ほぼリアルタイム」「複数アカウント」「サーバーの管理をしない」です。Amazon EMR は、大量のログを加工、集計する処理に向いています。",
+    "optionNotes": [
+      "エクスポートは日次のバッチになり、ほぼリアルタイムの要件を満たしません。Lambda とコピーの仕組みの保守も必要です。",
+      "CloudWatch エージェントはログを CloudWatch Logs に送るもので、S3 へ直接書き込む機能はありません。",
+      "クラスターの管理が必要で、定期的な取得ではほぼリアルタイムにもなりません。EMR は大量のログの加工に向く選択肢です。",
+      "サブスクリプションフィルターと Firehose でアカウントをまたいでほぼリアルタイムに S3 へ集められ、サーバーの管理も要りません。"
+    ],
+    "services": ["Amazon CloudWatch Logs", "Amazon Data Firehose", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Cross-account cross-Region log data sharing using Firehose", "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CrossAccountSubscriptions-Firehose.html" }
+    ]
+  },
+  {
+    "id": "D4-019",
+    "domain": 4,
+    "task": "4.5",
+    "type": "single",
+    "question": "ある企業の中央データチームは、アカウント A の Amazon Redshift Serverless で販売データを管理しています。マーケティング部門はアカウント B の Amazon Redshift Serverless から、このデータを常に最新の状態で読み取りたいと考えています。データの複製や定期的なコピーの仕組みは作りたくありません。この要件を満たす方法はどれですか。",
+    "options": [
+      "アカウント A で CREATE DATASHARE を実行してテーブルを追加し、アカウント B への使用を許可して承認する。アカウント B でデータ共有を関連付け、CREATE DATABASE FROM DATASHARE で共有のデータベースを作る",
+      "アカウント A で販売データを毎晩 Amazon S3 に UNLOAD し、アカウント B で COPY コマンドで読み込む",
+      "アカウント A のスナップショットをアカウント B と共有し、アカウント B でスナップショットから復元する",
+      "AWS Glue のジョブで毎時アカウント A から販売データを読み取り、アカウント B の Redshift Serverless に書き込む"
+    ],
+    "answer": [0],
+    "explanation": "Amazon Redshift のデータ共有を使うと、データをコピーせずに、ほかのクラスターやワークグループ、ほかのアカウントへライブなデータの読み取りを許可できます。アカウントをまたぐ場合は、生産者側でデータ共有を作ってオブジェクトを追加し、GRANT USAGE で消費者のアカウントに使用を許可したうえで、データ共有を承認します。消費者側の管理者がデータ共有を関連付け、CREATE DATABASE FROM DATASHARE でデータベースを作ると、利用者は生産者の最新のデータを参照できます。決め手は「常に最新」と「複製やコピーの仕組みを作らない」です。",
+    "optionNotes": [
+      "データ共有はデータをコピーせず、生産者の最新のデータを消費者側から直接読み取れます。",
+      "毎晩のコピーになるため最新の状態にならず、コピーの仕組みも必要です。",
+      "スナップショットからの復元はその時点の複製で、最新の状態を保てません。",
+      "定期的なコピーの仕組みを作ることになり、要件に反します。"
+    ],
+    "services": ["Amazon Redshift", "Amazon Redshift Serverless"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Associating a datashare from a different AWS account in Amazon Redshift", "url": "https://docs.aws.amazon.com/redshift/latest/dg/writes-associating.html" }
+    ]
+  },
+  {
+    "id": "D4-020",
+    "domain": 4,
+    "task": "4.5",
+    "type": "single",
+    "question": "ある企業のデータレイクは、多数の S3 バケットにまたがり、AWS Lake Formation で権限を管理しています。新しいデータが毎日届くため、個人情報を含むデータがどこにあるかを継続的に見つけ、見つかったデータを含むテーブルには Lake Formation で機密を表す LF-Tag を付けて、権限を持つ人だけが読めるようにしたいと考えています。最も少ない運用負荷でこの要件を満たす方法はどれですか。",
+    "options": [
+      "AWS Glue のクローラーにカスタム分類子を追加し、個人情報を含む列を検出したらクローラーがテーブルに LF-Tag を付けるようにする",
+      "Amazon GuardDuty の S3 保護を有効にし、検出結果に応じてテーブルに LF-Tag を付ける",
+      "Amazon Macie で機密データの自動検出を有効にし、Amazon EventBridge のルールで検出結果を AWS Lambda 関数に送って、該当するテーブルに LF-Tag を付ける",
+      "Amazon Inspector で S3 バケットをスキャンし、検出結果をもとに手作業で LF-Tag を付ける"
+    ],
+    "answer": [2],
+    "explanation": "Amazon Macie は S3 のオブジェクトを分析し、個人情報などの機密データを検出するサービスです。機密データの自動検出を有効にすると、バケットを継続的にサンプリングして分析します。Macie は検出結果を Amazon EventBridge にイベントとして発行するので、ルールで AWS Lambda 関数に送り、該当するテーブルや列に Lake Formation の LF-Tag を付ければ、検出から権限の制御までを自動でつなげられます。決め手は「個人情報を継続的に見つける」と「Lake Formation で読める人を絞る」です。",
+    "optionNotes": [
+      "クローラーの分類子はデータ形式やスキーマを判定するためのもので、個人情報の検出や LF-Tag の付与はしません。",
+      "GuardDuty の S3 保護は不審なアクセスなどの脅威を検出するもので、個人情報の有無は調べません。",
+      "Macie の自動検出で個人情報を継続的に見つけ、EventBridge と Lambda で LF-Tag の付与まで自動化できます。",
+      "Inspector は脆弱性を調べるサービスで、S3 の個人情報は検出しません。手作業の部分も運用負荷が大きくなります。"
+    ],
+    "services": ["Amazon Macie", "AWS Lake Formation", "Amazon EventBridge", "AWS Lambda"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Processing Macie findings with Amazon EventBridge", "url": "https://docs.aws.amazon.com/macie/latest/user/findings-monitor-events-eventbridge.html" },
+      { "title": "Analyzing findings from automated sensitive data discovery", "url": "https://docs.aws.amazon.com/macie/latest/user/discovery-asdd-results-s3-findings.html" }
+    ]
+  },
+  {
+    "id": "D4-021",
+    "domain": 4,
+    "task": "4.5",
+    "type": "multi",
+    "question": "ある欧州の企業は AWS Organizations で複数のアカウントを管理しています。データ主権の要件により、データ基盤用の OU のアカウントでは eu-central-1 以外のリージョンでリソースを作成、利用できないようにする必要があります。また、監査人は S3 バケットのレプリケーションの設定や暗号化の設定がいつ、どう変わったかの履歴を確認できる必要があります。これらの要件を満たす方法はどれですか。（2 つ選択）",
+    "options": [
+      "各アカウントの IAM ユーザーに、eu-central-1 以外の操作を拒否するインラインポリシーを付ける",
+      "Amazon Macie を有効にし、eu-central-1 以外のリージョンにあるバケットを検出する",
+      "データ基盤用の OU に、aws:RequestedRegion が eu-central-1 以外のリクエストを拒否するサービスコントロールポリシー(SCP)を付ける。グローバルサービスは必要に応じて NotAction で除外する",
+      "AWS Trusted Advisor のチェックで、S3 バケットの設定の変更履歴を確認する",
+      "AWS Config で S3 バケットの設定の記録を有効にし、リソースのタイムラインで設定の変更履歴を確認する"
+    ],
+    "answer": [2, 4],
+    "explanation": "組織の単位でリージョンを制限するには、サービスコントロールポリシー(SCP)を OU に付けます。aws:RequestedRegion 条件キーで許可するリージョン以外のリクエストを Deny すると、その OU のアカウントの IAM ユーザーやロールが指定外のリージョンに送る API リクエストは、管理者のものも含めて拒否されます。ただし SCP は、サービスにリンクされたロールの権限で行われる操作は制限しません。IAM やサポートのようなグローバルサービスは NotAction で除外するのが一般的です。設定の変更履歴は AWS Config が受け持ちます。Config はリソースの設定項目を記録し、リソースのタイムラインで、ある時点の設定とその変化、関連する CloudTrail のイベントを確認できます。",
+    "optionNotes": [
+      "アカウントごと、ユーザーごとの設定になり、漏れが出やすく、ロールやルートユーザーには及びません。組織の単位で強制できません。",
+      "Macie は機密データを検出するサービスで、リージョンの利用を防ぐことも、設定の変更履歴を残すこともできません。",
+      "SCP で OU のアカウントの IAM ユーザーやロールが指定外のリージョンに送るリクエストをまとめて拒否でき、データ主権の要件に合います。",
+      "Trusted Advisor はベストプラクティスに沿っているかを確認するもので、設定の変更履歴は提供しません。",
+      "Config の記録とリソースのタイムラインで、レプリケーションや暗号化の設定がいつどう変わったかを確認できます。"
+    ],
+    "services": ["AWS Organizations", "AWS Config", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Service control policies (SCPs)", "url": "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html" },
+      { "title": "AWS: Denies access to AWS based on the requested Region", "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_aws_deny-requested-region.html" },
+      { "title": "Viewing Compliance History for your AWS Resources with AWS Config", "url": "https://docs.aws.amazon.com/config/latest/developerguide/view-manage-resource-console.html" }
+    ]
+  },
+  {
+    "id": "D4-022",
+    "domain": 4,
+    "task": "4.5",
+    "type": "single",
+    "question": "ある企業は Amazon SageMaker Unified Studio を使い、部門をまたぐデータ共有の仕組みを整えています。販売部門のプロジェクトは顧客テーブルをカタログに公開しています。需要予測チームのプロジェクトがこのテーブルを使いたいと申し出ましたが、販売部門は利用の理由を確認したうえで承認し、関東地方の行と個人を特定しない列だけを渡したいと考えています。この要件を満たす方法はどれですか。",
+    "options": [
+      "販売部門のプロジェクトの IAM ロールを需要予測チームが引き受けられるよう信頼ポリシーを変更する",
+      "需要予測チームのプロジェクトからカタログでテーブルをサブスクライブして理由を添えて申請し、販売部門のプロジェクトのメンバーが行と列のフィルターを指定してフィルター付きのアクセスで承認する",
+      "AWS RAM で顧客テーブルの AWS Glue データベースを需要予測チームのアカウントと共有する",
+      "顧客テーブルから関東地方の行と必要な列だけを抽出した別のテーブルを作り、需要予測チームの S3 バケットにコピーする"
+    ],
+    "answer": [1],
+    "explanation": "SageMaker Unified Studio のカタログでは、利用したいプロジェクトがアセットをサブスクライブすると、理由を添えたサブスクリプションの申請が作られます。アセットを公開したプロジェクトのメンバーが申請を確認し、承認か却下を決めます。承認するときは、すべての行と列を渡すフルアクセスのほかに、行のフィルターと列のフィルターを指定したフィルター付きのアクセスを選べます。理由の確認、承認、行と列の絞り込みがすべてカタログの申請の流れの中で完結し、データをコピーする必要もありません。",
+    "optionNotes": [
+      "販売部門のロールを引き受けると、そのプロジェクトのすべての権限を使えてしまい、行や列を絞ることもできません。",
+      "サブスクリプションの申請と承認の流れで理由を確認でき、フィルター付きのアクセスで行と列を絞れます。",
+      "データベース全体の共有になり、承認の流れも行と列の絞り込みもありません。",
+      "データのコピーが発生し、元のテーブルの更新も反映されません。承認の記録もカタログに残りません。"
+    ],
+    "services": ["Amazon SageMaker Unified Studio", "Amazon SageMaker Catalog"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Request subscription to assets in Amazon SageMaker Unified Studio", "url": "https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/subscribe-to-data-assets-managed.html" },
+      { "title": "Approve or reject a subscription request in Amazon SageMaker Unified Studio", "url": "https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/approve-reject-subscription-request.html" }
+    ]
+  }
+]

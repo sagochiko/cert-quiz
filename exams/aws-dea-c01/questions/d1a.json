@@ -1,0 +1,577 @@
+[
+  {
+    "id": "D1-001",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、Amazon Kinesis Data Streams のデータストリームに注文イベントを書き込んでいます。不正検知、在庫更新、レコメンド、監査ログ、ダッシュボード更新の 5 つのアプリケーションが、それぞれ GetRecords を呼び出して同じストリームを読んでいます。アプリケーションを増やしてから ReadProvisionedThroughputExceeded エラーが増え、読み取りの遅延も大きくなりました。データエンジニアは、各アプリケーションがほかのアプリケーションの読み取りに影響されず、低いレイテンシーでデータを受け取れるようにする必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "各アプリケーションの GetRecords の呼び出し間隔を短くし、1 回あたりに取得するレコード数を減らす。",
+      "各アプリケーションを拡張ファンアウトのコンシューマーとしてストリームに登録し、SubscribeToShard でデータを受け取るようにする。",
+      "AWS Lambda 関数でストリームのレコードをアプリケーションごとの別のデータストリームにコピーし、各アプリケーションは自分専用のストリームを読む。",
+      "Kinesis Data Streams の代わりに Amazon SQS の標準キューに注文イベントを送り、5 つのアプリケーションが同じキューからメッセージを受信する。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「ほかのアプリケーションの読み取りに影響されず」「低いレイテンシー」です。共有スループットのコンシューマーは、シャードあたり 2 MB/秒の読み取りと 1 秒あたり 5 回の GetRecords 呼び出しをすべてのコンシューマーで分け合います。5 つのアプリケーションがポーリングすると上限に達し、ReadProvisionedThroughputExceeded が出ます。拡張ファンアウトでは、登録した各コンシューマーがシャードあたり 2 MB/秒の専用スループットを受け取り、Kinesis Data Streams が HTTP/2 でレコードをプッシュします。ポーリングが不要になるので遅延も小さくなります。1 つのストリームに登録できる拡張ファンアウトのコンシューマーは、プロビジョンドモードとオンデマンドの Standard で 20 個までなので、5 つなら収まります。",
+    "optionNotes": [
+      "呼び出し間隔を短くすると GetRecords の回数が増え、シャードあたり 1 秒 5 回の共有の上限にさらに早く達します。",
+      "正解です。各コンシューマーがシャードあたり 2 MB/秒の専用スループットを持ち、プッシュ型で受け取るため、互いに影響せず低いレイテンシーになります。",
+      "動きはしますが、コピー用の Lambda 関数とストリームが 5 つ増え、コストと運用負荷が大きくなります。コピーの分だけ遅延も増えます。",
+      "SQS のメッセージは 1 つのコンシューマーが受信して削除すると消えるため、5 つのアプリケーションが同じイベントをすべて受け取るファンアウトになりません。"
+    ],
+    "services": ["Amazon Kinesis Data Streams", "Amazon SQS", "AWS Lambda"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Develop enhanced fan-out consumers with dedicated throughput", "url": "https://docs.aws.amazon.com/streams/latest/dev/enhanced-consumers.html" }
+    ]
+  },
+  {
+    "id": "D1-002",
+    "domain": 1,
+    "task": "1.1",
+    "type": "multi",
+    "question": "ある企業は、Amazon Kinesis Data Streams のストリームをイベントソースとして AWS Lambda 関数を呼び出し、センサーデータを加工しています。形式が壊れたレコードが 1 件混ざると関数がエラーになり、Lambda が同じバッチを繰り返し再試行するため、そのシャードの処理が何時間も止まることがありました。データエンジニアは、問題のレコード以外の処理を進め、失敗したレコードを後から調べられるようにする必要があります。これらの要件を満たすために、イベントソースマッピングで行う設定はどれですか。（2 つ選択）",
+    "options": [
+      "BisectBatchOnFunctionError を有効にし、MaximumRetryAttempts に小さな値を設定する。",
+      "BatchSize を大きくして、1 回の呼び出しでより多くのレコードを処理する。",
+      "ParallelizationFactor を 10 に上げて、シャードあたりの同時実行数を増やす。",
+      "失敗時の送信先（on-failure destination）として Amazon SQS キューを設定する。",
+      "StartingPosition を LATEST に変更して、イベントソースマッピングを作り直す。"
+    ],
+    "answer": [0, 3],
+    "explanation": "Lambda はストリームのバッチが失敗すると、既定ではバッチ全体を再試行し、レコードの有効期限が切れるか再試行回数の上限（既定は 10,000 回）に達するまでシャードの処理が進みません。BisectBatchOnFunctionError を有効にすると、失敗したバッチを半分に分けて再試行し、問題のレコードを切り分けます。MaximumRetryAttempts を小さくすると、問題のレコードを早めに諦めて先へ進めます。要件の「後から調べられる」には、失敗時の送信先が必要です。SQS キューや SNS トピックを送信先にすると、スキップしたレコードのシャード ID やシーケンス番号などのメタデータが送られます。レコード本体は送られないので、保持期間内にシーケンス番号を使ってストリームから読み直します。",
+    "optionNotes": [
+      "正解です。バッチを分割して問題のレコードを切り分け、再試行回数を絞ることで、ほかのレコードの処理が止まらなくなります。",
+      "バッチを大きくしても、壊れたレコードが含まれていればバッチ全体が失敗し続けます。",
+      "同じシャードを並列に処理できますが、同じパーティションキーのレコードは順序を保つため、問題のレコードを含むバッチは止まったままです。",
+      "正解です。スキップしたレコードのシャード ID とシーケンス番号が SQS に残るので、後から元のレコードを調べられます。",
+      "作り直した時点より前のレコードを読まなくなるだけで、今後壊れたレコードが来たときに処理が止まる問題は残り、データも失われます。"
+    ],
+    "services": ["AWS Lambda", "Amazon Kinesis Data Streams", "Amazon SQS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Configuring partial batch response with Kinesis Data Streams and Lambda", "url": "https://docs.aws.amazon.com/lambda/latest/dg/services-kinesis-batchfailurereporting.html" },
+      { "title": "Using Lambda to process records from Amazon Kinesis Data Streams", "url": "https://docs.aws.amazon.com/lambda/latest/dg/with-kinesis.html" }
+    ]
+  },
+  {
+    "id": "D1-003",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある製造業の企業は、工場の機器のテレメトリを Amazon Kinesis Data Streams に送っています。分析チームは、到着から数秒以内のデータを Amazon Redshift Serverless で SQL を使って分析したいと考えています。データエンジニアは、Amazon S3 にデータを一時的に置く処理を挟まず、取り込みのためのパイプラインをできるだけ作らずに済ませる必要があります。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon Data Firehose のストリームを作成して Kinesis データストリームを読み、Amazon Redshift を送信先に設定する。",
+      "AWS Glue のストリーミング ETL ジョブで Kinesis データストリームを読み、JDBC 接続で Amazon Redshift のテーブルに書き込む。",
+      "AWS DMS のタスクを作成し、Kinesis データストリームをソース、Amazon Redshift をターゲットに設定する。",
+      "Amazon Redshift で Kinesis を参照する外部スキーマを作成し、そのストリームを読むマテリアライズドビューを AUTO REFRESH YES で作成する。"
+    ],
+    "answer": [3],
+    "explanation": "決め手は「S3 に一時的に置く処理を挟まず」「パイプラインをできるだけ作らず」「数秒以内」です。Amazon Redshift のストリーミング取り込みでは、CREATE EXTERNAL SCHEMA ... FROM KINESIS でストリームを外部スキーマとして参照し、そのストリームを読むマテリアライズドビューを作ります。Redshift 自身がコンシューマーとしてシャードを読み、ビューの更新時に前回の続きのシーケンス番号から取り込みます。AUTO REFRESH YES にすると更新も自動になり、別のパイプラインを作る必要がありません。この設定はプロビジョンドクラスターと Redshift Serverless の両方で使えます。レコードは SUPER 型のまま保存することも、列に展開することもできます。",
+    "optionNotes": [
+      "Firehose は Redshift へ配信するときに S3 の中間バケットに書いてから COPY するため、「S3 を挟まない」という要件に合いません。バッファリングの分、遅延も大きくなります。",
+      "動きはしますが、ストリーミングジョブの開発と常時稼働の管理が必要になり、運用負荷が最小になりません。",
+      "AWS DMS は Kinesis Data Streams をターゲットにはできますが、ソースにはできません。",
+      "正解です。Redshift のストリーミング取り込みはマテリアライズドビューで直接ストリームを読むため、S3 を経由せず、追加のパイプラインも要りません。"
+    ],
+    "services": ["Amazon Redshift", "Amazon Kinesis Data Streams"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Getting started with streaming ingestion from Amazon Kinesis Data Streams", "url": "https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-streaming-ingestion-getting-started.html" },
+      { "title": "Sources for data migration", "url": "https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Source.html" }
+    ]
+  },
+  {
+    "id": "D1-004",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、毎晩 AWS Glue の Spark ジョブを実行し、Amazon S3 のプレフィックスに届いた CSV ファイルを Parquet に変換しています。ジョブは毎回プレフィックス内のすべてのファイルを読み直しており、ファイルが増えるにつれて実行時間とコストが増えています。データエンジニアは、前回の実行以降に届いたファイルだけを処理するようにしたいと考えています。スクリプトの変更をできるだけ少なくしてこの要件を満たす方法はどれですか。",
+    "options": [
+      "ジョブのブックマークを有効にし、DynamicFrame の作成時に transformation_ctx を指定して、スクリプトの最後で job.commit() を呼ぶ。",
+      "Amazon S3 インベントリのレポートを毎日出力し、前日のレポートと比べて新しいオブジェクトの一覧をジョブに渡す。",
+      "処理が終わったファイルを AWS Lambda 関数で別のアーカイブ用プレフィックスに移動し、ジョブは元のプレフィックスだけを読む。",
+      "AWS Glue クローラーの再クロールの設定を「新しいフォルダのみをクロール」に変更する。"
+    ],
+    "answer": [0],
+    "explanation": "AWS Glue のジョブのブックマークは、前回のジョブ実行でどのデータを処理したかを状態として保存し、次の実行で古いデータを読み直さないようにする機能です。S3 のソースでは CSV、JSON、Parquet などに対応し、オブジェクトの最終更新時刻を見て新しいファイルを判断します。使うにはジョブのブックマークを有効にし、ソースの DynamicFrame に一意の transformation_ctx を付け、スクリプトの最後で job.commit() を呼んで状態を保存します。transformation_ctx や job.commit() が抜けていると、ブックマークを有効にしても再処理が起きます。既存のスクリプトに数行足すだけで済むので、「変更をできるだけ少なく」という要件に合います。",
+    "optionNotes": [
+      "正解です。ブックマークが処理済みのファイルを記録するので、次の実行では新しいファイルだけを読みます。",
+      "差分の一覧を作る仕組みを別に作って保守する必要があり、ブックマークより手間がかかります。",
+      "動きはしますが、移動用の Lambda 関数と失敗時の扱いを作る必要があり、変更が大きくなります。",
+      "クローラーの設定はデータカタログに新しいパーティションを追加するかどうかを決めるもので、ジョブが読むファイルを絞るものではありません。"
+    ],
+    "services": ["AWS Glue", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Tracking processed data using job bookmarks", "url": "https://docs.aws.amazon.com/glue/latest/dg/monitor-continuations.html" }
+    ]
+  },
+  {
+    "id": "D1-005",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、営業部門が使う Salesforce の商談データを Amazon S3 のデータレイクに取り込みたいと考えています。取り込みは 1 時間ごとに行い、前回の取り込み以降に追加または変更されたレコードだけを転送する必要があります。データエンジニアは、コードを書かずに、Salesforce の API の呼び出しや認証の管理を AWS に任せたいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon EventBridge のスケジュールで 1 時間ごとに AWS Lambda 関数を呼び出し、関数から Salesforce の REST API を呼んで結果を S3 に書き込む。",
+      "AWS DMS で Salesforce をソースエンドポイント、Amazon S3 をターゲットエンドポイントに設定し、継続的なレプリケーションを行う。",
+      "Amazon AppFlow で Salesforce をソース、S3 を送信先とするフローを作成し、1 時間ごとのスケジュールトリガーと LastModifiedDate を使った増分転送を設定する。",
+      "Amazon Data Firehose のストリームで Salesforce からデータを定期的に取得するよう設定し、S3 に配信する。"
+    ],
+    "answer": [2],
+    "explanation": "Amazon AppFlow は、Salesforce などの SaaS と AWS のサービスの間でデータを転送するフルマネージドのサービスで、コードを書かずに設定できます。接続の認証情報は AppFlow の接続として管理され、API の呼び出しも AppFlow が行います。スケジュールトリガーのフローで増分転送を選ぶと、前回の成功した実行以降に追加または変更されたレコードだけを転送し、どのタイムスタンプ項目で判断するか（LastModifiedDate など）も選べます。最初のスケジュール実行では過去 30 日分のレコードを取り込みます。要件の「1 時間ごと」「変更分だけ」「コードを書かない」がすべてそろっています。",
+    "optionNotes": [
+      "動きはしますが、API 呼び出し、ページング、レート制限、認証トークンの管理をすべて自分でコードに書く必要があります。",
+      "AWS DMS のソースはデータベースや S3 などで、Salesforce はソースエンドポイントとして使えません。",
+      "正解です。AppFlow のスケジュールトリガーと増分転送で、コードなしに変更分だけを 1 時間ごとに S3 へ取り込めます。",
+      "Firehose はプロデューサーから送られたデータを受け取って配信するサービスで、Salesforce からデータを取りに行く機能はありません。"
+    ],
+    "services": ["Amazon AppFlow", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Flow triggers", "url": "https://docs.aws.amazon.com/appflow/latest/userguide/flow-triggers.html" },
+      { "title": "Sources for data migration", "url": "https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Source.html" }
+    ]
+  },
+  {
+    "id": "D1-006",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業では、取引先から Amazon S3 バケットにファイルが不定期に届きます。届いたファイルは、AWS Glue のクローラーと ETL ジョブからなる Glue ワークフローで処理します。1 ファイルごとにワークフローを起動するとコストがかさむため、ファイルが 100 個たまるか、最初のファイルが届いてから 15 分たつか、どちらか早いほうでワークフローを起動したいと考えています。最小の運用負荷でこの要件を満たすソリューションはどれですか。",
+    "options": [
+      "S3 イベント通知で AWS Lambda 関数を呼び出し、届いたファイル数を Amazon DynamoDB に記録して、100 個になったら関数からワークフローを起動する。",
+      "S3 バケットで Amazon EventBridge への通知を有効にし、Object Created イベントに一致する EventBridge ルールのターゲットを Glue ワークフローにする。ワークフローの開始トリガーは EventBridge イベント型にし、バッチサイズを 100、バッチウィンドウを 900 秒にする。",
+      "Glue ワークフローの開始トリガーをスケジュール型にし、15 分ごとに実行する。",
+      "S3 イベント通知の送信先に Glue ワークフローを直接指定し、通知の設定でイベントを 100 個ずつまとめて送るようにする。"
+    ],
+    "answer": [1],
+    "explanation": "AWS Glue ワークフローは、EventBridge のイベントで起動する開始トリガーを持てます。このトリガーにはバッチ条件があり、BatchSize（1〜100）に達するか、最初のイベントからの BatchWindow（1〜900 秒）が過ぎると、どちらか早いほうでワークフローを起動します。要件の「100 個」と「15 分」はそれぞれ BatchSize 100 と BatchWindow 900 秒にそのまま当てはまります。S3 側は EventBridge への通知を有効にし、Object Created イベントに一致するルールのターゲットにワークフローを指定します。Glue のドキュメントの手順は CloudTrail 経由で S3 のイベントを受ける例ですが、Glue ワークフローはどの種類の EventBridge イベントでも受け取れるため、S3 から直接届くイベントでも起動できます。数える仕組みを自分で作らずに済むので、運用負荷が最も小さくなります。",
+    "optionNotes": [
+      "動きはしますが、カウントの管理、15 分の時間切れの判定、同時実行時の競合などを自分で作って保守する必要があります。",
+      "正解です。EventBridge イベント型トリガーのバッチ条件で「100 個または 15 分」をそのまま設定できます。",
+      "ファイルが無くても 15 分ごとに起動し、100 個たまった時点ですぐ起動することもできません。",
+      "S3 イベント通知の送信先は Amazon SNS、Amazon SQS、AWS Lambda、Amazon EventBridge だけで、Glue ワークフローを直接指定したり、通知をまとめたりする設定はありません。"
+    ],
+    "services": ["AWS Glue", "Amazon EventBridge", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Starting an AWS Glue workflow with an Amazon EventBridge event", "url": "https://docs.aws.amazon.com/glue/latest/dg/starting-workflow-eventbridge.html" },
+      { "title": "EventBatchingCondition", "url": "https://docs.aws.amazon.com/glue/latest/webapi/API_EventBatchingCondition.html" },
+      { "title": "Event notification types and destinations", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-how-to-event-types-and-destinations.html" }
+    ]
+  },
+  {
+    "id": "D1-007",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業の米国支社は、毎日ニューヨークの現地時間の午前 2 時に AWS Glue の ETL ジョブを実行する必要があります。ニューヨークでは夏時間があり、現在は年に 2 回、担当者がスケジュールを手で書き換えています。データエンジニアは、夏時間の切り替えに自動で追従し、書き換えの作業をなくしたいと考えています。最小の運用負荷でこの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon EventBridge Scheduler でタイムゾーンを America/New_York にした cron 式のスケジュールを作成し、ターゲットで Glue の StartJobRun を呼び出す。",
+      "Glue のスケジュール型トリガーの cron 式に、ニューヨークの現地時間の午前 2 時をそのまま書く。",
+      "Amazon EventBridge のスケジュール型のルールを cron 式で作成し、ターゲットに Glue ジョブを起動する AWS Lambda 関数を指定する。",
+      "1 時間ごとに起動する AWS Lambda 関数を作り、関数の中で現地時間を計算して午前 2 時のときだけジョブを起動する。"
+    ],
+    "answer": [0],
+    "explanation": "AWS Glue のスケジュール（ジョブやクローラーのトリガー）と、EventBridge のスケジュール型のルールは、どちらも cron 式を UTC で解釈します。そのため夏時間の切り替えに合わせて式を書き換える必要があります。Amazon EventBridge Scheduler は、スケジュールごとにタイムゾーンを指定でき、そのタイムゾーンの夏時間に合わせて自動で調整します。ターゲットにはユニバーサルターゲットを使って AWS SDK の API を直接呼べるので、Glue の StartJobRun を中継の関数なしで呼び出せます。要件の「自動で追従」「最小の運用負荷」を満たすのはこの方法です。",
+    "optionNotes": [
+      "正解です。EventBridge Scheduler はタイムゾーン付きのスケジュールで夏時間に自動で追従し、ユニバーサルターゲットで StartJobRun を直接呼べます。",
+      "Glue のスケジュールの cron 式は UTC で解釈されるため、現地時間を書いても午前 2 時には動かず、夏時間にも追従しません。",
+      "EventBridge のスケジュール型のルールも UTC で動くため、夏時間ごとに式の書き換えが残ります。Lambda 関数を挟む分、管理するものも増えます。",
+      "動きはしますが、1 日 24 回の無駄な起動と、時刻判定のコードの保守が必要になります。"
+    ],
+    "services": ["Amazon EventBridge", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Schedule types in EventBridge Scheduler", "url": "https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" },
+      { "title": "Using universal targets in EventBridge Scheduler", "url": "https://docs.aws.amazon.com/scheduler/latest/UserGuide/managing-targets-universal.html" },
+      { "title": "Time-based schedules for jobs and crawlers", "url": "https://docs.aws.amazon.com/glue/latest/dg/monitor-data-warehouse-schedule.html" }
+    ]
+  },
+  {
+    "id": "D1-008",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、Amazon Data Firehose でクリックストリームを Amazon Redshift のプロビジョンドクラスターに配信しようとしています。クラスターは VPC 内にあり、パブリックアクセスを有効にしてありますが、Firehose の配信が接続エラーで失敗します。セキュリティチームは、クラスターへの接続を許可する送信元をできるだけ絞るよう求めています。これらの要件を満たすために、データエンジニアが行うべきことはどれですか。",
+    "options": [
+      "クラスターのセキュリティグループで、ポート 5439 へのインバウンドを 0.0.0.0/0 から許可する。",
+      "Firehose のストリームが使う IAM ロールに Amazon Redshift への権限を追加し、セキュリティグループは変更しない。",
+      "クラスターのセキュリティグループで、Firehose がそのリージョンで使う CIDR ブロックからのポート 5439 へのインバウンドを許可する。",
+      "Firehose のストリームに Elastic IP アドレスを割り当て、そのアドレスからのインバウンドをセキュリティグループで許可する。"
+    ],
+    "answer": [2],
+    "explanation": "Amazon Data Firehose から VPC 内の Amazon Redshift のプロビジョンドクラスターや Redshift Serverless のワークグループに配信するには、送信先がパブリック IP アドレスでアクセスでき、Firehose の IP アドレスからの接続を許可しておく必要があります。Firehose はリージョンごとに 1 つの CIDR ブロックを公開しており、これをクラスターのセキュリティグループのインバウンドに、Redshift のポート（既定は 5439）で追加します。送信元を Firehose の CIDR に限るので、「送信元をできるだけ絞る」という要件にも合います。IAM の権限だけでは、ネットワークの経路は開きません。",
+    "optionNotes": [
+      "接続はできるようになりますが、インターネット上のすべてのアドレスに開くため、送信元を絞るという要件に反します。",
+      "IAM ロールは API の操作を許可するもので、セキュリティグループで閉じているネットワーク接続は通りません。",
+      "正解です。Firehose がリージョンごとに公開している CIDR ブロックだけを許可すれば、接続でき、送信元も最小限になります。",
+      "Firehose のストリームに Elastic IP アドレスを割り当てる機能はありません。Firehose はリージョンごとに決まった CIDR ブロックから接続します。"
+    ],
+    "services": ["Amazon Data Firehose", "Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Controlling access with Amazon Data Firehose", "url": "https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html" }
+    ]
+  },
+  {
+    "id": "D1-009",
+    "domain": 1,
+    "task": "1.1",
+    "type": "multi",
+    "question": "ある企業は、AWS Lambda 関数で受け取ったアクセスログを、プロビジョンドキャパシティモードの Amazon DynamoDB テーブルに BatchWriteItem で書き込んでいます。テーブルのパーティションキーはログの日付（例: 2026-11-25）です。テーブル全体の書き込みキャパシティには余裕があるのに ProvisionedThroughputExceededException が頻発し、BatchWriteItem の応答に UnprocessedItems が多く返ってきます。データエンジニアは、スロットリングを減らし、書き込みを取りこぼさないようにする必要があります。これらの要件を満たす対策はどれですか。（2 つ選択）",
+    "options": [
+      "テーブルの前に DynamoDB Accelerator（DAX）クラスターを置き、書き込みを DAX 経由にする。",
+      "パーティションキーの値の末尾に 1〜N のランダムな接尾辞を付け、同じ日の書き込みを複数のパーティションに分散する。",
+      "Lambda 関数の予約済み同時実行数を増やし、より多くのリクエストを並列で送る。",
+      "日付をソートキーにしたローカルセカンダリインデックスを追加する。",
+      "UnprocessedItems と ProvisionedThroughputExceededException を、ジッター付きのエクスポネンシャルバックオフで再試行する。"
+    ],
+    "answer": [1, 4],
+    "explanation": "テーブル全体のキャパシティに余裕があるのにスロットリングが起きるのは、パーティションキーが日付で、その日の書き込みがすべて同じパーティションに集中しているためです。1 つのパーティションには毎秒 1,000 回の書き込みという内部の上限があります。パーティションキーにランダムな接尾辞を付ける書き込みシャーディングで、書き込みを複数のパーティションに分散できます。読むときは接尾辞ごとにクエリしてまとめます。取りこぼさないためには、UnprocessedItems とスロットリングの例外をエクスポネンシャルバックオフで再試行します。AWS SDK は既定で再試行しますが、BatchWriteItem の UnprocessedItems はアプリケーションで再送する必要があります。",
+    "optionNotes": [
+      "DAX は主に読み取りのキャッシュで、書き込みはそのままテーブルに送られるため、ホットパーティションのスロットリングは減りません。",
+      "正解です。書き込みシャーディングで 1 つのパーティションへの集中を避けられます。",
+      "同時に送る書き込みが増えるだけで、同じパーティションへの集中が悪化し、スロットリングも増えます。",
+      "LSI はベーステーブルと同じパーティションキーを使うため、書き込みの分散には役立ちません。",
+      "正解です。バックオフで間隔を空けながら再送すれば、一時的にスロットリングされた項目も最終的に書き込めます。"
+    ],
+    "services": ["Amazon DynamoDB", "AWS Lambda"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using write sharding to distribute workloads evenly in your DynamoDB table", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html" },
+      { "title": "Error handling with DynamoDB", "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html" }
+    ]
+  },
+  {
+    "id": "D1-010",
+    "domain": 1,
+    "task": "1.1",
+    "type": "multi",
+    "question": "ある企業は、Amazon Kinesis Data Streams のストリームから集計アプリケーションでデータを読んでいます。ストリームのデータ保持期間は既定の 24 時間のままです。先月、集計ロジックの不具合が見つかったとき、不具合のあった 3 日分のデータをストリームから読み直せず、復旧に苦労しました。データエンジニアは、今後同じことが起きたら、過去 5 日分までのデータをストリームから読み直して処理をやり直せるようにしたいと考えています。これらの要件を満たすために行うべきことはどれですか。（2 つ選択）",
+    "options": [
+      "不具合が見つかったら、アプリケーションのチェックポイントを LATEST にリセットして読み直す。",
+      "シャードを分割してシャード数を増やし、ストリームが保持できるデータ量を増やす。",
+      "IncreaseStreamRetentionPeriod でストリームのデータ保持期間を 168 時間（7 日）に延ばしておく。",
+      "読み直すときは、修正したアプリケーションを新しいコンシューマーとして起動し、AT_TIMESTAMP のシャードイテレーターで不具合が始まった時刻から読む。",
+      "不具合が見つかった時点で IncreaseStreamRetentionPeriod を呼び出し、期限切れになったレコードを読めるように戻す。"
+    ],
+    "answer": [2, 3],
+    "explanation": "Kinesis Data Streams のレコードは保持期間の間だけ読めます。既定は 24 時間で、IncreaseStreamRetentionPeriod で最大 8,760 時間（365 日）まで延ばせます。5 日分を読み直したいなら、あらかじめ 5 日以上、たとえば 7 日に延ばしておく必要があります。保持期間を延ばしても、すでに期限切れになったレコードは戻らないので、不具合が見つかってから延ばしても間に合いません。読み直すときは、GetShardIterator で AT_TIMESTAMP を指定すると、指定した時刻以降のレコードから順に読めます。既存のコンシューマーとは別のアプリケーション名で起動すれば、チェックポイントを壊さずにやり直せます。",
+    "optionNotes": [
+      "LATEST は今後届くレコードから読むため、過去のデータは読み直せません。",
+      "保持期間はシャード数ではなくストリームの設定で決まるため、シャードを増やしても古いレコードを長く残せません。",
+      "正解です。保持期間を 5 日より長くしておけば、その範囲のレコードをいつでも読み直せます。",
+      "正解です。AT_TIMESTAMP のイテレーターで不具合が始まった時刻から読めば、必要な範囲だけをやり直せます。",
+      "保持期間を延ばしても、変更前の保持期間を過ぎてすでに期限切れになったレコードは読めるようになりません。"
+    ],
+    "services": ["Amazon Kinesis Data Streams"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Change the data retention period", "url": "https://docs.aws.amazon.com/streams/latest/dev/kinesis-extended-retention.html" }
+    ]
+  },
+  {
+    "id": "D1-011",
+    "domain": 1,
+    "task": "1.1",
+    "type": "single",
+    "question": "ある企業は、Amazon Kinesis Data Streams で受け取る機器のセンサー値から、機器ごとに直近 5 分間の移動平均を計算し、直前の値から急に跳ね上がったときにアラートを出したいと考えています。計算の途中の集計値は、アプリケーションの再起動や障害のときにも失われてはいけません。データエンジニアは、運用負荷を抑えつつ、これらの要件を満たす処理基盤を選ぶ必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Kinesis データストリームをイベントソースにした AWS Lambda 関数で、直前の値と集計値を関数のグローバル変数に保持する。",
+      "Amazon Data Firehose のデータ変換用 Lambda 関数で、レコードごとに移動平均を計算する。",
+      "AWS Glue の Python シェルジョブを 5 分ごとに実行し、そのたびにストリームの最新のレコードを読んで計算する。",
+      "Amazon Managed Service for Apache Flink のアプリケーションで、機器 ID をキーにした状態とウィンドウで計算し、チェックポイントを有効にする。"
+    ],
+    "answer": [3],
+    "explanation": "移動平均や「直前の値との比較」は、過去のレコードの情報を覚えておく必要があるステートフルな処理です。1 件ずつ独立して処理できるステートレスな処理とは違い、状態をどこに保持し、障害時にどう復元するかが問題になります。Amazon Managed Service for Apache Flink（旧 Amazon Kinesis Data Analytics）では、キーごとの状態とウィンドウを Flink の仕組みで扱えます。状態は RocksDB に保持され、チェックポイントで Amazon S3 に保存されるので、再起動や障害のときも最新のチェックポイントから状態を復元できます。サーバーの管理は不要なので運用負荷も抑えられます。",
+    "optionNotes": [
+      "グローバル変数は実行環境が入れ替わると消えるため、状態が失われないという要件を満たしません。シャードごとに別の環境で動くことにも注意が要ります。",
+      "Firehose の変換用 Lambda 関数は届いたレコードのバッチごとに独立して呼ばれるステートレスな処理で、過去 5 分の値を保持できません。",
+      "5 分ごとに起動するバッチ処理では、どこまで読んだかと集計の途中経過を自分で管理する必要があり、急な変化への反応も遅れます。",
+      "正解です。Flink のキー付きの状態とウィンドウでステートフルな計算ができ、チェックポイントで障害時にも状態を復元できます。"
+    ],
+    "services": ["Amazon Managed Service for Apache Flink", "Amazon Kinesis Data Streams"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Implement fault tolerance in Managed Service for Apache Flink", "url": "https://docs.aws.amazon.com/managed-flink/latest/java/how-fault.html" },
+      { "title": "Checkpoints", "url": "https://docs.aws.amazon.com/managed-flink/latest/java/troubleshooting-checkpoints.html" }
+    ]
+  },
+  {
+    "id": "D1-012",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は、Amazon EKS のクラスターでマイクロサービスを運用しており、プラットフォームチームが Kubernetes のツールで監視とリソース管理を一元化しています。データチームは Apache Spark のバッチ処理を始めたいと考えていますが、ジョブによって必要な Spark のバージョンが異なります。会社は、別のクラスターを増やさず、既存の EKS クラスターの計算リソースを Spark ジョブと共有して使用率を上げたいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Spark ジョブごとに Amazon EMR on EC2 のクラスターを起動し、ジョブが終わったらクラスターを終了する。",
+      "Amazon EMR Serverless のアプリケーションを Spark のバージョンごとに作成し、ジョブを送信する。",
+      "既存の EKS クラスターの名前空間に Amazon EMR を登録して仮想クラスターを作り、Amazon EMR on EKS で Spark ジョブを送信する。",
+      "Spark の処理を AWS Glue のジョブに書き換え、ジョブごとに Glue のバージョンを選ぶ。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「既存の EKS クラスターの計算リソースを共有」「Kubernetes のツールで一元管理」「Spark のバージョンが異なる」です。Amazon EMR on EKS では、EKS クラスターの名前空間に Amazon EMR を登録して仮想クラスターを作り、そこへ Spark ジョブを送信します。ジョブは EKS のワーカーノード上のポッドとして動くので、ほかの Kubernetes のアプリケーションと同じクラスターで計算資源を共有でき、監視も既存のツールでまとめられます。ジョブごとに Amazon EMR のリリースを選べるので、1 つの EKS クラスターで異なるバージョンの Spark を動かせます。仮想クラスター自体は追加のリソースを消費しません。",
+    "optionNotes": [
+      "EMR on EC2 は専用の EC2 インスタンスでクラスターを作るため、既存の EKS クラスターのリソースを共有するという要件に合いません。",
+      "EMR Serverless も運用負荷は小さいですが、AWS が管理する別の計算資源で動くため、既存の EKS クラスターと共有して使用率を上げることにはなりません。",
+      "正解です。EMR on EKS なら既存の EKS クラスター上で Spark を動かし、ジョブごとに異なるリリースを選べます。",
+      "既存の Spark コードの書き換えが必要なうえ、EKS クラスターのリソースは使わないため要件に合いません。"
+    ],
+    "services": ["Amazon EMR", "Amazon EKS"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Managing virtual clusters", "url": "https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/virtual-cluster.html" },
+      { "title": "Amazon EMR on EKS releases", "url": "https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/emr-eks-releases.html" }
+    ]
+  },
+  {
+    "id": "D1-013",
+    "domain": 1,
+    "task": "1.2",
+    "type": "multi",
+    "question": "データエンジニアは、プライベートサブネットにある Amazon RDS for MySQL のテーブルを読み、Amazon S3 に Parquet で書き出す AWS Glue の ETL ジョブを作りました。Glue の JDBC 接続には RDS と同じ VPC とプライベートサブネットを指定しています。ジョブを実行すると、RDS への接続がタイムアウトし、S3 への書き込みも失敗します。VPC にはインターネットゲートウェイも NAT ゲートウェイもありません。データベースをインターネットに公開せずにこの問題を解決するには、どの対策を組み合わせればよいですか。（2 つ選択）",
+    "options": [
+      "Glue の接続に指定したセキュリティグループに、同じセキュリティグループを送信元とするすべての TCP ポートのインバウンドルール（自己参照ルール）を追加する。",
+      "RDS インスタンスをパブリックアクセス可能にし、セキュリティグループで 0.0.0.0/0 からのポート 3306 を許可する。",
+      "Glue の接続に指定したサブネットのルートテーブルに、Amazon S3 のゲートウェイ型 VPC エンドポイントを追加する。",
+      "VPC にインターネットゲートウェイを作成し、Glue の接続に指定したプライベートサブネットのルートテーブルに 0.0.0.0/0 の経路として追加する。",
+      "RDS で IAM データベース認証を有効にし、Glue ジョブの IAM ロールに rds-db:connect の権限を付ける。"
+    ],
+    "answer": [0, 2],
+    "explanation": "Glue が VPC 内の JDBC データストアに接続するとき、指定したサブネットにプライベート IP アドレスだけを持つ Elastic Network Interface を作ります。Glue の構成要素どうしが通信できるよう、接続のセキュリティグループには自分自身を送信元とする全 TCP ポートのインバウンドルールが必要です。このルールが無いと接続がタイムアウトします。また、ENI にはパブリック IP アドレスが無いので、S3 に届くには S3 の VPC エンドポイントか NAT ゲートウェイへの経路が必要です。インターネットに出さない要件なので、ゲートウェイ型の S3 エンドポイントをルートテーブルに追加するのが合っています。",
+    "optionNotes": [
+      "正解です。自己参照のインバウンドルールで、Glue の構成要素どうしの通信と RDS への接続が通るようになります。",
+      "データベースをインターネットに公開しないという要件に反します。Glue の ENI はプライベート IP しか持たないので、この変更では S3 の問題も解決しません。",
+      "正解です。S3 のゲートウェイ型エンドポイントで、インターネットを通らずに S3 へ書き込めます。",
+      "Glue の ENI にはパブリック IP アドレスが割り当てられないため、インターネットゲートウェイへの経路を直接ルートテーブルに入れても通信できません。",
+      "認証方式を変えても、セキュリティグループと経路の問題は解決しません。タイムアウトは認証より前のネットワークの段階で起きています。"
+    ],
+    "services": ["AWS Glue", "Amazon RDS", "Amazon VPC", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Connecting to a JDBC data store in a VPC", "url": "https://docs.aws.amazon.com/glue/latest/dg/connection-JDBC-VPC.html" },
+      { "title": "Setting up Amazon VPC for JDBC connections to Amazon RDS data stores from AWS Glue", "url": "https://docs.aws.amazon.com/glue/latest/dg/setup-vpc-for-glue-access.html" }
+    ]
+  },
+  {
+    "id": "D1-014",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある小売企業のアナリストは、Amazon S3 のデータレイク（AWS Glue Data Catalog に登録済み）の購買履歴、Amazon DynamoDB の会員情報、Amazon RDS for PostgreSQL の店舗マスタを結合して、その場で分析したいと考えています。分析の内容は日によって変わり、データをコピーする ETL パイプラインを新たに作ることは避けたいと考えています。最小の運用負荷でこれらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon Athena のフェデレーテッドクエリで DynamoDB と PostgreSQL のデータソースコネクタを設定し、データレイクのテーブルと 1 つの SQL で結合する。",
+      "AWS Glue の ETL ジョブで DynamoDB と RDS のデータを毎晩 S3 にコピーし、Athena でデータレイクと結合する。",
+      "Amazon Redshift Serverless のフェデレーテッドクエリで DynamoDB と RDS for PostgreSQL を外部スキーマとして参照し、Redshift Spectrum で S3 のデータと結合する。",
+      "Amazon EMR のクラスターを常時起動し、Spark SQL で 3 つのデータソースを読み込んで結合する。"
+    ],
+    "answer": [0],
+    "explanation": "決め手は「その場で分析」「データをコピーする ETL パイプラインを作らない」です。Amazon Athena のフェデレーテッドクエリでは、データソースコネクタを使って S3 以外のデータを置き場所のまま SQL で読めます。DynamoDB や PostgreSQL などには用意されたコネクタがあり、コネクタごとのカタログを SQL で指定すれば、Glue Data Catalog のテーブルと 1 つのクエリで結合できます。Athena はコネクタを呼び出して読むべきデータを判断し、フィルター条件をソース側に押し下げます。サーバーレスなのでクラスターの管理も要りません。",
+    "optionNotes": [
+      "正解です。Athena のフェデレーテッドクエリなら、コピーせずに 3 つのデータソースを 1 つの SQL で結合できます。",
+      "コピー用のパイプラインを作ることになり要件に反します。分析できるのも前夜時点のデータになります。",
+      "Redshift のフェデレーテッドクエリが対応するのは RDS と Aurora の PostgreSQL と MySQL で、DynamoDB は外部スキーマとして参照できません。",
+      "動きはしますが、常時起動のクラスターの管理とコストがかかり、運用負荷が最小になりません。"
+    ],
+    "services": ["Amazon Athena", "Amazon DynamoDB", "Amazon RDS", "AWS Glue"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Use Amazon Athena Federated Query", "url": "https://docs.aws.amazon.com/athena/latest/ug/federated-queries.html" },
+      { "title": "Querying data with federated queries in Amazon Redshift", "url": "https://docs.aws.amazon.com/redshift/latest/dg/federated-overview.html" }
+    ]
+  },
+  {
+    "id": "D1-015",
+    "domain": 1,
+    "task": "1.2",
+    "type": "multi",
+    "question": "ある企業は、毎晩 2 種類のバッチ処理を実行しています。1 つは AWS Glue の Spark ジョブによる売上データの変換で、翌朝 8 時までに終われば開始や実行時間が多少ずれても問題ありません。もう 1 つは Amazon EMR on EC2 の一時的なクラスターで動く Spark ジョブで、入出力はすべて Amazon S3 にあり、HDFS には中間データしか置きません。データエンジニアは、処理を完了させつつコストを下げたいと考えています。これらの要件を満たす対策はどれですか。（2 つ選択）",
+    "options": [
+      "EMR クラスターのプライマリノードとコアノードをすべてスポットインスタンスにする。",
+      "Glue ジョブの実行クラスを FLEX にする。",
+      "Glue ジョブのワーカータイプを G.4X に変え、ワーカー数も増やして短時間で終わらせる。",
+      "EMR クラスターのプライマリノードとコアノードはオンデマンドのまま、タスクノードをスポットインスタンスにして、複数のインスタンスタイプを指定する。",
+      "EMR クラスターを常時起動のままにして、毎晩のクラスター起動の時間を省く。"
+    ],
+    "answer": [1, 3],
+    "explanation": "Glue の Flex 実行クラスは、専用のハードウェアではなく空きの計算資源でジョブを動かし、Standard より安い料金で実行できます。開始時刻や実行時間がずれることがあるので、急がないジョブ向けです。「翌朝 8 時までに終われば多少ずれてもよい」という条件に合います。EMR では、プライマリノードがスポットの中断を受けるとクラスター全体が終了し、コアノードの中断は HDFS のデータを失う原因になります。タスクノードは HDFS を持たないので、スポットインスタンスにしても中断の影響が小さく、コストを大きく下げられます。複数のインスタンスタイプを指定すると、スポットの容量を確保しやすくなります。",
+    "optionNotes": [
+      "プライマリノードが中断されるとクラスター全体が終了し、コアノードの中断では HDFS 上の中間データが失われ、処理を完了できない恐れがあります。",
+      "正解です。急がない Glue ジョブは Flex にすると、空き容量を使って安く実行できます。",
+      "大きなワーカーを増やすと時間は縮むかもしれませんが、DPU 時間あたりの料金が上がり、コストが下がるとは限りません。",
+      "正解です。HDFS を持たないタスクノードをスポットにすれば、中断の影響を抑えつつコストを下げられます。",
+      "使わない時間も課金されるため、毎晩起動して終了する一時的なクラスターよりコストが上がります。"
+    ],
+    "services": ["AWS Glue", "Amazon EMR", "Amazon EC2"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Jobs - AWS Glue API (ExecutionClass)", "url": "https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-jobs-job.html" },
+      { "title": "Configuring Amazon EMR cluster instance types and best practices for Spot instances", "url": "https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-instances-guidelines.html" }
+    ]
+  },
+  {
+    "id": "D1-016",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業では、取引先のシステムから Amazon S3 バケットに 1 ファイル 5 MB 前後の JSON ファイルが 1 日に数百個、不定期に届きます。各ファイルは届いたらすぐに項目を絞り込み、日付の形式をそろえた CSV に変換して別のバケットに置く必要があります。変換は 1 ファイルあたり数秒で終わります。データエンジニアは、最もコスト効率が良く、運用負荷の小さい方法を選ぶ必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Amazon EMR のクラスターを常時起動し、S3 を定期的に確認して新しいファイルを Spark で変換する。",
+      "S3 のイベント通知で AWS Lambda 関数を呼び出し、関数の中でファイルを読んで変換し、別のバケットに書き込む。",
+      "S3 のイベント通知を受けるたびに AWS Glue の Spark ジョブを起動し、1 ファイルずつ変換する。",
+      "Amazon Redshift に COPY でファイルを読み込み、SQL で変換してから UNLOAD で CSV を書き出す。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「1 ファイル 5 MB 前後」「数秒で終わる」「届いたらすぐ」「不定期」です。この規模なら AWS Lambda の制限（最大 30 分の実行時間、最大 10,240 MB のメモリー、最大 10,240 MB の一時ストレージ）に十分収まります。S3 のイベント通知で関数を呼べば、ファイルが届くたびにすぐ変換でき、ファイルが来ない時間は課金されません。サーバーやクラスターの管理も不要です。大量データの分散処理が必要な場合は AWS Glue や Amazon EMR が向いていますが、小さなファイルを 1 つずつ素早く処理するには起動時間とコストが見合いません。",
+    "optionNotes": [
+      "常時起動のクラスターは、ファイルが届かない時間も課金され、管理の手間もかかります。",
+      "正解です。小さなファイルを届くたびに数秒で変換する処理は Lambda の制限内に収まり、使った分だけの課金で済みます。",
+      "Spark ジョブはワーカーの起動に時間がかかり、最小の課金時間もあるため、数秒で終わる処理を数百回起動するとコスト効率が悪くなります。",
+      "変換のためだけにデータウェアハウスに読み込んで書き出すのは手順が多く、Redshift の稼働コストもかかります。"
+    ],
+    "services": ["AWS Lambda", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Event notification types and destinations", "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-how-to-event-types-and-destinations.html" },
+      { "title": "Lambda quotas", "url": "https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" }
+    ]
+  },
+  {
+    "id": "D1-017",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は、Web アプリケーションのイベントを JSON で Amazon Data Firehose に送り、Amazon S3 に保存しています。Amazon Athena でのクエリが遅く、スキャン量も多いため、S3 に書き込まれる時点で Apache Parquet にしておきたいと考えています。データエンジニアは、追加のコードや後続の変換ジョブを作らずにこの要件を満たす必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Firehose のデータ変換で AWS Lambda 関数を呼び出し、関数の中で JSON を Parquet に変換して返す。",
+      "JSON のまま S3 に保存し、Athena の CTAS クエリを毎晩実行して Parquet のテーブルを作る。",
+      "Amazon S3 Object Lambda のアクセスポイントを作り、Athena が読むときに JSON を Parquet に変換する。",
+      "AWS Glue Data Catalog にスキーマを定義したテーブルを作り、Firehose のレコード形式の変換を有効にして出力形式を Parquet にする。"
+    ],
+    "answer": [3],
+    "explanation": "Amazon Data Firehose には、JSON の入力を Apache Parquet か Apache ORC に変換してから S3 に書き込むレコード形式の変換の機能があります。変換には、入力のデシリアライザー、出力のシリアライザー、列の情報を持つ AWS Glue Data Catalog のテーブルの 3 つを指定します。Firehose の設定だけで済むので、コードも後続のジョブも要りません。列指向の Parquet にすると、Athena は必要な列だけを読むため、スキャン量が減ってクエリも速くなります。入力が CSV などの JSON 以外の形式なら、先に Lambda で JSON にする必要があります。",
+    "optionNotes": [
+      "Lambda で Parquet を組み立てるコードを書いて保守する必要があり、「追加のコードを作らない」という要件に反します。",
+      "毎晩の変換ジョブが増えるうえ、JSON と Parquet の両方を保存することになり、要件に合いません。",
+      "S3 Object Lambda は保守モードのサービスで、新しい構成には向きません。読むたびに変換するため、Athena のスキャン量も減りません。",
+      "正解です。Firehose のレコード形式の変換なら、Glue のテーブルのスキーマを使って設定だけで Parquet に変換できます。"
+    ],
+    "services": ["Amazon Data Firehose", "AWS Glue", "Amazon Athena", "Amazon S3"],
+    "difficulty": 1,
+    "refs": [
+      { "title": "Convert input data format in Amazon Data Firehose", "url": "https://docs.aws.amazon.com/firehose/latest/dev/record-format-conversion.html" },
+      { "title": "Services in Maintenance", "url": "https://docs.aws.amazon.com/general/latest/gr/maintenance_services.html" }
+    ]
+  },
+  {
+    "id": "D1-018",
+    "domain": 1,
+    "task": "1.2",
+    "type": "multi",
+    "question": "ある企業は、Amazon Data Firehose で Amazon S3 に書き込まれた JSON のログを、AWS Glue の Spark ジョブ（DynamicFrame で読み込み）で毎日集計しています。Firehose は小さなオブジェクトを大量に書き込んでおり、1 日分は数 KB のファイルが約 200 万個になります。最近、ジョブがドライバーの java.lang.OutOfMemoryError で失敗するようになりました。データエンジニアは、ジョブが安定して完了するようにする必要があります。これらの要件を満たす対策はどれですか。（2 つ選択）",
+    "options": [
+      "DynamicFrame の読み込みのオプションに groupFiles を inPartition で指定し、groupSize で 1 グループの大きさを設定する。",
+      "ジョブのブックマークを有効にして、前回処理したファイルを読まないようにする。",
+      "ワーカータイプは変えずに、ワーカー数（NumberOfWorkers）を 2 倍にする。",
+      "ジョブの最大同時実行数（MaxConcurrentRuns）を増やす。",
+      "Firehose のバッファサイズとバッファ間隔を大きくし、S3 に書き込まれるオブジェクトを大きく、少なくする。"
+    ],
+    "answer": [0, 4],
+    "explanation": "大量の小さなファイルを読むと、Spark のドライバーはファイルの一覧の索引を作り、ファイルごとにタスクを割り当てるため、ドライバーのメモリーが足りなくなります。AWS Glue のファイルのグループ化（groupFiles を inPartition、groupSize でグループの大きさを指定）を使うと、複数のファイルを 1 つのインメモリーのパーティションとして読み、タスク数とドライバーの負担を減らせます。入力が 50,000 ファイルを超えると Glue は自動でグループ化しますが、明示的に指定すると大きさを調整できます。根本の原因である小さなファイルそのものを減らすには、Firehose のバッファを大きくして、書き込まれるオブジェクトを大きく、少なくします。",
+    "optionNotes": [
+      "正解です。ファイルをグループ化して読むと、タスク数とドライバーのメモリー使用量が減ります。",
+      "1 回の実行で読む 1 日分のファイル数は変わらないため、ドライバーのメモリー不足は解決しません。",
+      "エグゼキューターは増えますが、ドライバーのメモリーは同じワーカータイプのまま変わらないので、一覧とタスクの管理で起きるメモリー不足は残ります。",
+      "同時に実行できるジョブの数が増えるだけで、1 つの実行が読むファイル数とドライバーの負担は変わりません。",
+      "正解です。上流でオブジェクトを大きくすればファイル数そのものが減り、ドライバーの負担が小さくなります。"
+    ],
+    "services": ["AWS Glue", "Amazon Data Firehose", "Amazon S3"],
+    "difficulty": 3,
+    "refs": [
+      { "title": "Reading input files in larger groups", "url": "https://docs.aws.amazon.com/glue/latest/dg/grouping-input-files.html" },
+      { "title": "Best practices to scale Apache Spark jobs and partition data with AWS Glue", "url": "https://aws.amazon.com/blogs/big-data/best-practices-to-scale-apache-spark-jobs-and-partition-data-with-aws-glue/" }
+    ]
+  },
+  {
+    "id": "D1-019",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は、Amazon Redshift で集計した在庫データを、取引先のシステムから HTTPS の API で取得できるようにしたいと考えています。API はサーバーレスで構成し、リクエストの数は時間帯によって大きく変わります。データエンジニアは、データベースのドライバーや接続プールの管理をせず、データベースの認証情報をコードに書かずに済ませたいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "Redshift クラスターをパブリックアクセス可能にし、取引先に JDBC のエンドポイントとデータベースユーザーを渡す。",
+      "Amazon API Gateway から VPC 内の AWS Lambda 関数を呼び出し、関数の中で JDBC ドライバーと接続プールを使って Redshift にクエリを送る。",
+      "Amazon API Gateway から AWS Lambda 関数を呼び出し、関数から Amazon Redshift Data API の ExecuteStatement と GetStatementResult を使ってクエリを実行し、結果を返す。",
+      "Redshift の UNLOAD で集計結果を S3 に毎時書き出し、取引先に S3 バケットへの読み取り権限を付与する。"
+    ],
+    "answer": [2],
+    "explanation": "決め手は「ドライバーや接続プールの管理をしない」「認証情報をコードに書かない」「HTTPS の API」です。Amazon Redshift Data API は、AWS SDK から HTTP のエンドポイントを呼ぶだけで SQL を実行でき、データベースへの永続的な接続を必要としません。認証には AWS Secrets Manager のシークレットか一時的なデータベース認証情報を使うので、パスワードを API の呼び出しに含める必要がありません。呼び出しは非同期で、ExecuteStatement で実行し、DescribeStatement で状態を確かめ、GetStatementResult で結果を受け取ります。API Gateway と Lambda と組み合わせれば、リクエスト数の変化にも対応するサーバーレスのデータ API になります。",
+    "optionNotes": [
+      "データベースを直接インターネットに公開し、取引先にデータベースの認証情報を渡すことになり、HTTPS の API にもなりません。",
+      "動きはしますが、JDBC ドライバーと接続プールの管理が必要で、Lambda の同時実行が増えると接続数の管理も問題になります。",
+      "正解です。Redshift Data API なら接続やドライバーを管理せず、Secrets Manager などの認証で SQL を実行できます。",
+      "S3 のファイルを渡す方法で、要求に応じて結果を返す API にはなりません。データも最大 1 時間古くなります。"
+    ],
+    "services": ["Amazon Redshift", "Amazon API Gateway", "AWS Lambda", "AWS Secrets Manager"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Using the Amazon Redshift Data API", "url": "https://docs.aws.amazon.com/redshift/latest/mgmt/data-api.html" }
+    ]
+  },
+  {
+    "id": "D1-020",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は、モバイルアプリのクリックストリームを JSON で受け取り、Amazon Redshift で分析しています。JSON にはネストした配列があり、アプリの更新のたびに新しい属性が追加されます。現在は属性が増えるたびに ETL ジョブとテーブル定義を修正しており、そのたびに取り込みが止まっています。データエンジニアは、テーブル定義を変えずに新しい属性を取り込み、SQL でネストした値も参照できるようにしたいと考えています。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "JSON を SUPER 型の列に COPY または JSON_PARSE で取り込み、PartiQL の構文でネストした属性や配列を参照する。",
+      "JSON の文字列を VARCHAR(65535) の列に保存し、クエリのたびに JSON_EXTRACT_PATH_TEXT で値を取り出す。",
+      "AWS Glue の ETL ジョブで JSON をすべての属性の列に展開し、新しい属性が届いたら ALTER TABLE で列を追加する。",
+      "クリックストリームを Amazon DynamoDB に保存し、Redshift からは DynamoDB を外部テーブルとして参照する。"
+    ],
+    "answer": [0],
+    "explanation": "スキーマが頻繁に変わる半構造化データは、構造化データのように列を固定すると、変更のたびに修正が必要になります。Amazon Redshift の SUPER 型は、スキーマのない配列や構造をそのまま保存できるデータ型です。COPY や JSON_PARSE で JSON を SUPER の列に取り込めば、新しい属性が増えてもテーブル定義を変える必要がありません。クエリでは PartiQL を使い、ドット記法や添字でネストした属性や配列の要素を参照したり、配列を展開したりできます。SUPER はテキストの JSON より小さいバイナリ形式で保存されるので、取り込みとクエリも速くなります。",
+    "optionNotes": [
+      "正解です。SUPER 型ならテーブル定義を変えずに新しい属性を取り込み、PartiQL でネストした値を参照できます。",
+      "文字列の長さに上限があり、クエリのたびに解析するので遅くなります。ネストした配列の展開も扱いにくくなります。",
+      "属性が増えるたびに ETL とテーブル定義を直す今の問題がそのまま残ります。",
+      "Redshift から DynamoDB を外部テーブルとしてクエリする機能はありません。分析のたびに別のサービスをまたぐことにもなります。"
+    ],
+    "services": ["Amazon Redshift"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Semi-structured data in Amazon Redshift", "url": "https://docs.aws.amazon.com/redshift/latest/dg/super-overview.html" }
+    ]
+  },
+  {
+    "id": "D1-021",
+    "domain": 1,
+    "task": "1.2",
+    "type": "single",
+    "question": "ある企業は、毎日届く数十万件の顧客レビューを大規模言語モデル（LLM）で要約し、感情のラベルを付けてデータレイクに保存したいと考えています。結果は翌朝のレポートで使うため、リアルタイムに返す必要はありません。データエンジニアは、Amazon Bedrock の基盤モデルを使い、最もコスト効率良くこの処理を実装する必要があります。これらの要件を満たすソリューションはどれですか。",
+    "options": [
+      "レビューが届くたびに AWS Lambda 関数を呼び出し、Bedrock の InvokeModel をオンデマンドで 1 件ずつ呼んで結果を S3 に書き込む。",
+      "その日のレビューをプロンプトとして JSONL ファイルにまとめて S3 に置き、Bedrock のバッチ推論ジョブを作成して、結果を S3 に出力する。",
+      "Bedrock のプロビジョンドスループットを購入し、AWS Glue の Spark ジョブから 1 件ずつ InvokeModel を呼ぶ。",
+      "AWS Glue の Spark ジョブで Glue の自動スケーリングを有効にし、各エグゼキューターから Bedrock の Converse API をオンデマンドで並列に呼ぶ。"
+    ],
+    "answer": [1],
+    "explanation": "決め手は「数十万件」「リアルタイムに返す必要はない」「最もコスト効率良く」です。Amazon Bedrock のバッチ推論では、複数のプロンプトを入力ファイルにまとめて S3 に置き、1 回のリクエストでジョブを送信すると、非同期に処理されて結果が S3 に出力されます。トークンあたりの料金はオンデマンドの推論より低く設定されています。翌朝までに終わればよい大量の処理なので、1 件ずつオンデマンドで呼ぶよりバッチ推論のほうが向いています。完了は EventBridge のイベントで受け取れるので、後続の処理につなげることもできます。",
+    "optionNotes": [
+      "動きはしますが、オンデマンドの料金がかかり、大量の呼び出しでスロットリングへの対処も必要になります。",
+      "正解です。急がない大量の処理は、バッチ推論にするとオンデマンドより低い単価で処理できます。",
+      "プロビジョンドスループットは使わない時間も課金されるため、1 日 1 回のバッチには割高です。バッチ推論はプロビジョンドモデルには対応していません。",
+      "並列にはなりますが、料金はオンデマンドのままで、Glue の計算コストも加わります。スロットリングへの対処も必要です。"
+    ],
+    "services": ["Amazon Bedrock", "Amazon S3"],
+    "difficulty": 2,
+    "refs": [
+      { "title": "Process multiple prompts with batch inference", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/batch-inference.html" },
+      { "title": "ADVCOST05-BP06 Use provisioned throughput for steady-state agents and on-demand pricing for variable workloads", "url": "https://docs.aws.amazon.com/wellarchitected/latest/video-streaming-advertising-lens/advcost05-bp06.html" }
+    ]
+  }
+]
