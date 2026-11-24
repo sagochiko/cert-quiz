@@ -140,7 +140,10 @@ h2 { font-size: 15px; font-weight: 700; }
 .meta .id { font-family: var(--font-mono); color: var(--fg); }
 .chip { font-size: 11px; border-radius: 4px; padding: 0 6px; line-height: 20px; border: 1px solid var(--line); white-space: nowrap; }
 .chip.ai { color: var(--accent); border-color: var(--accent); }
-.chip.multi { color: var(--flag); border-color: var(--flag); }
+.chip.multi, .chip.kind { color: var(--flag); border-color: var(--flag); }
+.chip.case { color: var(--accent); border-color: var(--accent); }
+.scenario { background: var(--sunken); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; }
+.scenario .qtext { font-size: 14.5px; line-height: 1.8; }
 .meta .tools { margin-left: auto; display: flex; gap: 6px; }
 .toggle { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); }
 .toggle svg { width: 14px; height: 14px; }
@@ -153,7 +156,7 @@ h2 { font-size: 15px; font-weight: 700; }
 .opt { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: start; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; background: var(--surface); }
 .opt:hover { border-color: var(--muted); }
 .opt input { position: absolute; opacity: 0; pointer-events: none; }
-.opt .key { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); display: grid; place-items: center; font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.opt .key, .arr .key, .mrow .key, .pool .key { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); display: grid; place-items: center; font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
 .opt.multi .key { border-radius: 50%; }
 .opt.sel { border-color: var(--accent); background: var(--accent-soft); }
 .opt.sel .key { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
@@ -164,6 +167,24 @@ h2 { font-size: 15px; font-weight: 700; }
 .opts.done .opt.right .key { background: var(--ok); border-color: var(--ok); color: var(--on-accent); }
 .opts.done .opt.wrong { border-color: var(--ng); background: var(--ng-soft); }
 .opts.done .opt.wrong .key { background: var(--ng); border-color: var(--ng); color: var(--on-accent); }
+/* order and match: a select per candidate or prompt */
+.arr, .mrow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
+.mrow { grid-template-columns: 28px minmax(0, 1fr); }
+.arr .txt, .mrow .txt, .pool .txt { overflow-wrap: anywhere; }
+.slot { font: inherit; font-size: 16px; line-height: 1.3; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-height: 36px; min-width: 64px; max-width: 100%; }
+.mrow .slot { grid-column: 2; justify-self: start; }
+.slot:disabled { opacity: 1; color: var(--fg); cursor: default; }
+.arr.sel, .mrow.sel { border-color: var(--accent); background: var(--accent-soft); }
+.arr.sel .key, .mrow.sel .key { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.arr .note, .mrow .note, .pool .note { grid-column: 2 / -1; font-size: 13.5px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; }
+.opts.done .arr, .opts.done .mrow { background: var(--surface); border-color: var(--line); }
+.opts.done .arr .key, .opts.done .mrow .key { background: none; border-color: var(--line); color: var(--muted); }
+.opts.done .arr.right, .opts.done .mrow.right { border-color: var(--ok); background: var(--ok-soft); }
+.opts.done .arr.right .key, .opts.done .mrow.right .key { background: var(--ok); border-color: var(--ok); color: var(--on-accent); }
+.opts.done .arr.wrong, .opts.done .mrow.wrong { border-color: var(--ng); background: var(--ng-soft); }
+.opts.done .arr.wrong .key, .opts.done .mrow.wrong .key { background: var(--ng); border-color: var(--ng); color: var(--on-accent); }
+.pool { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pool li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 6px 10px; align-items: start; padding: 2px 13px; }
 .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .actions .spacer { flex: 1; }
 .verdict { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
@@ -272,7 +293,7 @@ h2 { font-size: 15px; font-weight: 700; }
 .stat b small.sub { display: block; font-size: 11px; margin: 2px 0 0; color: var(--flag); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } .praise { animation: praise-still 1.3s forwards !important; } @keyframes praise-still { 0%, 80% { opacity: 1; } 100% { opacity: 0; } } }
 .task.done .acc { color: var(--ok); }
-.card.suspense .opt.sel { animation: throb .3s ease-in-out infinite alternate; }
+.card.suspense .opt.sel, .card.suspense .arr.sel, .card.suspense .mrow.sel { animation: throb .3s ease-in-out infinite alternate; }
 @keyframes throb { to { transform: scale(1.012); box-shadow: 0 0 0 3px var(--accent-soft); } }
 .card.boss { border-color: var(--ng); box-shadow: 0 0 0 1px var(--ng); }
 .chip.boss { color: #fff; background: var(--ng); border-color: var(--ng); font-weight: 700; letter-spacing: .06em; }
@@ -350,7 +371,8 @@ h2 { font-size: 15px; font-weight: 700; }
 const EXAM = JSON.parse(document.getElementById("exam").textContent);
 const DOMAINS = EXAM.domains;
 const EXAM_SIZE = EXAM.examSize;
-const LETTERS = "ABCDE";
+const LETTERS = "ABCDEFGHIJ";
+const CASES = EXAM.cases || {};
 const BANK = JSON.parse(document.getElementById("qdata").textContent);
 const BMAP = Object.fromEntries(BANK.map(q => [q.id, q]));
 
@@ -384,6 +406,40 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const getQ = id => BMAP[id] || aiQs[id];
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const sameSet = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+// choice for single/multi: the picked options. order: choice[k] is the option put k-th. match: choice[i] is the option picked for prompt i. -1 is an empty slot.
+const answered = c => Array.isArray(c) && c.some(x => x >= 0);
+const slotted = q => q.type === "order" || q.type === "match";
+const slots = q => q.type === "match" ? q.prompts.length : q.answer.length;
+function complete(q, c) {
+  c = c || [];
+  if (slotted(q)) return c.length === slots(q) && c.every(x => x >= 0);
+  return c.length === (q.type === "multi" ? q.answer.length : 1);
+}
+function isRight(q, c) {
+  c = c || [];
+  if (slotted(q)) return c.length === q.answer.length && q.answer.every((x, i) => c[i] === x);
+  return sameSet(c, q.answer);
+}
+function fmtChoice(q, c) {
+  c = c || [];
+  if (q.type === "order") return c.map(i => i >= 0 ? LETTERS[i] : "?").join(" → ");
+  if (q.type === "match") return c.map((i, k) => `${k + 1}→${i >= 0 ? LETTERS[i] : "?"}`).join(" ");
+  return c.map(i => LETTERS[i]).join(", ");
+}
+const plain = s => String(s ?? "").replace(/```\w*\n?/g, "").replace(/`/g, "").replace(/\s+/g, " ").trim();
+const clip = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+const BIDX = Object.fromEntries(BANK.map((q, i) => [q.id, i]));
+// Questions of the same case study are asked one after another, in bank order, where the first of them falls.
+function groupCases(ids) {
+  const out = [], seen = new Set();
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    const c = getQ(id) && getQ(id).case;
+    const grp = c ? ids.filter(x => getQ(x) && getQ(x).case === c).sort((a, b) => (BIDX[a] ?? 1e9) - (BIDX[b] ?? 1e9)) : [id];
+    for (const x of grp) { seen.add(x); out.push(x); }
+  }
+  return out;
+}
 const fmtDate = t => { const d = new Date(t); return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.append(t); setTimeout(() => t.remove(), 2200); }
 
@@ -652,7 +708,7 @@ function bossSound() {
 function taskRemain(task) { return idsBy(x => x.task === task && !(progress[x.id] && progress[x.id].last)).length; }
 function bossPick(excl) {
   const free = id => !excl.includes(id);
-  const pool = [...weakIds(), ...wrongIds(), ...idsBy(x => x.type === "multi")].filter(free);
+  const pool = [...weakIds(), ...wrongIds(), ...idsBy(x => x.type !== "single")].filter(free);
   return pool.length ? pickOne(pool) : pickOne(BANK.map(x => x.id).filter(free)) || null;
 }
 const SURE_OK = ["自信どおり！", "読み切った！", "迷いなし！"];
@@ -757,7 +813,7 @@ function examIds() {
 
 /* ---------- sessions ---------- */
 function startSession(ids, title, mode = "practice", extra = {}) {
-  ids = ids.filter(getQ);
+  ids = groupCases(ids.filter(getQ));
   if (!ids.length) { toast("対象の問題がありません"); return; }
   session = { mode, title, ids, idx: 0, answers: {}, startedAt: Date.now(), ...extra };
   persistSession();
@@ -804,7 +860,7 @@ function renderHome() {
     <div class="stat"><span class="label">今日の正解</span><b>${stats.day === todayKey() ? stats.dayCorrect : 0}${stats.best >= 2 ? `<small class="sub">最高 ${stats.best}連続</small>` : ""}</b></div>
   </section>`;
   if (rs && rs.ids && rs.ids.length) {
-    const done = Object.values(rs.answers || {}).filter(x => x.done || (rs.mode === "exam" && x.choice && x.choice.length)).length;
+    const done = Object.values(rs.answers || {}).filter(x => x.done || (rs.mode === "exam" && answered(x.choice))).length;
     html += `<section class="panel resume"><div><strong>${esc(rs.title)}</strong><div class="label mono">${done} / ${rs.ids.length}</div></div><button class="btn primary" id="resume-btn" type="button">続きから</button><button class="btn" id="resume-drop" type="button" aria-label="中断中のセットを破棄">破棄</button></section>`;
   }
   html += `<section class="starts" aria-label="出題">
@@ -873,32 +929,38 @@ function renderQuiz() {
   const dom = DOMAINS[q.domain] || { name: "", tasks: {} };
   const showResult = !exam && a.done;
   const p = prog(q.id);
+  const cs = q.case && CASES[q.case];
   let html = `<div class="qbar"><button class="btn small" id="q-home" type="button">ホーム</button><h1>${esc(session.title)}</h1>${!exam && (session.streak || 0) >= 2 ? `<span class="streak${showResult && a.ok ? " bump" : ""}" aria-label="${session.streak}連続正解">${FLAME}${session.streak}</span>` : ""}<span class="count">${session.idx + 1} / ${session.ids.length}</span>${exam ? `<button class="btn small primary" id="finish" type="button">採点</button>` : ""}</div>`;
   html += `<nav class="grid" id="grid" aria-label="問題の一覧"></nav>`;
   html += `<article class="panel card${session.boss === q.id && !showResult ? " boss" : ""}">
-    <div class="meta"><span class="id">${esc(q.id)}</span><span>分野${q.domain} ${esc(dom.tasks[q.task] || dom.name)}</span>${q.ai ? '<span class="chip ai">AI</span>' : ""}${multi ? `<span class="chip multi">${need}つ選択</span>` : ""}${session.boss === q.id ? '<span class="chip boss">BOSS</span>' : ""}
+    <div class="meta"><span class="id">${esc(q.id)}</span><span>分野${q.domain} ${esc(dom.tasks[q.task] || dom.name)}</span>${q.ai ? '<span class="chip ai">AI</span>' : ""}${multi ? `<span class="chip multi">${need}つ選択</span>` : ""}${q.type === "order" ? '<span class="chip kind">並べ替え</span>' : q.type === "match" ? '<span class="chip kind">内容一致</span>' : ""}${cs ? '<span class="chip case">ケーススタディ</span>' : ""}${session.boss === q.id ? '<span class="chip boss">BOSS</span>' : ""}
       <span class="tools">
         <button class="toggle" id="t-later" type="button" aria-pressed="${!!p.later}" aria-label="後で確認"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 21V4h11l-2 4 2 4H5"/></svg>後で</button>
         <button class="toggle" id="t-bm" type="button" aria-pressed="${!!p.bm}" aria-label="ブックマーク"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
         ${q.ai ? `<button class="toggle" id="t-del" type="button" aria-label="この AI 類題を削除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>` : ""}
       </span></div>
-    <div class="qtext">${rich(q.question)}</div>
-    <div class="opts ${showResult ? "done" : ""}" role="${multi ? "group" : "radiogroup"}" aria-label="選択肢">`;
-  q.options.forEach((o, i) => {
-    const sel = a.choice.includes(i);
-    let cls = "opt" + (multi ? " multi" : "") + (sel ? " sel" : "");
-    if (showResult) { if (q.answer.includes(i)) cls += " right"; else if (sel) cls += " wrong"; }
-    html += `<label class="${cls}" data-i="${i}"><input type="${multi ? "checkbox" : "radio"}" name="opt" ${sel ? "checked" : ""} ${showResult ? "disabled" : ""}><span class="key">${LETTERS[i]}</span><span class="txt">${rich(o)}</span>${showResult && q.optionNotes && q.optionNotes[i] ? `<span class="note">${rich(q.optionNotes[i])}</span>` : ""}</label>`;
-  });
-  html += `</div>`;
+    ${cs ? `<section class="scenario" aria-label="ケーススタディ"><h2>${esc(cs.title)}</h2><div class="qtext">${rich(cs.scenario)}</div></section>` : ""}
+    <div class="qtext">${rich(q.question)}</div>`;
+  if (q.type === "order") html += orderHtml(q, a, showResult);
+  else if (q.type === "match") html += matchHtml(q, a, showResult);
+  else {
+    html += `<div class="opts ${showResult ? "done" : ""}" role="${multi ? "group" : "radiogroup"}" aria-label="選択肢">`;
+    q.options.forEach((o, i) => {
+      const sel = a.choice.includes(i);
+      let cls = "opt" + (multi ? " multi" : "") + (sel ? " sel" : "");
+      if (showResult) { if (q.answer.includes(i)) cls += " right"; else if (sel) cls += " wrong"; }
+      html += `<label class="${cls}" data-i="${i}"><input type="${multi ? "checkbox" : "radio"}" name="opt" ${sel ? "checked" : ""} ${showResult ? "disabled" : ""}><span class="key">${LETTERS[i]}</span><span class="txt">${rich(o)}</span>${showResult && q.optionNotes && q.optionNotes[i] ? `<span class="note">${rich(q.optionNotes[i])}</span>` : ""}</label>`;
+    });
+    html += `</div>`;
+  }
   if (showResult) {
     const ok = a.ok;
-    html += `<div class="verdict ${ok ? "ok" : "ng"}">${ok ? "正解" : "不正解"}<small>正解は ${q.answer.map(i => LETTERS[i]).join(", ")}</small>${ok && a.tip ? `<small>${esc(a.tip)}</small>` : ""}</div>`;
+    html += `<div class="verdict ${ok ? "ok" : "ng"}">${ok ? "正解" : "不正解"}<small>正解は ${fmtChoice(q, q.answer)}</small>${ok && a.tip ? `<small>${esc(a.tip)}</small>` : ""}</div>`;
   }
   html += `<div class="actions">
     <button class="btn" id="prev" type="button" ${session.idx ? "" : "disabled"}>前へ</button>
     <div class="spacer"></div>
-    ${exam || showResult ? "" : `<button class="btn" id="submit-n" type="button" aria-label="自信なしで回答する" ${a.choice.length === need ? "" : "disabled"}>たぶん</button><button class="btn primary" id="submit-y" type="button" aria-label="自信ありで回答する。Enter キーでも回答できる" ${a.choice.length === need ? "" : "disabled"}>自信あり</button>`}
+    ${exam || showResult ? "" : `<button class="btn" id="submit-n" type="button" aria-label="自信なしで回答する" ${complete(q, a.choice) ? "" : "disabled"}>たぶん</button><button class="btn primary" id="submit-y" type="button" aria-label="自信ありで回答する。Enter キーでも回答できる" ${complete(q, a.choice) ? "" : "disabled"}>自信あり</button>`}
     ${exam || showResult ? `<button class="btn ${showResult ? "primary" : ""}" id="next" type="button">${session.idx === session.ids.length - 1 ? (exam ? "採点へ" : "ホームへ") : "次へ"}</button>` : ""}
   </div>`;
   if (showResult) {
@@ -923,13 +985,57 @@ function renderQuiz() {
   bindQuiz(q, a, need, multi, exam, showResult);
   refreshChatCtx();
 }
+function orderHtml(q, a, done) {
+  const K = q.answer.length, c = a.choice;
+  let h = `<div class="opts${done ? " done" : ""}" role="group" aria-label="${K}つ選んで順番に並べる">`;
+  q.options.forEach((o, i) => {
+    const pos = c.indexOf(i), want = q.answer.indexOf(i);
+    let cls = "arr" + (pos >= 0 ? " sel" : "");
+    if (done && (pos >= 0 || want >= 0)) cls += pos === want ? " right" : " wrong";
+    const label = `${LETTERS[i]} ${clip(plain(o), 60)} の順番` + (done ? (want >= 0 ? `。正解は${want + 1}番目` : "。正解では使わない") : "");
+    h += `<div class="${cls}"><span class="key" aria-hidden="true">${LETTERS[i]}</span><span class="txt">${rich(o)}</span>`
+      + `<select class="slot" data-o="${i}" aria-label="${esc(label)}" ${done ? "disabled" : ""}><option value="-1">–</option>${Array.from({ length: K }, (_, k) => `<option value="${k}" ${pos === k ? "selected" : ""}>${k + 1}</option>`).join("")}</select>`
+      + `${done && q.optionNotes && q.optionNotes[i] ? `<span class="note">${rich(q.optionNotes[i])}</span>` : ""}</div>`;
+  });
+  return h + "</div>";
+}
+function matchHtml(q, a, done) {
+  const c = a.choice;
+  let h = `<div class="opts${done ? " done" : ""}" role="group" aria-label="内容一致">`;
+  q.prompts.forEach((pr, k) => {
+    const v = c[k] ?? -1, want = q.answer[k];
+    const cls = "mrow" + (v >= 0 ? " sel" : "") + (done ? (v === want ? " right" : " wrong") : "");
+    const label = `${k + 1} ${clip(plain(pr), 60)} に合う答え` + (done ? `。正解は${LETTERS[want]}` : "");
+    h += `<div class="${cls}"><span class="key" aria-hidden="true">${k + 1}</span><span class="txt">${rich(pr)}</span>`
+      + `<select class="slot" data-p="${k}" aria-label="${esc(label)}" ${done ? "disabled" : ""}><option value="-1">–</option>${q.options.map((o, i) => `<option value="${i}" ${v === i ? "selected" : ""}>${LETTERS[i]}. ${esc(clip(plain(o), 40))}</option>`).join("")}</select></div>`;
+  });
+  h += `</div><ol class="pool" aria-label="答えの候補">`;
+  q.options.forEach((o, i) => { h += `<li><span class="key">${LETTERS[i]}</span><span class="txt">${rich(o)}</span>${done && q.optionNotes && q.optionNotes[i] ? `<span class="note">${rich(q.optionNotes[i])}</span>` : ""}</li>`; });
+  return h + "</ol>";
+}
+// Change one slot of an order or match question. The page is not redrawn, so focus stays on the select.
+function setSlot(el) {
+  const q = curQ(), a = curA(); if (!q) return;
+  if (revealing || (session.mode !== "exam" && a.done)) return;
+  const c = Array.from({ length: slots(q) }, (_, k) => a.choice[k] ?? -1), v = +el.value;
+  if (el.dataset.o != null) { const i = +el.dataset.o, old = c.indexOf(i); if (old >= 0) c[old] = -1; if (v >= 0) c[v] = i; }
+  else c[+el.dataset.p] = v;
+  a.choice = c;
+  if (session.mode === "exam") { persistSession(); renderGrid(); }
+  main.querySelectorAll("select.slot").forEach(s => {
+    const x = s.dataset.o != null ? c.indexOf(+s.dataset.o) : c[+s.dataset.p];
+    if (+s.value !== x) s.value = String(x);
+    s.closest(".arr, .mrow").classList.toggle("sel", x >= 0);
+  });
+  for (const b of [$("#submit-y"), $("#submit-n")]) if (b) b.disabled = !complete(q, c);
+}
 function renderGrid() {
   const g = $("#grid"); if (!g || !session) return;
   const exam = session.mode === "exam";
   g.innerHTML = session.ids.map((id, i) => {
     const a = session.answers[id]; const p = progress[id];
     let c = i === session.idx ? "cur" : "";
-    if (a) { if (!exam && a.done) c += a.ok ? " ok" : " ng"; else if (exam && a.choice && a.choice.length) c += " ans"; }
+    if (a) { if (!exam && a.done) c += a.ok ? " ok" : " ng"; else if (exam && answered(a.choice)) c += " ans"; }
     if (p && p.later) c += " flag";
     return `<button type="button" class="${c}" data-g="${i}" aria-label="${i + 1}問目">${i + 1}</button>`;
   }).join("");
@@ -956,6 +1062,7 @@ function bindQuiz(q, a, need, multi, exam, showResult) {
     else { del.dataset.armed = "1"; del.innerHTML = "削除する"; setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; renderQuiz(); } }, 3000); }
   };
   if (!showResult) main.querySelectorAll(".opt").forEach(el => el.onclick = ev => { ev.preventDefault(); pick(+el.dataset.i); });
+  if (!showResult) main.querySelectorAll("select.slot").forEach(el => el.onchange = () => setSlot(el));
   const sy = $("#submit-y"), sn = $("#submit-n");
   if (sy) sy.onclick = () => submit(true);
   if (sn) sn.onclick = () => submit(false);
@@ -980,14 +1087,13 @@ function pick(i) {
 // sure: true when the user pressed 自信あり. The verdict waits for a short drum roll, then reveal() decides the rewards.
 function submit(sure) {
   const q = curQ(), a = curA(); if (!q || a.done || revealing) return;
-  const need = q.type === "multi" ? q.answer.length : 1;
-  if (a.choice.length !== need) return;
-  const ok = sameSet(a.choice, q.answer);
+  if (!complete(q, a.choice)) return;
+  const ok = isRight(q, a.choice);
   const fin = () => reveal(q, a, ok, { sure });
   if (reduced()) return fin();
   revealing = true;
   const card = $(".card"); if (card) card.classList.add("suspense");
-  main.querySelectorAll(".actions .btn").forEach(b => b.disabled = true);
+  main.querySelectorAll(".actions .btn, select.slot").forEach(b => b.disabled = true);
   suspense(fin, session.boss === q.id ? 1000 : 550 + Math.random() * 300);
 }
 function reveal(q, a, ok, ctx) {
@@ -1046,13 +1152,13 @@ function next() {
 function finishExam() {
   if (!session) return;
   const fin = $("#finish");
-  const unanswered = session.ids.filter(id => !(session.answers[id] && session.answers[id].choice && session.answers[id].choice.length)).length;
+  const unanswered = session.ids.filter(id => !(session.answers[id] && answered(session.answers[id].choice))).length;
   if (unanswered && fin && !fin.dataset.armed) { fin.dataset.armed = "1"; fin.textContent = `未回答${unanswered}問のまま採点`; setTimeout(() => { if (fin.isConnected) { delete fin.dataset.armed; fin.textContent = "採点"; } }, 4000); return; }
   const byDomain = {}; let correct = 0; const wrong = [];
   for (const id of session.ids) {
     const q = getQ(id); const a = session.answers[id] || { choice: [] };
-    const ok = sameSet(a.choice || [], q.answer);
-    if (a.choice && a.choice.length) record(id, a.choice, ok);
+    const ok = isRight(q, a.choice);
+    if (answered(a.choice)) record(id, a.choice, ok);
     const bd = byDomain[q.domain] || (byDomain[q.domain] = [0, 0]); bd[1]++; if (ok) { bd[0]++; correct++; } else wrong.push(id);
     session.answers[id] = { choice: a.choice || [], done: true, ok };
   }
@@ -1089,12 +1195,19 @@ function renderResult() {
 }
 document.addEventListener("keydown", ev => {
   if (view !== "quiz" || !session) return;
-  const t = ev.target; if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable)) return;
+  const t = ev.target;
+  // On a slot dropdown, Enter answers once every slot is filled, like it does elsewhere on the quiz.
+  if (t && t.tagName === "SELECT" && t.classList.contains("slot") && ev.key === "Enter" && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+    const s = ev.shiftKey ? $("#submit-n") : $("#submit-y");
+    if (s && !s.disabled) { ev.preventDefault(); s.click(); }
+    return;
+  }
+  if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.tagName === "SELECT" || t.isContentEditable)) return;
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
   const q = curQ(); if (!q) return;
   const k = ev.key.toLowerCase();
   const idx = "12345".indexOf(k) >= 0 ? "12345".indexOf(k) : "abcde".indexOf(k);
-  if (idx >= 0 && idx < q.options.length) { ev.preventDefault(); pick(idx); return; }
+  if (idx >= 0 && idx < q.options.length && !slotted(q)) { ev.preventDefault(); pick(idx); return; }
   if (k === "enter") { const s = ev.shiftKey ? $("#submit-n") : $("#submit-y"); const n = $("#next"); if (s && !s.disabled) { ev.preventDefault(); s.click(); } else if (n) { ev.preventDefault(); n.click(); } }
   if (k === "arrowright") go(session.idx + 1);
   if (k === "arrowleft") go(session.idx - 1);
@@ -1102,10 +1215,15 @@ document.addEventListener("keydown", ev => {
 
 /* ---------- Claude: similar question ---------- */
 function qForPrompt(q, reveal) {
-  let s = `[${q.id}] 分野${q.domain} タスク${q.task} ${(DOMAINS[q.domain] && DOMAINS[q.domain].tasks[q.task]) || ""}\n${q.question}\n`;
+  const cs = q.case && CASES[q.case];
+  let s = `[${q.id}] 分野${q.domain} タスク${q.task} ${(DOMAINS[q.domain] && DOMAINS[q.domain].tasks[q.task]) || ""}\n`;
+  if (cs) s += `ケーススタディ「${cs.title}」\n${cs.scenario}\n設問: `;
+  s += `${q.question}\n`;
+  if (q.type === "order") s += `形式: 並べ替え。候補から${q.answer.length}つを選び、正しい順に並べる\n`;
+  if (q.type === "match") s += `形式: 内容一致。各プロンプトに合う答えを候補から1つずつ選ぶ\n` + q.prompts.map((p, k) => `${k + 1}. ${p}\n`).join("") + "答えの候補:\n";
   q.options.forEach((o, i) => s += `${LETTERS[i]}. ${o}\n`);
   if (reveal) {
-    s += `正解: ${q.answer.map(i => LETTERS[i]).join(", ")}\n解説: ${q.explanation}\n`;
+    s += `正解: ${fmtChoice(q, q.answer)}\n解説: ${q.explanation}\n`;
     if (q.optionNotes) s += "選択肢ごとの解説:\n" + q.optionNotes.map((n, i) => `${LETTERS[i]}: ${n}`).join("\n") + "\n";
   }
   return s;
@@ -1120,7 +1238,8 @@ async function generateSimilar(q) {
 - type が "single" なら選択肢4つで answer は1つ。"multi" なら選択肢5つで answer は2つ、問題文の末尾に「（2 つ選択）」。
 - 不正解の選択肢も、もっともらしく作る。${EXAM.genNote}
 - explanation は200〜400字。optionNotes は選択肢ごとに1〜2文。太字やダッシュは使わない。
-- answer は0始まりの添字。
+- answer は0始まりの添字。${slotted(q) ? `
+- 元の問題は${q.type === "order" ? "並べ替え" : "内容一致"}の形式だが、作るのは type が "single" か "multi" の問題にする。` : ""}
 
 出力は次の形の JSON オブジェクトだけ。
 {"type":"single","question":"...","options":["...","...","...","..."],"answer":[1],"explanation":"...","optionNotes":["...","...","...","..."],"services":["..."]}
@@ -1162,7 +1281,7 @@ function contextBlock() {
       if (session.mode === "exam") {
         s += `\n[表示中の問題] 模擬試験の途中です。正解、正解を絞り込めるヒント、選択肢の正誤は書かないでください。用語や仕組みの一般的な説明だけにとどめます。\n${qForPrompt(q, false)}`;
       } else if (a && a.done) {
-        s += `\n[表示中の問題]\n${qForPrompt(q, true)}受験者の回答: ${a.choice.map(i => LETTERS[i]).join(", ")} (${a.ok ? "正解" : "不正解"})\n`;
+        s += `\n[表示中の問題]\n${qForPrompt(q, true)}受験者の回答: ${fmtChoice(q, a.choice)} (${a.ok ? "正解" : "不正解"})\n`;
       } else {
         s += `\n[表示中の問題] 受験者はまだ回答していません。正解を直接書かず、考え方の手がかりを示します。\n${qForPrompt(q, false)}`;
       }
@@ -1179,7 +1298,7 @@ function taskStats() {
 const TOOLS = [
   { name: "get_my_stats", description: "受験者の回答履歴の集計を返す。タスク別の問題数、回答済み数、最新の回答での正解数と不正解数、間違えたままの問題ID、苦手な問題ID(正答率60%未満)、ブックマークした問題ID、模擬試験の記録。", execute: () => ({ byTask: taskStats(), wrongIds: wrongIds(), weakIds: weakIds().slice(0, 30), bookmarkIds: bmIds(), exams: exams.slice(0, 5).map(e => ({ date: new Date(e.at).toISOString().slice(0, 10), correct: e.correct, total: e.total })) }) },
   { name: "search_questions", description: "問題集をキーワードで検索し、最大10件の {id, task, services, snippet, myResult} を返す。用語や論点で探すときに使う。", inputSchema: { type: "object", properties: { query: { type: "string", description: "検索語。空白区切りで AND" } }, required: ["query"] },
-    execute: ({ query }) => { const terms = String(query || "").toLowerCase().split(/\s+/).filter(Boolean); const all = [...BANK, ...Object.values(aiQs)]; return all.filter(q => { const hay = (q.question + q.options.join(" ") + (q.services || []).join(" ") + q.explanation).toLowerCase(); return terms.every(t => hay.includes(t)); }).slice(0, 10).map(q => { const p = progress[q.id]; return { id: q.id, task: q.task, services: q.services, snippet: q.question.slice(0, 90), myResult: p && p.attempts ? (p.last ? "正解" : "不正解") : "未回答" }; }); } },
+    execute: ({ query }) => { const terms = String(query || "").toLowerCase().split(/\s+/).filter(Boolean); const all = [...BANK, ...Object.values(aiQs)]; return all.filter(q => { const hay = (q.question + q.options.join(" ") + (q.prompts || []).join(" ") + (q.services || []).join(" ") + q.explanation).toLowerCase(); return terms.every(t => hay.includes(t)); }).slice(0, 10).map(q => { const p = progress[q.id]; return { id: q.id, task: q.task, services: q.services, snippet: q.question.slice(0, 90), myResult: p && p.attempts ? (p.last ? "正解" : "不正解") : "未回答" }; }); } },
   { name: "get_question", description: "問題IDを指定して、問題文、選択肢、正解、解説を返す。表示中ではない問題について話すときに使う。模擬試験の途中では使わない。", inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
     execute: ({ id }) => { if (examLock()) throw new Error("模擬試験の途中なので使えません"); const q = getQ(String(id)); if (!q) throw new Error("その ID の問題はありません"); return qForPrompt(q, true); } },
   { name: "open_question_set", description: "指定した問題IDのリストを、受験者の画面で練習セットとして開く。復習してほしい問題を解かせたいときに使う。返り値は開いた問題数。", inputSchema: { type: "object", properties: { ids: { type: "array", items: { type: "string" } }, title: { type: "string", description: "セットの名前(短く)" } }, required: ["ids"] },
