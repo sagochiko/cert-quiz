@@ -6,7 +6,7 @@
   "examName": "AWS Certified Data Engineer - Associate (DEA-C01)",
   "examSize": 65,
   "guide": "https://docs.aws.amazon.com/aws-certification/latest/data-engineer-associate-01/data-engineer-associate-01.html",
-  "artifact": "",
+  "artifact": "https://claude.ai/artifact/D7bSc44YrpuaNceLaq1KpN",
   "tutorNote": "AWS の仕様で自信がないことは、そう書いたうえで公式ドキュメントで確かめるよう伝えます。",
   "genNote": "2026年時点の AWS の仕様で確実に言えることだけで作る。",
   "searchChip": "Glue の問題を探して",
