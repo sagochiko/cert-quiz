@@ -101,7 +101,7 @@
     ],
     "services": [
       "Amazon SageMaker AI",
-      "SageMaker Clarify",
+      "Amazon SageMaker Clarify",
       "SageMaker Model Monitor"
     ],
     "difficulty": 2,
@@ -163,7 +163,7 @@
       "ベースラインを指定してモニタリングスケジュールを作成し、Amazon CloudWatch へのメトリクスの出力を有効にする。",
       "確定した正解ラベルを Ground Truth レコードとして Amazon S3 にアップロードする。",
       "学習データセットを入力にしてベースラインジョブを実行し、statistics.json と constraints.json を作る。",
-      "モニタリングジョブが出したメトリクスに Amazon CloudWatch アラームを設定し、Amazon SNS トピックに通知する。",
+      "モニタリングスケジュールの実行で出力され始めたメトリクスに Amazon CloudWatch アラームを設定し、Amazon SNS トピックに通知する。",
       "SHAP のベースラインを作成し、特徴量属性ドリフトのモニタリングジョブを定義する。"
     ],
     "answer": [
@@ -231,7 +231,7 @@
     ],
     "services": [
       "SageMaker Model Monitor",
-      "SageMaker Clarify"
+      "Amazon SageMaker Clarify"
     ],
     "difficulty": 1,
     "refs": [

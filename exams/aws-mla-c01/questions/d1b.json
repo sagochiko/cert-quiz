@@ -129,23 +129,24 @@
     "type": "single",
     "question": "ある EC 企業は、商品画像 20 万枚を自社の 12 のカテゴリーに分類するモデルを作るため、各画像にカテゴリーのラベルを 1 つずつ付ける必要があります。画像は公開済みの商品写真で、社外の作業者が見ても問題ありません。ラベル付けのコストと時間をできるだけ抑えたいと考えています。最も適したソリューションはどれですか。",
     "options": [
-      "Amazon SageMaker Ground Truth で画像分類 (単一ラベル) のラベリングジョブを作成し、Amazon Mechanical Turk の作業者を使い、自動データラベリングを有効にする。",
+      "Amazon SageMaker Ground Truth で画像分類 (単一ラベル) のラベリングジョブを作成し、AWS Marketplace のベンダーが管理するワークフォースを使い、自動データラベリングを有効にする。",
       "Ground Truth で社員だけのプライベートワークフォースを作成し、自動データラベリングを使わずに、すべての画像を人が分類する。",
       "Ground Truth のストリーミングラベリングジョブを作成し、自動データラベリングを有効にして、画像が届くたびに自動でラベルを付ける。",
       "Amazon Rekognition の DetectLabels API ですべての画像にラベルを付け、その結果をそのまま学習データにする。"
     ],
     "answer": [0],
-    "explanation": "決め手は「20 万枚と大量」「社外の作業者でもよい」「コストと時間を抑えたい」の 3 点です。Ground Truth の自動データラベリングは能動学習を使い、モデルが十分な精度で判定できる画像には自動でラベルを付け、難しい画像だけを人に回します。人だけでラベルを付けるよりコストと時間を減らせます。最小で 1,250 件、推奨は 5,000 件以上と、大量のデータに向いた機能で、画像分類 (単一ラベル) はその対象です。社外の作業者でよいので、Amazon Mechanical Turk の作業者を使えます。なお、Ground Truth は2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "explanation": "決め手は「20 万枚と大量」「社外の作業者でもよい」「コストと時間を抑えたい」の 3 点です。Ground Truth の自動データラベリングは能動学習を使い、モデルが十分な精度で判定できる画像には自動でラベルを付け、難しい画像だけを人に回します。人だけでラベルを付けるよりコストと時間を減らせます。最小で 1,250 件、推奨は 5,000 件以上と、大量のデータに向いた機能で、画像分類 (単一ラベル) はその対象です。社外の作業者でよいので、AWS Marketplace で契約したベンダーのワークフォースに人の作業を任せられます。なお、Ground Truth は2026年6月30日から保守モードに入り、新規の利用はできません。",
     "optionNotes": [
-      "大量の画像分類に自動データラベリングを使い、Mechanical Turk の作業者で人の作業も確保できるため、コストと時間を最も抑えられます。",
+      "大量の画像分類に自動データラベリングを使い、人が分類する分はベンダーのワークフォースに任せられるため、コストと時間を最も抑えられます。",
       "機密性の要件がないのに社員だけで全件を人手で分類するため、コストと時間がかかります。",
       "ストリーミングラベリングジョブは自動データラベリングに対応していません。",
       "DetectLabels は Rekognition が持つ一般的なラベルを返すもので、自社の 12 のカテゴリーに沿ったラベルにはなりません。"
     ],
-    "services": ["Amazon SageMaker Ground Truth", "Amazon Mechanical Turk"],
+    "services": ["Amazon SageMaker Ground Truth"],
     "difficulty": 2,
     "refs": [
-      { "title": "Automate data labeling", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sms-automated-labeling.html" }
+      { "title": "Automate data labeling", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sms-automated-labeling.html" },
+      { "title": "Subscribe to vendor workforces", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/sms-workforce-management-vendor.html" }
     ]
   },
   {

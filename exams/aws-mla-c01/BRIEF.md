@@ -17,6 +17,7 @@ AWS の公式ドキュメントで裏を取る。`mcp__plugin_aws-core_aws-mcp__
 - 出題範囲は C01。C02 で足された RAG、Bedrock のナレッジベース、ベクトルデータベース、エージェント、プロンプト管理は問わない。Amazon Bedrock 自体は C01 でも範囲内で、基盤モデルの選択やファインチューニングは問うてよい
 - Amazon SageMaker は Amazon SageMaker AI に名前が変わった(機械学習の部分)。Amazon SageMaker という名前は SageMaker Unified Studio を含む新しいサービスの名前になっている。問題文では「Amazon SageMaker AI」と書き、機能名は SageMaker Pipelines、SageMaker Model Registry のように書く
 - 2026年6月30日から、SageMaker AI の Clarify、Model Monitor、Ground Truth、Debugger、Augmented AI (A2I) が保守モードに入り、新規の利用ができない。C01 の試験ガイドにはこれらが残っていて、本番でも出る見込みが高いので、正解にしてよい。ただし解説の最後に1文で保守モードに入ったことを書く
+- Amazon Mechanical Turk は2026年9月29日に提供を終えた。Ground Truth の作業者はプライベートとベンダー(AWS Marketplace)の2種類だけなので、Mechanical Turk の作業者を選択肢に出さない
 - Amazon Forecast は2024年7月29日から新規受付を終えている(移行先は SageMaker Canvas)。Amazon Lookout for Vision、Lookout for Equipment は提供を終えた。これらを正解にしない
 - SageMaker Studio Classic ではなく、今の SageMaker Studio(JupyterLab、Code Editor)で書く。SageMaker Data Wrangler は SageMaker Canvas の中の機能になっている
 

@@ -46,7 +46,7 @@
       "高い学習率は重みを大きく動かすため、壊滅的忘却を強める方向に働きます。",
       "約款データだけの検証では一般的な能力の低下を検知できないため、忘却を防ぐ手段になりません。"
     ],
-    "services": ["Amazon SageMaker AI", "SageMaker JumpStart"],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker JumpStart"],
     "difficulty": 2,
     "refs": [
       { "title": "Full Fine-Tuning (FFT) on SageMaker AI Serverless Model Customization", "url": "https://aws.amazon.com/blogs/machine-learning/full-fine-tuning-fft-on-sagemaker-ai-serverless-model-customization/" },
@@ -58,7 +58,7 @@
     "domain": 2,
     "task": "2.2",
     "type": "multi",
-    "question": "ある製造業の企業は、SageMaker AI でトレーニングした画像分類モデルを、メモリの少ない推論環境で動かす必要があります。現在のモデルは FP32 の重みで大きすぎて載りません。精度の低下をできるだけ抑えながら、モデルのサイズを小さくしたいと考えています。この目的に合う方法はどれですか。(2つ選択)",
+    "question": "ある製造業の企業は、SageMaker AI でトレーニングした画像分類モデルを、メモリの少ない推論環境で動かす必要があります。現在のモデルは FP32 の重みで大きすぎて載りません。精度の低下をできるだけ抑えながら、モデルのサイズを小さくしたいと考えています。この目的に合う方法はどれですか。（2 つ選択）",
     "options": [
       "ハイパーパラメータを変更して隠れ層の数を増やす。",
       "重みを FP32 から FP16 や INT8 などの低い精度のデータ型に量子化する。",
@@ -300,7 +300,7 @@
       "ハイパーパラメータの影響はモデルの作り方に関する情報で、特徴量が予測に与えた影響は分かりません。",
       "正解です。ローカルの SHAP 値で申込者ごとの説明、グローバルの SHAP 値でモデル全体の傾向が得られます。"
     ],
-    "services": ["Amazon SageMaker AI", "SageMaker Clarify"],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker Clarify"],
     "difficulty": 2,
     "refs": [
       { "title": "Feature Attributions that Use Shapley Values", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-shapley-values.html" },
@@ -320,14 +320,14 @@
       "SageMaker 自動モデルチューニングの TrainingJobEarlyStoppingType を AUTO にしてジョブを実行する。"
     ],
     "answer": [2],
-    "explanation": "SageMaker Debugger は学習中のテンソル (勾配や損失など) を保存し、組み込みルールで収束の問題を検知します。VanishingGradient は勾配消失を、LossNotDecreasing は損失が十分な割合で下がっていないことを検知します。ルールには組み込みアクションを付けられ、StopTraining を指定するとルールが問題を見つけた時点でトレーニングジョブが止まります。ルールの評価はトレーニングとは別の処理ジョブで行われ、追加の仕組みを作る必要がないので、運用の手間が最も少なくなります。SageMaker Debugger は 2026年6月30日から保守モードに入り、新規の利用はできません。",
+    "explanation": "SageMaker Debugger は学習中のテンソル (勾配や損失など) を保存し、組み込みルールで収束の問題を検知します。VanishingGradient は勾配消失を、LossNotDecreasing は損失が十分な割合で下がっていないことを検知します。ルールには組み込みアクションを付けられ、StopTraining を指定するとルールが問題を見つけた時点でトレーニングジョブが止まります。ルールの評価はトレーニングとは別の処理ジョブで行われ、監視や停止の仕組みを自分で作る必要がないので、運用の手間が最も少なくなります。PyTorch 1.12 以降では、学習スクリプトにフックを登録する数行の変更が要ります。SageMaker Debugger は 2026年6月30日から保守モードに入り、新規の利用はできません。",
     "optionNotes": [
       "損失の停滞は拾えますが、勾配の値は調べられません。アラームと Lambda 関数を自分で作って保守する手間もかかります。",
       "Model Monitor はデプロイ後の推論を監視する機能で、学習中の勾配は調べられません。",
       "正解です。組み込みルールで勾配消失と損失の停滞を検知し、StopTraining アクションでジョブを自動で止められます。",
       "AMT の早期停止はチューニングジョブの中で目的指標の見込みが低いジョブを止める仕組みで、勾配消失を検知するものではありません。"
     ],
-    "services": ["Amazon SageMaker AI", "SageMaker Debugger"],
+    "services": ["Amazon SageMaker AI", "Amazon SageMaker Debugger"],
     "difficulty": 2,
     "refs": [
       { "title": "List of Debugger built-in rules", "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/debugger-built-in-rules.html" },
@@ -339,7 +339,7 @@
     "domain": 2,
     "task": "2.3",
     "type": "multi",
-    "question": "ある企業の ML チームは、複数のメンバーが SageMaker AI でモデルを繰り返しトレーニングしています。数か月後に監査で、ある時点のモデルがどのデータとハイパーパラメータで作られ、どの評価結果だったかを再現して示せるようにする必要があります。この要件を満たすために組み合わせる方法はどれですか。(2つ選択)",
+    "question": "ある企業の ML チームは、複数のメンバーが SageMaker AI でモデルを繰り返しトレーニングしています。数か月後に監査で、ある時点のモデルがどのデータとハイパーパラメータで作られ、どの評価結果だったかを再現して示せるようにする必要があります。この要件を満たすために組み合わせる方法はどれですか。（2 つ選択）",
     "options": [
       "マネージドスポットトレーニングを使い、トレーニングのコストを下げる。",
       "SageMaker AI のマネージド MLflow で、実行ごとのパラメータ、メトリクス、モデルのアーティファクトを記録する。",
